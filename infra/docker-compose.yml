@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - backend_data:/app/data
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///./data/nettwin.db}
+      - DATA_DIR=/app/data
+      - DEBUG=${DEBUG:-false}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # Frontend placeholder - to be implemented by Gemini
+  # frontend:
+  #   build:
+  #     context: ../frontend
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     - NEXT_PUBLIC_API_MODE=${NEXT_PUBLIC_API_MODE:-real}
+  #     - NEXT_PUBLIC_API_BASE_URL=http://backend:8000
+  #   depends_on:
+  #     - backend
+  #   restart: unless-stopped
+
+  # Optional PostgreSQL database - uncomment for production
+  # db:
+  #   image: postgres:15-alpine
+  #   ports:
+  #     - "5432:5432"
+  #   environment:
+  #     - POSTGRES_USER=nettwin
+  #     - POSTGRES_PASSWORD=nettwin_secret
+  #     - POSTGRES_DB=nettwin
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U nettwin"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   restart: unless-stopped
+
+volumes:
+  backend_data:
+  # postgres_data:

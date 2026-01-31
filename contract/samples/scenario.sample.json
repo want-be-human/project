@@ -1,0 +1,24 @@
+{
+  "version": "1.1",
+  "id": "b8c9d0e1-f2a3-4567-1234-890123456789",
+  "created_at": "2026-01-31T09:00:00Z",
+  "name": "ssh_bruteforce_demo",
+  "description": "Regression scenario for SSH brute-force detection. Validates that the system correctly identifies and alerts on SSH brute-force attack patterns.",
+  "pcap_ref": {
+    "pcap_id": "11111111-2222-3333-4444-555555555555"
+  },
+  "expectations": {
+    "min_alerts": 1,
+    "must_have": [
+      {
+        "type": "bruteforce",
+        "min_severity": "medium"
+      }
+    ],
+    "evidence_chain_contains": [
+      "feature:syn_count"
+    ],
+    "dry_run_required": true
+  },
+  "tags": ["regression", "demo", "ssh", "bruteforce"]
+}

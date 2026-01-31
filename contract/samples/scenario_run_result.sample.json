@@ -1,0 +1,48 @@
+{
+  "version": "1.1",
+  "id": "c9d0e1f2-a3b4-5678-2345-901234567890",
+  "created_at": "2026-01-31T11:10:00Z",
+  "scenario_id": "b8c9d0e1-f2a3-4567-1234-890123456789",
+  "status": "pass",
+  "checks": [
+    {
+      "name": "min_alerts",
+      "pass": true,
+      "details": {
+        "expected": 1,
+        "actual": 2
+      }
+    },
+    {
+      "name": "must_have_bruteforce",
+      "pass": true,
+      "details": {
+        "found_type": "bruteforce",
+        "found_severity": "high"
+      }
+    },
+    {
+      "name": "evidence_chain_contains",
+      "pass": true,
+      "details": {
+        "required": ["feature:syn_count"],
+        "found": ["feature:syn_count", "feature:iat_mean_ms"]
+      }
+    },
+    {
+      "name": "dry_run",
+      "pass": true,
+      "details": {
+        "dry_run_id": "f6a7b8c9-d0e1-2345-f012-678901234567",
+        "risk": 0.62,
+        "reachability_drop": 0.18
+      }
+    }
+  ],
+  "metrics": {
+    "alert_count": 2,
+    "high_severity_count": 1,
+    "avg_dry_run_risk": 0.55,
+    "processing_time_ms": 1523
+  }
+}

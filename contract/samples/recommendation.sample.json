@@ -1,0 +1,32 @@
+{
+  "version": "1.1",
+  "id": "d4e5f6a7-b8c9-0123-def0-456789012345",
+  "created_at": "2026-01-31T10:45:00Z",
+  "alert_id": "b2c3d4e5-f6a7-8901-bcde-f23456789012",
+  "actions": [
+    {
+      "title": "Temporary block source IP",
+      "action_type": "block_ip",
+      "target": "192.0.2.10",
+      "priority": 1,
+      "rationale": "Immediately stop ongoing brute-force attempts",
+      "risk": "May block legitimate traffic if IP is shared/NAT"
+    },
+    {
+      "title": "Rate limit SSH service",
+      "action_type": "rate_limit_service",
+      "target": "tcp/22",
+      "priority": 2,
+      "rationale": "Reduce impact of future brute-force attempts",
+      "risk": "May slow down legitimate remote access"
+    },
+    {
+      "title": "Enable SSH key-only authentication",
+      "action_type": "segment_subnet",
+      "target": "198.51.100.0/24",
+      "priority": 3,
+      "rationale": "Long-term hardening to prevent password-based attacks",
+      "risk": "Requires coordination with system administrators"
+    }
+  ]
+}
