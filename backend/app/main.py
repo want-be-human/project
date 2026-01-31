@@ -4,7 +4,6 @@ FastAPI main entry point.
 """
 
 from contextlib import asynccontextmanager
-from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,7 +13,18 @@ from app.core.config import settings
 from app.core.logging import setup_logging, get_logger
 from app.core.errors import AppException
 from app.api.deps import init_db
-from app.api.routers import health, pcaps
+from app.api.routers import (
+    health,
+    pcaps,
+    flows,
+    alerts,
+    topology,
+    agent,
+    evidence,
+    twin,
+    scenarios,
+    stream,
+)
 from app.schemas.common import ApiResponse
 
 logger = get_logger(__name__)
@@ -84,9 +94,17 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
     )
 
 
-# Register routers with API prefix
+# Register routers with API prefix - DOC C C6 path mapping
 app.include_router(health.router, prefix=settings.API_V1_PREFIX)
 app.include_router(pcaps.router, prefix=settings.API_V1_PREFIX)
+app.include_router(flows.router, prefix=settings.API_V1_PREFIX)
+app.include_router(alerts.router, prefix=settings.API_V1_PREFIX)
+app.include_router(topology.router, prefix=settings.API_V1_PREFIX)
+app.include_router(agent.router, prefix=settings.API_V1_PREFIX)
+app.include_router(evidence.router, prefix=settings.API_V1_PREFIX)
+app.include_router(twin.router, prefix=settings.API_V1_PREFIX)
+app.include_router(scenarios.router, prefix=settings.API_V1_PREFIX)
+app.include_router(stream.router, prefix=settings.API_V1_PREFIX)
 
 
 # Root redirect

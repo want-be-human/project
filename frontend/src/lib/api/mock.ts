@@ -4,27 +4,35 @@ import {
   EvidenceChain
 } from './types';
 
+// Using require to avoid top-level import issues if file types are not configured
+// In a real setup, we might need to configure next.config.js to allow importing outside src
+// or use a symlink. For now, assuming relative path works or we might need to adjust.
+// The relative path from frontend/src/lib/api to contract/samples is ../../../../../contract/samples
+// because: api -> lib (..) -> src (../..) -> frontend (../../..) -> project (../../../..) -> contract
+
+const loadSample = (name: string) => {
+    try {
+        // This is a dynamic require. taking a risk here for "Week 1" speed.
+        // If this fails in browser, we might need to create a script to copy samples to public/
+        // But let's try importing directly if we can. 
+        // Returning null for safe fallback.
+        return require(`../../../../../contract/samples/${name}`);
+    } catch (e) {
+        console.error(`Failed to load sample ${name}`, e);
+        return {};
+    }
+};
+
 // Static load to ensure bundler picks them up if possible
-// Use ../../../../contract/samples to reach project_root/contract/samples
-// @ts-ignore
 import flowSample from '../../../../contract/samples/flow.sample.json';
-// @ts-ignore
 import alertSample from '../../../../contract/samples/alert.sample.json';
-// @ts-ignore
 import graphSample from '../../../../contract/samples/graph.sample.json';
-// @ts-ignore
 import investigationSample from '../../../../contract/samples/investigation.sample.json';
-// @ts-ignore
 import recommendationSample from '../../../../contract/samples/recommendation.sample.json';
-// @ts-ignore
 import actionPlanSample from '../../../../contract/samples/actionplan.sample.json';
-// @ts-ignore
 import dryRunSample from '../../../../contract/samples/dryrun.sample.json';
-// @ts-ignore
 import evidenceChainSample from '../../../../contract/samples/evidencechain.sample.json';
-// @ts-ignore
 import scenarioSample from '../../../../contract/samples/scenario.sample.json';
-// @ts-ignore
 import scenarioRunResultSample from '../../../../contract/samples/scenario_run_result.sample.json';
 
 const mockPcap: PcapFile = {
@@ -84,6 +92,7 @@ export const mockApi = {
     },
 
     getEvidenceChain: async (id: string): Promise<EvidenceChain> => {
+        // contract types might differ slightly, casting to any for safety in mock
         return evidenceChainSample as unknown as EvidenceChain;
     },
 
