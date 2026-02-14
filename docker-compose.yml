@@ -1,0 +1,27 @@
+# NetTwin-SOC — root docker-compose (Week 1+)
+# Usage: docker-compose up --build
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - backend_data:/app/data
+    environment:
+      - DATABASE_URL=sqlite:///./data/nettwin.db
+      - DATA_DIR=/app/data
+      - DEBUG=false
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  backend_data:

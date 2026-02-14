@@ -8,15 +8,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy dependency files
-COPY pyproject.toml ./
-
-# Install Python dependencies
-RUN pip install --no-cache-dir pip --upgrade && \
-    pip install --no-cache-dir .
+# Copy and install Python dependencies
+COPY requirements.txt ./
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY app ./app
+COPY alembic ./alembic
+COPY alembic.ini ./
 
 # Create data directories
 RUN mkdir -p /app/data/pcaps

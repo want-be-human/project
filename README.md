@@ -84,3 +84,18 @@ pytest app/tests/
 ## License
 
 Proprietary - For competition/academic use only.
+
+🚀 启动方式
+本机启动
+cd backend
+pip install -r requirements.txt
+# 生成演示 PCAP（可选）
+python scripts/gen_demo_pcap.py
+# 启动
+set PYTHONPATH=.
+uvicorn app.main:app --host 127.0.0.1 --port 8000
+
+
+Docker 启动
+# 项目根目录
+docker-compose up --build
