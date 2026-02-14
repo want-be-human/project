@@ -88,9 +88,27 @@ export default function FlowDetailDrawer({ flow, onClose }: FlowDetailDrawerProp
 
           <section>
             <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-3">Extracted Features</h3>
-            <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg text-xs overflow-x-auto font-mono">
-              {JSON.stringify(flow.features, null, 2)}
-            </pre>
+            <div className="bg-gray-50 rounded-lg border border-gray-200 overflow-hidden">
+              <table className="min-w-full text-xs text-left">
+                <tbody className="divide-y divide-gray-200">
+                  {Object.entries(flow.features || {}).map(([key, value]) => (
+                    <tr key={key} className="hover:bg-gray-100">
+                      <td className="px-3 py-2 font-medium text-gray-600 bg-gray-100 w-1/3 break-all">{key}</td>
+                      <td className="px-3 py-2 font-mono text-gray-800 break-all">
+                        {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                      </td>
+                    </tr>
+                  ))}
+                  {(!flow.features || Object.keys(flow.features).length === 0) && (
+                    <tr>
+                      <td className="px-3 py-4 text-center text-gray-500" colSpan={2}>
+                        No features extracted
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </section>
         </div>
       </div>

@@ -47,6 +47,7 @@ export default function FlowsPage() {
 
   const handleFilterChange = (filters: any) => {
     // Client-side filtering for Mock Mode demo
+    // Note for Real Mode: pass these filters to api.listFlows(filters)
     let result = [...flows];
     if (filters.src_ip) {
       result = result.filter(f => f.src_ip.includes(filters.src_ip));
@@ -56,6 +57,12 @@ export default function FlowsPage() {
     }
     if (filters.proto) {
       result = result.filter(f => f.proto === filters.proto);
+    }
+    if (filters.min_score) {
+      const min = parseFloat(filters.min_score);
+      if (!isNaN(min)) {
+        result = result.filter(f => f.anomaly_score >= min);
+      }
     }
     setFilteredFlows(result);
   };
