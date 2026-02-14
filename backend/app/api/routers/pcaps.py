@@ -19,6 +19,8 @@ from app.schemas.common import ApiResponse
 from app.schemas.pcap import PcapFileSchema, PcapProcessRequest, PcapProcessResponse
 from app.services.ingestion.service import IngestionService
 from app.services.parsing.service import ParsingService
+from app.services.features.service import FeaturesService
+from app.services.detection.service import DetectionService
 
 logger = get_logger(__name__)
 
@@ -61,11 +63,26 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
         # Step 2: parse PCAP → flows
         parser = ParsingService()
         flow_dicts = parser.parse_to_flows(Path(pcap.storage_path), window_sec=window_sec)
-        pcap.progress = 50
+        pcap.progress = 40
         db.commit()
-        _broadcast("pcap.process.progress", {"pcap_id": pcap_id, "percent": 50})
+        _broadcast("pcap.process.progress", {"pcap_id": pcap_id, "percent": 40})
 
-        # Step 3: insert flows into DB
+        # Step 3: extract features for every flow
+        feat_svc = FeaturesService()
+        flow_dicts = feat_svc.extract_features_batch(flow_dicts)
+        pcap.progress = 55
+        db.commit()
+        _broadcast("pcap.process.progress", {"pcap_id": pcap_id, "percent": 55})
+
+        # Step 4: anomaly scoring (only when mode == flows_and_detect)
+        if mode == "flows_and_detect":
+            det_svc = DetectionService()
+            flow_dicts = det_svc.score_flows(flow_dicts)
+            pcap.progress = 70
+            db.commit()
+            _broadcast("pcap.process.progress", {"pcap_id": pcap_id, "percent": 70})
+
+        # Step 5: insert flows into DB
         for fd in flow_dicts:
             features_json = json.dumps(fd.get("features", {}))
             flow = Flow(
@@ -91,20 +108,18 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
             db.add(flow)
 
         db.flush()
-        pcap.progress = 80
+        pcap.progress = 85
         db.commit()
-        _broadcast("pcap.process.progress", {"pcap_id": pcap_id, "percent": 80})
+        _broadcast("pcap.process.progress", {"pcap_id": pcap_id, "percent": 85})
 
-        # Step 4: (flows_and_detect would run anomaly detection here – Week 3)
-
-        # Step 5: finalize
+        # Step 6: finalize
         flow_count = len(flow_dicts)
         pcap.status = "done"
         pcap.progress = 100
         pcap.flow_count = flow_count
-        pcap.alert_count = 0  # will be set by detection in Week 3+
+        pcap.alert_count = 0  # alerts are generated in Week 4
         db.commit()
-        logger.info(f"PCAP {pcap_id} processed: {flow_count} flows")
+        logger.info(f"PCAP {pcap_id} processed ({mode}): {flow_count} flows")
         _broadcast("pcap.process.progress", {"pcap_id": pcap_id, "percent": 100})
         _broadcast("pcap.process.done", {
             "pcap_id": pcap_id,

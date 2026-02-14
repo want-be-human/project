@@ -43,12 +43,18 @@ class FeaturesService:
         else:
             features["bytes_per_packet"] = 0
         
-        # Flow duration
+        # Flow duration (handles datetime objects *and* floats/epoch)
         ts_start = flow.get("ts_start")
         ts_end = flow.get("ts_end")
         if ts_start and ts_end:
-            duration = (ts_end - ts_start).total_seconds() * 1000 if hasattr(ts_start, 'total_seconds') else 0
-            features["flow_duration_ms"] = max(0, duration)
+            from datetime import datetime
+            if isinstance(ts_start, datetime) and isinstance(ts_end, datetime):
+                duration = (ts_end - ts_start).total_seconds() * 1000
+            elif isinstance(ts_start, (int, float)) and isinstance(ts_end, (int, float)):
+                duration = (ts_end - ts_start) * 1000
+            else:
+                duration = 0
+            features["flow_duration_ms"] = max(0, round(duration, 3))
         else:
             features["flow_duration_ms"] = 0
         
