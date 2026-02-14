@@ -72,7 +72,7 @@ export default function PcapListTable({ pcaps, onProcess, processingId }: PcapLi
                     ) : (
                       <Play className="w-3 h-3" />
                     )}
-                    Process
+                    Analyze
                   </button>
                 </td>
               </tr>

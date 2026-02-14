@@ -31,7 +31,7 @@ export default function PcapUploadPanel({ onUploadSuccess }: { onUploadSuccess: 
       </h2>
       <div 
         className={cn(
-          "border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer",
+          "relative border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer",
           isDragging ? "border-blue-500 bg-blue-50" : "border-gray-300 hover:border-gray-400",
           isUploading && "opacity-50 pointer-events-none"
         )}

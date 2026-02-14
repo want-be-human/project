@@ -57,6 +57,7 @@ export const mockApi = {
         return mockPcap;
     },
     processPcap: async (id: string, body: any): Promise<{accepted: true}> => {
+        await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate delay
         return { accepted: true };
     },
 
