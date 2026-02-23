@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
-import { Alert } from '@/lib/api/types';
+import { Alert, EvidenceChain } from '@/lib/api/types';
 import AlertEvidenceSection from '@/components/alerts/AlertEvidenceSection';
+import EvidenceChainView from '@/components/evidence/EvidenceChainView';
 import { ArrowLeft, Tag, Clock, ShieldAlert, Activity } from 'lucide-react';
 import { format } from 'date-fns';
 import { clsx } from 'clsx';
@@ -15,21 +16,26 @@ export default function AlertDetailPage() {
   const id = params.id as string;
   
   const [alert, setAlert] = useState<Alert | null>(null);
+  const [evidenceChain, setEvidenceChain] = useState<EvidenceChain | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchAlert = async () => {
+    const fetchData = async () => {
       try {
-        const data = await api.getAlert(id);
-        setAlert(data);
+        const [alertData, chainData] = await Promise.all([
+          api.getAlert(id),
+          api.getEvidenceChain(id)
+        ]);
+        setAlert(alertData);
+        setEvidenceChain(chainData);
       } catch (e: any) {
-        setError(e.message || 'Failed to load alert');
+        setError(e.message || 'Failed to load alert details');
       } finally {
         setLoading(false);
       }
     };
-    fetchAlert();
+    fetchData();
   }, [id]);
 
   const handleStatusChange = async (newStatus: string) => {
@@ -143,13 +149,27 @@ export default function AlertDetailPage() {
       {/* Evidence Section */}
       <AlertEvidenceSection alert={alert} />
 
-      {/* Placeholders for Week 5/7 */}
-      <div className="bg-gray-50 rounded-lg border border-dashed border-gray-300 p-8 text-center text-gray-500 mb-6">
-        <Activity className="w-8 h-8 mx-auto mb-3 text-gray-400" />
-        <h3 className="text-lg font-medium text-gray-900 mb-1">Evidence Chain & Topology</h3>
-        <p className="text-sm">Will be implemented in Week 5/6.</p>
+      {/* Evidence Chain (Week 5) */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-bold text-gray-900">Evidence Chain</h2>
+          <button 
+            onClick={() => router.push(`/topology?highlightAlertId=${alert.id}`)}
+            className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+          >
+            View in 3D Topology →
+          </button>
+        </div>
+        {evidenceChain ? (
+          <EvidenceChainView chain={evidenceChain} />
+        ) : (
+          <div className="text-center py-12 text-gray-500 bg-gray-50 rounded border border-dashed border-gray-300">
+            No evidence chain available for this alert.
+          </div>
+        )}
       </div>
 
+      {/* Placeholders for Week 7 */}
       <div className="bg-gray-50 rounded-lg border border-dashed border-gray-300 p-8 text-center text-gray-500">
         <ShieldAlert className="w-8 h-8 mx-auto mb-3 text-gray-400" />
         <h3 className="text-lg font-medium text-gray-900 mb-1">Agent Investigation & Dry-Run</h3>
