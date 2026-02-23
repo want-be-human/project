@@ -69,6 +69,13 @@ class EvidenceService:
         
         # Add feature nodes
         top_features = evidence.get("top_features", [])
+
+        # --- Fallback: if top_features empty, extract from DB Flow records ---
+        if not top_features:
+            top_features = self._extract_features_from_flows(
+                evidence.get("flow_ids", [])
+            )
+
         for feature in top_features[:5]:  # Limit to top 5
             feat_node_id = f"feat:{feature['name']}"
             nodes.append(EvidenceNode(
@@ -185,3 +192,54 @@ class EvidenceService:
         
         logger.info(f"Built evidence chain {chain_id} for alert {alert.id}")
         return chain
+
+    # ------------------------------------------------------------------
+    # Fallback feature extraction
+    # ------------------------------------------------------------------
+
+    # Features worth surfacing, ordered by relevance for anomaly explanation
+    _FEATURE_CANDIDATES = [
+        "syn_count", "rst_ratio", "total_packets", "total_bytes",
+        "bytes_per_packet", "flow_duration_ms", "iat_mean_ms", "iat_std_ms",
+        "fwd_ratio_packets", "fwd_ratio_bytes", "psh_count", "fin_count",
+        "avg_pkt_size_fwd", "avg_pkt_size_bwd", "syn_ratio", "rst_count",
+    ]
+
+    def _extract_features_from_flows(self, flow_ids: list[str]) -> list[dict]:
+        """
+        Pull features directly from DB Flow records and pick the top-3
+        by absolute deviation.  Used as evidence-chain fallback when
+        AlertingService stored no top_features.
+        """
+        if not flow_ids:
+            return []
+
+        from app.models.flow import Flow
+
+        flows = (
+            self.db.query(Flow)
+            .filter(Flow.id.in_(flow_ids[:10]))
+            .all()
+        )
+        if not flows:
+            return []
+
+        # Aggregate max absolute value per candidate feature
+        agg: dict[str, float] = {}
+        for flow in flows:
+            feat_data = json.loads(flow.features) if isinstance(flow.features, str) else flow.features
+            for name in self._FEATURE_CANDIDATES:
+                val = feat_data.get(name)
+                if isinstance(val, (int, float)):
+                    agg[name] = max(agg.get(name, 0.0), abs(val))
+
+        # Sort descending by aggregated value, take top 3
+        ranked = sorted(agg.items(), key=lambda kv: kv[1], reverse=True)
+        result = []
+        for name, value in ranked[:3]:
+            result.append({
+                "name": name,
+                "value": round(value, 4),
+                "direction": "high" if value > 0 else "low",
+            })
+        return result

@@ -272,5 +272,32 @@ class AlertingService:
                 "value": round(max(rst_ratios), 2),
                 "direction": "high",
             })
+
+        # --- Additional candidates with lower thresholds ---
+        # bytes_per_packet
+        bpp = feature_values.get("bytes_per_packet", [])
+        if bpp and max(bpp) > 0:
+            top_features.append({
+                "name": "bytes_per_packet",
+                "value": round(max(bpp), 2),
+                "direction": "high",
+            })
+        # flow_duration_ms (very short / scan-like)
+        dur = feature_values.get("flow_duration_ms", [])
+        if dur:
+            min_dur = min(dur)
+            top_features.append({
+                "name": "flow_duration_ms",
+                "value": round(min_dur, 2),
+                "direction": "low" if min_dur < 100 else "high",
+            })
+        # fwd_ratio_packets (unidirectional traffic)
+        fwd = feature_values.get("fwd_ratio_packets", [])
+        if fwd and max(fwd) >= 0.9:
+            top_features.append({
+                "name": "fwd_ratio_packets",
+                "value": round(max(fwd), 2),
+                "direction": "high",
+            })
         
         return top_features[:5]  # Limit to 5

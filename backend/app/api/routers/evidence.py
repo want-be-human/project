@@ -1,12 +1,14 @@
 """
 Evidence Chain router.
-GET /alerts/{alert_id}/evidence-chain
+GET /alerts/{alert_id}/evidence-chain — DOC C C6.6
 """
 
 from fastapi import APIRouter, Depends, Path
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
+from app.core.errors import NotFoundError
+from app.models.alert import Alert
 from app.schemas.common import ApiResponse
 from app.schemas.evidence import EvidenceChainSchema
 
@@ -26,15 +28,18 @@ async def get_evidence_chain(
     """
     Build and return the evidence chain for an alert.
     
-    The evidence chain links:
-    - Alert to supporting flows
-    - Flows to explaining features
-    - Alert to hypothesis (if investigation exists)
-    - Hypothesis to recommended actions
-    - Actions to dry-run results
-    
-    Returns EvidenceChain with nodes and edges for visualization.
+    Always returns at least alert + flow + feature nodes
+    per DOC F Week-5 DoD requirement.
     """
-    # TODO: Implement evidence chain building
-    from app.core.errors import NotFoundError
-    raise NotFoundError(resource="Alert", resource_id=alert_id)
+    alert = db.get(Alert, alert_id)
+    if not alert:
+        raise NotFoundError(
+            message=f"Alert not found: {alert_id}",
+            details={"alert_id": alert_id},
+        )
+
+    from app.services.evidence import EvidenceService
+
+    svc = EvidenceService(db)
+    chain = svc.build_evidence_chain(alert)
+    return ApiResponse.success(chain)

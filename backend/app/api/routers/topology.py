@@ -1,14 +1,15 @@
 """
 Topology router.
-GET /topology/graph
+GET /topology/graph — DOC C C6.7
 """
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
+from app.core.utils import iso_to_datetime
 from app.schemas.common import ApiResponse
-from app.schemas.topology import GraphResponseSchema, GraphMeta
+from app.schemas.topology import GraphResponseSchema
 
 router = APIRouter(prefix="/topology", tags=["topology"])
 
@@ -35,11 +36,12 @@ async def get_topology_graph(
     
     Returns GraphResponse with nodes, edges, and metadata.
     """
-    # TODO: Implement topology graph building
-    graph = GraphResponseSchema(
-        version="1.1",
-        nodes=[],
-        edges=[],
-        meta=GraphMeta(start=start, end=end, mode=mode),
+    from app.services.topology import TopologyService
+
+    svc = TopologyService(db)
+    graph = svc.build_graph(
+        start=iso_to_datetime(start),
+        end=iso_to_datetime(end),
+        mode=mode,
     )
     return ApiResponse.success(graph)
