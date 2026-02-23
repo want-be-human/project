@@ -1,17 +1,125 @@
 """
 Alerts router.
 GET /alerts, GET /alerts/{alert_id}, PATCH /alerts/{alert_id}
+Implements DOC C C6.4.
 """
 
+import asyncio
+import json
+from typing import cast
+
 from fastapi import APIRouter, Depends, Query, Path
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
+from app.core.errors import NotFoundError
+from app.core.utils import datetime_to_iso, iso_to_datetime
+from app.models.alert import Alert
 from app.schemas.common import ApiResponse
-from app.schemas.alert import AlertSchema, AlertUpdateRequest
+from app.schemas.alert import (
+    AlertSchema,
+    AlertUpdateRequest,
+    TimeWindow,
+    AlertEntities,
+    PrimaryService,
+    AlertEvidence,
+    AlertAggregation,
+    AlertAgent,
+    AlertTwin,
+    TopFlowSummary,
+    TopFeature,
+    PcapRef,
+)
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
+
+# ---------- helper: ORM → Pydantic ----------
+
+def _parse_json(text: str, fallback=None):
+    """Safely parse a JSON TEXT column."""
+    if not text:
+        return fallback if fallback is not None else {}
+    try:
+        return json.loads(text)
+    except (json.JSONDecodeError, TypeError):
+        return fallback if fallback is not None else {}
+
+
+def _alert_to_schema(alert: Alert) -> AlertSchema:
+    """Convert Alert ORM to AlertSchema (DOC C C1.3)."""
+    evidence_raw = _parse_json(alert.evidence, {})
+    aggregation_raw = _parse_json(alert.aggregation, {})
+    agent_raw = _parse_json(alert.agent, {})
+    twin_raw = _parse_json(alert.twin, {})
+    tags_raw = _parse_json(alert.tags, [])
+
+    # Build nested evidence
+    top_flows = [
+        TopFlowSummary(
+            flow_id=tf.get("flow_id", ""),
+            anomaly_score=tf.get("anomaly_score", 0),
+            summary=tf.get("summary", ""),
+        )
+        for tf in evidence_raw.get("top_flows", [])
+    ]
+    top_features = [
+        TopFeature(
+            name=feat.get("name", ""),
+            value=feat.get("value", 0),
+            direction=feat.get("direction", "high"),
+        )
+        for feat in evidence_raw.get("top_features", [])
+    ]
+    pcap_ref_raw = evidence_raw.get("pcap_ref")
+    pcap_ref = PcapRef(**pcap_ref_raw) if pcap_ref_raw else None
+
+    return AlertSchema(
+        version=alert.version,
+        id=alert.id,
+        created_at=datetime_to_iso(alert.created_at),
+        severity=cast(str, alert.severity),
+        status=cast(str, alert.status),
+        type=cast(str, alert.type),
+        time_window=TimeWindow(
+            start=datetime_to_iso(alert.time_window_start),
+            end=datetime_to_iso(alert.time_window_end),
+        ),
+        entities=AlertEntities(
+            primary_src_ip=alert.primary_src_ip,
+            primary_dst_ip=alert.primary_dst_ip,
+            primary_service=PrimaryService(
+                proto=alert.primary_proto,
+                dst_port=alert.primary_dst_port,
+            ),
+        ),
+        evidence=AlertEvidence(
+            flow_ids=evidence_raw.get("flow_ids", []),
+            top_flows=top_flows,
+            top_features=top_features,
+            pcap_ref=pcap_ref,
+        ),
+        aggregation=AlertAggregation(
+            rule=aggregation_raw.get("rule", ""),
+            group_key=aggregation_raw.get("group_key", ""),
+            count_flows=aggregation_raw.get("count_flows", 0),
+        ),
+        agent=AlertAgent(
+            triage_summary=agent_raw.get("triage_summary"),
+            investigation_id=agent_raw.get("investigation_id"),
+            recommendation_id=agent_raw.get("recommendation_id"),
+        ),
+        twin=AlertTwin(
+            plan_id=twin_raw.get("plan_id"),
+            dry_run_id=twin_raw.get("dry_run_id"),
+        ),
+        tags=tags_raw if isinstance(tags_raw, list) else [],
+        notes=alert.notes or "",
+    )
+
+
+# ---------- endpoints ----------
 
 @router.get(
     "",
@@ -29,11 +137,23 @@ async def list_alerts(
     offset: int = Query(default=0, ge=0, description="Skip count"),
     db: Session = Depends(get_db),
 ) -> ApiResponse[list[AlertSchema]]:
-    """
-    List alert records with optional filters.
-    """
-    # TODO: Implement alert listing with filters
-    return ApiResponse.success([])
+    """List alert records with optional filters."""
+    stmt = select(Alert)
+
+    if status:
+        stmt = stmt.where(Alert.status == status)
+    if severity:
+        stmt = stmt.where(Alert.severity == severity)
+    if type:
+        stmt = stmt.where(Alert.type == type)
+    if start:
+        stmt = stmt.where(Alert.time_window_start >= iso_to_datetime(start))
+    if end:
+        stmt = stmt.where(Alert.time_window_end <= iso_to_datetime(end))
+
+    stmt = stmt.order_by(Alert.created_at.desc()).offset(offset).limit(limit)
+    alerts = db.execute(stmt).scalars().all()
+    return ApiResponse.success([_alert_to_schema(a) for a in alerts])
 
 
 @router.get(
@@ -46,12 +166,14 @@ async def get_alert(
     alert_id: str = Path(..., description="Alert ID"),
     db: Session = Depends(get_db),
 ) -> ApiResponse[AlertSchema]:
-    """
-    Get alert by ID.
-    """
-    # TODO: Implement alert retrieval
-    from app.core.errors import NotFoundError
-    raise NotFoundError(resource="Alert", resource_id=alert_id)
+    """Get alert by ID with full evidence/top_flows/top_features."""
+    alert = db.get(Alert, alert_id)
+    if not alert:
+        raise NotFoundError(
+            message=f"Alert not found: {alert_id}",
+            details={"alert_id": alert_id},
+        )
+    return ApiResponse.success(_alert_to_schema(alert))
 
 
 @router.patch(
@@ -66,14 +188,42 @@ async def update_alert(
     db: Session = Depends(get_db),
 ) -> ApiResponse[AlertSchema]:
     """
-    Update alert fields.
-    
-    Allowed fields:
-    - status: new, triaged, investigating, resolved, false_positive
-    - severity: low, medium, high, critical
-    - tags: list of strings
-    - notes: string
+    Partial update of alert fields.
+    Broadcasts WS alert.updated on success.
     """
-    # TODO: Implement alert update
-    from app.core.errors import NotFoundError
-    raise NotFoundError(resource="Alert", resource_id=alert_id)
+    alert = db.get(Alert, alert_id)
+    if not alert:
+        raise NotFoundError(
+            message=f"Alert not found: {alert_id}",
+            details={"alert_id": alert_id},
+        )
+
+    # Apply partial updates
+    if request.status is not None:
+        alert.status = request.status
+    if request.severity is not None:
+        alert.severity = request.severity
+    if request.tags is not None:
+        alert.tags = json.dumps(request.tags)
+    if request.notes is not None:
+        alert.notes = request.notes
+
+    db.commit()
+    db.refresh(alert)
+
+    # WS broadcast alert.updated (fire-and-forget)
+    try:
+        from app.api.routers.stream import manager
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            asyncio.run_coroutine_threadsafe(
+                manager.broadcast("alert.updated", {
+                    "alert_id": alert.id,
+                    "status": alert.status,
+                }),
+                loop,
+            )
+    except RuntimeError:
+        pass
+
+    return ApiResponse.success(_alert_to_schema(alert))

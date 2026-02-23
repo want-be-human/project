@@ -21,6 +21,8 @@ from app.services.ingestion.service import IngestionService
 from app.services.parsing.service import ParsingService
 from app.services.features.service import FeaturesService
 from app.services.detection.service import DetectionService
+from app.services.alerting.service import AlertingService
+from app.models.alert import Alert, alert_flows
 
 logger = get_logger(__name__)
 
@@ -112,19 +114,68 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
         db.commit()
         _broadcast("pcap.process.progress", {"pcap_id": pcap_id, "percent": 85})
 
-        # Step 6: finalize
+        # Step 6: generate alerts (only when mode == flows_and_detect)
+        alert_count = 0
+        if mode == "flows_and_detect":
+            alert_svc = AlertingService(score_threshold=0.7, window_sec=window_sec)
+            alert_dicts = alert_svc.generate_alerts(flow_dicts, pcap_id)
+            for ad in alert_dicts:
+                flow_ids_for_alert = ad.pop("_flow_ids", [])
+                alert_obj = Alert(
+                    id=ad["id"],
+                    version=ad.get("version", "1.1"),
+                    created_at=ad["created_at"],
+                    severity=ad["severity"],
+                    status=ad["status"],
+                    type=ad["type"],
+                    time_window_start=ad["time_window_start"],
+                    time_window_end=ad["time_window_end"],
+                    primary_src_ip=ad["primary_src_ip"],
+                    primary_dst_ip=ad["primary_dst_ip"],
+                    primary_proto=ad["primary_proto"],
+                    primary_dst_port=ad["primary_dst_port"],
+                    evidence=ad["evidence"],
+                    aggregation=ad["aggregation"],
+                    agent=ad["agent"],
+                    twin=ad["twin"],
+                    tags=ad["tags"],
+                    notes=ad.get("notes", ""),
+                )
+                db.add(alert_obj)
+                db.flush()
+                # Insert alert_flows associations
+                for fid in flow_ids_for_alert:
+                    db.execute(
+                        alert_flows.insert().values(
+                            alert_id=ad["id"],
+                            flow_id=fid,
+                            role="top",
+                        )
+                    )
+                # WS: alert.created
+                _broadcast("alert.created", {
+                    "alert_id": ad["id"],
+                    "severity": ad["severity"],
+                })
+            alert_count = len(alert_dicts)
+            db.commit()
+            pcap.progress = 95
+            db.commit()
+            _broadcast("pcap.process.progress", {"pcap_id": pcap_id, "percent": 95})
+
+        # Step 7: finalize
         flow_count = len(flow_dicts)
         pcap.status = "done"
         pcap.progress = 100
         pcap.flow_count = flow_count
-        pcap.alert_count = 0  # alerts are generated in Week 4
+        pcap.alert_count = alert_count
         db.commit()
-        logger.info(f"PCAP {pcap_id} processed ({mode}): {flow_count} flows")
+        logger.info(f"PCAP {pcap_id} processed ({mode}): {flow_count} flows, {alert_count} alerts")
         _broadcast("pcap.process.progress", {"pcap_id": pcap_id, "percent": 100})
         _broadcast("pcap.process.done", {
             "pcap_id": pcap_id,
             "flow_count": flow_count,
-            "alert_count": 0,
+            "alert_count": alert_count,
         })
 
     except Exception as exc:
