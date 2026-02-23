@@ -1,10 +1,9 @@
 import type { NextConfig } from "next";
+import path from 'path';
 
 const nextConfig: NextConfig = {
-  experimental: {
-    turbo: {
-      root: process.cwd(),
-    },
+  turbopack: {
+    root: path.resolve(__dirname, '..'),
   },
 };
 

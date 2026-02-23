@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 interface FlowFilters {
   src_ip?: string;
@@ -14,16 +14,13 @@ interface FlowFilterBarProps {
 export default function FlowFilterBar({ onFilterChange }: FlowFilterBarProps) {
   const [filters, setFilters] = useState<FlowFilters>({});
 
-  // Notify parent whenever filters change
-  useEffect(() => {
-    onFilterChange(filters);
-  }, [filters, onFilterChange]);
-
   const updateFilter = (key: keyof FlowFilters, value: string) => {
-    setFilters(prev => ({
-      ...prev,
-      [key]: value || undefined // Remove key if empty
-    }));
+    const newFilters = {
+      ...filters,
+      [key]: value || undefined
+    };
+    setFilters(newFilters);
+    onFilterChange(newFilters);
   };
 
   return (

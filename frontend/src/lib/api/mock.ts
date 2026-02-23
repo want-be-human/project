@@ -4,26 +4,7 @@ import {
   EvidenceChain
 } from './types';
 
-// Using require to avoid top-level import issues if file types are not configured
-// In a real setup, we might need to configure next.config.js to allow importing outside src
-// or use a symlink. For now, assuming relative path works or we might need to adjust.
-// The relative path from frontend/src/lib/api to contract/samples is ../../../../../contract/samples
-// because: api -> lib (..) -> src (../..) -> frontend (../../..) -> project (../../../..) -> contract
-
-const loadSample = (name: string) => {
-    try {
-        // This is a dynamic require. taking a risk here for "Week 1" speed.
-        // If this fails in browser, we might need to create a script to copy samples to public/
-        // But let's try importing directly if we can. 
-        // Returning null for safe fallback.
-        return require(`../../../../../contract/samples/${name}`);
-    } catch (e) {
-        console.error(`Failed to load sample ${name}`, e);
-        return {};
-    }
-};
-
-// Static load to ensure bundler picks them up if possible
+// Static imports for contract sample data
 import flowSample from '../../../../contract/samples/flow.sample.json';
 import alertSample from '../../../../contract/samples/alert.sample.json';
 import graphSample from '../../../../contract/samples/graph.sample.json';
@@ -34,6 +15,35 @@ import dryRunSample from '../../../../contract/samples/dryrun.sample.json';
 import evidenceChainSample from '../../../../contract/samples/evidencechain.sample.json';
 import scenarioSample from '../../../../contract/samples/scenario.sample.json';
 import scenarioRunResultSample from '../../../../contract/samples/scenario_run_result.sample.json';
+
+// ── In-memory store (survives SPA navigation, resets on full page reload) ──
+
+function initAlertStore(): Alert[] {
+    const base = alertSample as unknown as Alert;
+    return Array.from({ length: 5 }).map((_, i) => ({
+        ...base,
+        id: `${base.id}-${i}`,
+        severity: (['low', 'medium', 'high', 'critical'] as const)[i % 4] as any,
+        status: (['new', 'triaged', 'investigating', 'resolved', 'false_positive'] as const)[i % 5] as any,
+        created_at: new Date(new Date(base.created_at).getTime() + i * 60000).toISOString(),
+    }));
+}
+
+function initFlowStore(): FlowRecord[] {
+    const base = flowSample as unknown as FlowRecord;
+    return Array.from({ length: 10 }).map((_, i) => ({
+        ...base,
+        id: `${base.id}-${i}`,
+        src_port: base.src_port + i,
+        anomaly_score: parseFloat((Math.random()).toFixed(2)),
+        ts_start: new Date(new Date(base.ts_start).getTime() + i * 1000).toISOString(),
+    }));
+}
+
+const store = {
+    alerts: initAlertStore(),
+    flows: initFlowStore(),
+};
 
 const mockPcap: PcapFile = {
     id: "11111111-2222-3333-4444-555555555555",
@@ -62,20 +72,25 @@ export const mockApi = {
     },
 
     listFlows: async (params: any): Promise<FlowRecord[]> => {
-        return [flowSample as unknown as FlowRecord];
+        return store.flows;
     },
     getFlow: async (id: string): Promise<FlowRecord> => {
-        return flowSample as unknown as FlowRecord;
+        return store.flows.find(f => f.id === id) || store.flows[0];
     },
 
     listAlerts: async (params: any): Promise<Alert[]> => {
-        return [alertSample as unknown as Alert];
+        return store.alerts;
     },
     getAlert: async (id: string): Promise<Alert> => {
-        return alertSample as unknown as Alert;
+        return store.alerts.find(a => a.id === id) || store.alerts[0];
     },
     patchAlert: async (id: string, patch: Partial<Alert>): Promise<Alert> => {
-        return { ...alertSample as unknown as Alert, ...patch };
+        const idx = store.alerts.findIndex(a => a.id === id);
+        if (idx !== -1) {
+            store.alerts[idx] = { ...store.alerts[idx], ...patch };
+            return store.alerts[idx];
+        }
+        return { ...store.alerts[0], ...patch };
     },
 
     getGraph: async (params: any): Promise<GraphResponse> => {
@@ -93,7 +108,6 @@ export const mockApi = {
     },
 
     getEvidenceChain: async (id: string): Promise<EvidenceChain> => {
-        // contract types might differ slightly, casting to any for safety in mock
         return evidenceChainSample as unknown as EvidenceChain;
     },
 
