@@ -93,6 +93,11 @@ export interface GraphResponse {
   version: string;
   nodes: GraphNode[];
   edges: GraphEdge[];
+  meta: {
+    start: string;
+    end: string;
+    mode: string;
+  };
 }
 
 export interface EvidenceChain {

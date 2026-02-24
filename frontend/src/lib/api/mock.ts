@@ -1,5 +1,5 @@
 import { 
-  PcapFile, FlowRecord, Alert, GraphResponse, Investigation, 
+  PcapFile, FlowRecord, Alert, GraphResponse, GraphNode, GraphEdge, Investigation, 
   Recommendation, ActionPlan, DryRunResult, Scenario, ScenarioRunResult,
   EvidenceChain
 } from './types';
@@ -94,7 +94,95 @@ export const mockApi = {
     },
 
     getGraph: async (params: any): Promise<GraphResponse> => {
-        return graphSample as unknown as GraphResponse;
+        const raw = graphSample as any;
+        // Normalize edges: sample has proto/dst_port, types expect protocols/services
+        const normalizeEdges = (edges: any[]): GraphEdge[] =>
+            edges.map((e: any) => ({
+                id: e.id,
+                source: e.source,
+                target: e.target,
+                weight: e.weight,
+                protocols: e.protocols ?? (e.proto ? [e.proto] : []),
+                services: e.services ?? (e.proto && e.dst_port ? [{ proto: e.proto, port: e.dst_port }] : []),
+                alert_ids: e.alert_ids ?? [],
+                activeIntervals: e.activeIntervals ?? [],
+            }));
+
+        const mode = params?.mode ?? 'ip';
+        if (mode === 'subnet') {
+            // Aggregate IP nodes into /24 subnets
+            const subnetOf = (id: string) => {
+                const m = id.match(/(\d+\.\d+\.\d+)\.\d+/);
+                return m ? `subnet:${m[1]}.0/24` : id;
+            };
+            const subnetMap = new Map<string, GraphNode>();
+            for (const n of raw.nodes) {
+                const sid = subnetOf(n.id);
+                const existing = subnetMap.get(sid);
+                subnetMap.set(sid, {
+                    id: sid,
+                    label: sid.replace('subnet:', ''),
+                    type: 'subnet',
+                    risk: existing ? Math.max(existing.risk, n.risk) : n.risk,
+                });
+            }
+            // Remap edges
+            const edgeKey = (s: string, t: string) => `${s}|${t}`;
+            const edgeAgg = new Map<string, any>();
+            for (const e of raw.edges) {
+                const ss = subnetOf(e.source);
+                const st = subnetOf(e.target);
+                if (ss === st) continue; // skip intra-subnet
+                const key = edgeKey(ss, st);
+                const existing = edgeAgg.get(key);
+                if (existing) {
+                    existing.weight += e.weight;
+                    if (e.proto && !existing._protos.has(e.proto)) existing._protos.add(e.proto);
+                    if (e.alert_ids) existing.alert_ids.push(...e.alert_ids);
+                    if (e.activeIntervals) existing.activeIntervals.push(...e.activeIntervals);
+                    if (e.proto && e.dst_port) existing._services.set(`${e.proto}/${e.dst_port}`, { proto: e.proto, port: e.dst_port });
+                } else {
+                    const protos = new Set<string>();
+                    if (e.proto) protos.add(e.proto);
+                    const services = new Map<string, { proto: string; port: number }>();
+                    if (e.proto && e.dst_port) services.set(`${e.proto}/${e.dst_port}`, { proto: e.proto, port: e.dst_port });
+                    edgeAgg.set(key, {
+                        id: `se-${edgeAgg.size + 1}`,
+                        source: ss,
+                        target: st,
+                        weight: e.weight,
+                        alert_ids: [...(e.alert_ids ?? [])],
+                        activeIntervals: [...(e.activeIntervals ?? [])],
+                        _protos: protos,
+                        _services: services,
+                    });
+                }
+            }
+            const subnetEdges: GraphEdge[] = Array.from(edgeAgg.values()).map(e => ({
+                id: e.id,
+                source: e.source,
+                target: e.target,
+                weight: e.weight,
+                protocols: Array.from(e._protos),
+                services: Array.from(e._services.values()),
+                alert_ids: e.alert_ids,
+                activeIntervals: e.activeIntervals,
+            }));
+            return {
+                version: raw.version,
+                nodes: Array.from(subnetMap.values()),
+                edges: subnetEdges,
+                meta: { ...raw.meta, mode: 'subnet' },
+            };
+        }
+
+        // IP mode: return normalized data
+        return {
+            version: raw.version,
+            nodes: raw.nodes as GraphNode[],
+            edges: normalizeEdges(raw.edges),
+            meta: raw.meta,
+        };
     },
 
     triage: async (id: string, body: any): Promise<{triage_summary: string}> => {

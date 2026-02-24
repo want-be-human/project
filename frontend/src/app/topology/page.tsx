@@ -1,128 +1,139 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { api } from '@/lib/api';
-import { GraphResponse } from '@/lib/api/types';
-import { Activity, RefreshCw, Clock, Layers } from 'lucide-react';
-import { format } from 'date-fns';
+import { GraphResponse, GraphNode, GraphEdge } from '@/lib/api/types';
+import { RefreshCw } from 'lucide-react';
+import TopologyToolbar from '@/components/topology/TopologyToolbar';
+import TimeSlider from '@/components/topology/TimeSlider';
+import SideInspector from '@/components/topology/SideInspector';
 
-export default function TopologyPage() {
+// Dynamic import for 3D canvas (SSR-incompatible)
+const Topology3D = dynamic(() => import('@/components/topology/Topology3D'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex-grow flex items-center justify-center bg-slate-50">
+      <RefreshCw className="w-6 h-6 animate-spin text-gray-400" />
+    </div>
+  ),
+});
+
+function TopologyInner() {
+  const searchParams = useSearchParams();
+  const highlightAlertId = searchParams.get('highlightAlertId');
+
   const [graph, setGraph] = useState<GraphResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<'ip' | 'subnet'>('ip');
+  const [currentTime, setCurrentTime] = useState(0);
 
-  const fetchGraph = async () => {
+  // Selection state for SideInspector
+  const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
+  const [selectedEdge, setSelectedEdge] = useState<GraphEdge | null>(null);
+
+  const fetchGraph = useCallback(async () => {
     setLoading(true);
     try {
       const data = await api.getGraph({ mode });
       setGraph(data);
+      // Initialize currentTime to the start of the data window
+      if (data.meta?.start) {
+        setCurrentTime(new Date(data.meta.start).getTime());
+      }
     } catch (e) {
-      console.error("Failed to load topology", e);
+      console.error('Failed to load topology', e);
     } finally {
       setLoading(false);
     }
-  };
+  }, [mode]);
 
   useEffect(() => {
     fetchGraph();
-  }, [mode]);
+  }, [fetchGraph]);
+
+  const startTime = graph?.meta?.start ? new Date(graph.meta.start).getTime() : 0;
+  const endTime = graph?.meta?.end ? new Date(graph.meta.end).getTime() : 0;
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedNode(null);
+    setSelectedEdge(null);
+  }, []);
 
   return (
-    <div className="max-w-7xl mx-auto h-[calc(100vh-100px)] flex flex-col">
-      <div className="flex justify-between items-center mb-6 shrink-0">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Network Topology</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            2D/3D visualization of network entities and traffic flows.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="bg-white border border-gray-200 rounded-md p-1 flex text-sm">
-            <button 
-              onClick={() => setMode('ip')}
-              className={`px-3 py-1 rounded ${mode === 'ip' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-500 hover:text-gray-700'}`}
-            >
-              IP Mode
-            </button>
-            <button 
-              onClick={() => setMode('subnet')}
-              className={`px-3 py-1 rounded ${mode === 'subnet' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-500 hover:text-gray-700'}`}
-            >
-              Subnet Mode
-            </button>
-          </div>
-          <button 
-            onClick={fetchGraph}
-            className="p-2 text-gray-500 hover:text-gray-900 bg-white border border-gray-200 rounded-md shadow-sm"
-            title="Refresh"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          </button>
-        </div>
-      </div>
+    <div className="h-[calc(100vh-64px)] flex flex-col">
+      {/* Toolbar */}
+      <TopologyToolbar
+        mode={mode}
+        onModeChange={setMode}
+        highlightAlertId={highlightAlertId}
+        onRefresh={fetchGraph}
+        loading={loading}
+      />
 
-      <div className="flex-grow bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden flex relative">
-        {/* Main Graph Area (Placeholder for Week 5, will be 3D in Week 6) */}
-        <div className="flex-grow bg-gray-50 flex items-center justify-center relative">
-          {loading ? (
-            <div className="text-gray-400 flex flex-col items-center">
-              <RefreshCw className="w-8 h-8 animate-spin mb-2" />
-              <p>Loading topology data...</p>
-            </div>
-          ) : graph ? (
-            <div className="text-center">
-              <Activity className="w-16 h-16 text-blue-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">2D Topology Preview (Week 5)</h3>
-              <p className="text-sm text-gray-500 max-w-md mx-auto mb-6">
-                Loaded {graph.nodes.length} nodes and {graph.edges.length} edges.
-                Full 3D visualization with time-slider will be implemented in Week 6.
-              </p>
-              
-              {/* Simple text-based representation for Week 5 validation */}
-              <div className="bg-white p-4 rounded border border-gray-200 text-left max-w-2xl mx-auto max-h-64 overflow-y-auto text-xs font-mono">
-                <div className="font-bold text-gray-700 mb-2">Nodes:</div>
-                {graph.nodes.map(n => (
-                  <div key={n.id} className="mb-1">
-                    <span className="text-blue-600">{n.id}</span> ({n.type}) - Risk: {n.risk}
-                  </div>
-                ))}
-                <div className="font-bold text-gray-700 mt-4 mb-2">Edges:</div>
-                {graph.edges.map(e => (
-                  <div key={e.id} className="mb-1">
-                    <span className="text-green-600">{e.source}</span> → <span className="text-purple-600">{e.target}</span> 
-                    {' '}[{e.protocols.join(',')}] (Weight: {e.weight})
-                  </div>
-                ))}
+      {/* Main body: 3D view + Side inspector */}
+      <div className="flex-grow flex overflow-hidden">
+        {/* 3D Canvas area */}
+        <div className="flex-grow flex flex-col relative">
+          {loading && !graph ? (
+            <div className="flex-grow flex items-center justify-center bg-slate-50">
+              <div className="text-gray-400 flex flex-col items-center">
+                <RefreshCw className="w-8 h-8 animate-spin mb-2" />
+                <p>Loading topology data...</p>
               </div>
             </div>
+          ) : graph ? (
+            <div className="flex-grow">
+              <Topology3D
+                nodes={graph.nodes}
+                edges={graph.edges}
+                currentTime={currentTime}
+                highlightAlertId={highlightAlertId}
+                onSelectNode={(node) => {
+                  setSelectedNode(node);
+                  if (node !== null) setSelectedEdge(null);
+                }}
+                onSelectEdge={(edge) => {
+                  setSelectedEdge(edge);
+                  if (edge !== null) setSelectedNode(null);
+                }}
+              />
+            </div>
           ) : (
-            <div className="text-gray-400">No data available</div>
+            <div className="flex-grow flex items-center justify-center text-gray-400">
+              No topology data available.
+            </div>
           )}
 
-          {/* Time Slider Placeholder */}
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-white px-6 py-3 rounded-full shadow-lg border border-gray-200 flex items-center gap-4 w-96">
-            <Clock className="w-4 h-4 text-gray-400" />
-            <div className="flex-grow h-1.5 bg-gray-200 rounded-full overflow-hidden">
-              <div className="w-1/3 h-full bg-blue-500"></div>
+          {/* TimeSlider overlay */}
+          {graph && startTime > 0 && endTime > 0 && (
+            <div className="absolute bottom-4 left-4 right-4">
+              <TimeSlider
+                startTime={startTime}
+                endTime={endTime}
+                currentTime={currentTime}
+                onChange={setCurrentTime}
+              />
             </div>
-            <span className="text-xs font-medium text-gray-500">
-              {graph?.meta?.start ? format(new Date(graph.meta.start), 'HH:mm:ss') : '00:00:00'}
-            </span>
-          </div>
+          )}
         </div>
 
         {/* Side Inspector */}
-        <div className="w-80 border-l border-gray-200 bg-white p-4 overflow-y-auto">
-          <div className="flex items-center gap-2 mb-4 pb-4 border-b border-gray-100">
-            <Layers className="w-5 h-5 text-gray-500" />
-            <h2 className="font-medium text-gray-900">Inspector</h2>
-          </div>
-          
-          <div className="text-sm text-gray-500 text-center py-8">
-            Select a node or edge in the graph to view details.
-          </div>
-        </div>
+        <SideInspector
+          selectedNode={selectedNode}
+          selectedEdge={selectedEdge}
+          onClose={handleClearSelection}
+        />
       </div>
     </div>
+  );
+}
+
+export default function TopologyPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-screen"><RefreshCw className="w-6 h-6 animate-spin text-gray-400" /></div>}>
+      <TopologyInner />
+    </Suspense>
   );
 }
