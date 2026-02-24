@@ -9,6 +9,7 @@ import { RefreshCw } from 'lucide-react';
 import TopologyToolbar from '@/components/topology/TopologyToolbar';
 import TimeSlider from '@/components/topology/TimeSlider';
 import SideInspector from '@/components/topology/SideInspector';
+import TopologyLegend from '@/components/topology/TopologyLegend';
 
 // Dynamic import for 3D canvas (SSR-incompatible)
 const Topology3D = dynamic(() => import('@/components/topology/Topology3D'), {
@@ -105,6 +106,9 @@ function TopologyInner() {
               No topology data available.
             </div>
           )}
+
+          {/* Legend overlay */}
+          <TopologyLegend />
 
           {/* TimeSlider overlay */}
           {graph && startTime > 0 && endTime > 0 && (

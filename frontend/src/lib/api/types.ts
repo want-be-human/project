@@ -100,9 +100,25 @@ export interface GraphResponse {
   };
 }
 
+export interface EvidenceChainNode {
+  id: string;
+  type: 'alert' | 'flow' | 'feature' | 'hypothesis' | 'action' | 'dryrun';
+  label: string;
+}
+
+export interface EvidenceChainEdge {
+  source: string;
+  target: string;
+  type: 'supports' | 'explains' | 'inferred_as' | 'leads_to' | 'simulated_by';
+}
+
 export interface EvidenceChain {
-   nodes: any[]; // Using generic structure for now as it's graph-like
-   edges: any[];
+  version: string;
+  id: string;
+  created_at: string;
+  alert_id: string;
+  nodes: EvidenceChainNode[];
+  edges: EvidenceChainEdge[];
 }
 
 export interface Investigation {

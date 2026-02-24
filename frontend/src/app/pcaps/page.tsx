@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { PcapFile } from '@/lib/api/types';
+import { wsClient } from '@/lib/ws';
 import PcapUploadPanel from '@/components/pcaps/PcapUploadPanel';
 import PcapListTable from '@/components/pcaps/PcapListTable';
 
@@ -26,13 +27,41 @@ export default function PcapsPage() {
     fetchPcaps();
   }, []);
 
+  // Subscribe to WS events for real-time progress updates
+  useEffect(() => {
+    const unsubProgress = wsClient.onEvent('pcap.process.progress', (data: { pcap_id: string; percent: number }) => {
+      setPcaps(prev => prev.map(p =>
+        p.id === data.pcap_id
+          ? { ...p, status: 'processing' as const, progress: data.percent }
+          : p
+      ));
+    });
+
+    const unsubDone = wsClient.onEvent('pcap.process.done', (data: { pcap_id: string; flow_count: number; alert_count: number }) => {
+      setPcaps(prev => prev.map(p =>
+        p.id === data.pcap_id
+          ? { ...p, status: 'done' as const, progress: 100, flow_count: data.flow_count, alert_count: data.alert_count }
+          : p
+      ));
+      // Also do a full refresh to ensure consistency
+      fetchPcaps();
+    });
+
+    return () => {
+      unsubProgress();
+      unsubDone();
+    };
+  }, []);
+
   const handleProcess = async (id: string) => {
     setProcessingId(id);
     try {
       await api.processPcap(id, { mode: 'flows_and_detect' });
-      // In real implementation, we'd rely on WS updates. 
-      // For now, simple optimistic update or re-fetch
-      fetchPcaps(); 
+      // WS events (pcap.process.progress / pcap.process.done) will handle updates
+      // Do an initial optimistic status change
+      setPcaps(prev => prev.map(p =>
+        p.id === id ? { ...p, status: 'processing' as const, progress: 0 } : p
+      ));
     } catch (e) {
       console.error(e);
       alert('Failed to start processing');

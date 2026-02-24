@@ -3,6 +3,7 @@ import {
   Recommendation, ActionPlan, DryRunResult, Scenario, ScenarioRunResult,
   EvidenceChain
 } from './types';
+import { wsClient } from '../ws';
 
 // Static imports for contract sample data
 import flowSample from '../../../../contract/samples/flow.sample.json';
@@ -67,7 +68,17 @@ export const mockApi = {
         return mockPcap;
     },
     processPcap: async (id: string, body: any): Promise<{accepted: true}> => {
-        await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate delay
+        // Simulate async processing with WS progress events
+        const steps = [10, 30, 50, 70, 90, 100];
+        steps.forEach((percent, i) => {
+            setTimeout(() => {
+                if (percent < 100) {
+                    wsClient.simulateEvent('pcap.process.progress', { pcap_id: id, percent });
+                } else {
+                    wsClient.simulateEvent('pcap.process.done', { pcap_id: id, flow_count: 10, alert_count: 3 });
+                }
+            }, 500 * (i + 1));
+        });
         return { accepted: true };
     },
 

@@ -105,7 +105,7 @@ export default function EvidenceChainView({ chain }: EvidenceChainViewProps) {
         label: e.type,
         labelStyle: { fill: '#6b7280', fontWeight: 500, fontSize: 10 },
         labelBgStyle: { fill: '#f9fafb', fillOpacity: 0.8 },
-        animated: e.type === 'simulated_by' || e.type === 'recommends',
+        animated: e.type === 'simulated_by',
         style: { stroke: '#9ca3af', strokeWidth: 2 },
         markerEnd: {
           type: MarkerType.ArrowClosed,
