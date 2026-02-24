@@ -52,10 +52,13 @@ function NodeSphere({
 
   const color = useMemo(() => {
     if (highlighted) return '#ef4444';
-    if (node.type === 'gateway') return '#22c55e';
-    if (node.risk > 0.7) return '#f97316';
-    if (node.risk > 0.3) return '#eab308';
-    return '#3b82f6';
+    if (node.type === 'gateway' || node.type === 'router') return '#22c55e';
+    if (node.type === 'subnet') return '#8b5cf6';  // purple for subnet nodes
+    if (node.type === 'server') return '#06b6d4';  // cyan for servers
+    if (node.risk >= 0.7) return '#f97316';  // orange — high risk
+    if (node.risk >= 0.4) return '#eab308';  // yellow — medium risk
+    if (node.risk >= 0.2) return '#3b82f6';  // blue — low risk
+    return '#6ee7b7';                         // mint green — minimal risk
   }, [node, highlighted]);
 
   const scale = selected ? 1.4 : hovered ? 1.2 : 1;
@@ -115,6 +118,8 @@ function EdgeLine({
   highlighted: boolean;
   onClick: () => void;
 }) {
+  const [hovered, setHovered] = useState(false);
+
   const color = useMemo(() => {
     if (highlighted) return '#ef4444';
     if ((edge.alert_ids ?? []).length > 0) return '#f97316';
@@ -122,9 +127,22 @@ function EdgeLine({
   }, [edge, highlighted]);
 
   const opacity = active ? (highlighted ? 1 : 0.8) : 0.08;
-  const lineWidth = highlighted ? 3 : active ? 1.5 : 0.5;
+  const lineWidth = highlighted ? 3 : hovered ? 2.5 : active ? 1.5 : 0.5;
 
-  // Midpoint for click target
+  // Compute cylinder geometry to cover the full edge for click detection
+  const { position: cylPos, rotation: cylRot, length } = useMemo(() => {
+    const a = new THREE.Vector3(...from);
+    const b = new THREE.Vector3(...to);
+    const dir = new THREE.Vector3().subVectors(b, a);
+    const len = dir.length();
+    const mid = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5);
+    // Rotation: align Y-axis cylinder with the edge direction
+    const up = new THREE.Vector3(0, 1, 0);
+    const quat = new THREE.Quaternion().setFromUnitVectors(up, dir.clone().normalize());
+    const euler = new THREE.Euler().setFromQuaternion(quat);
+    return { position: mid.toArray() as [number, number, number], rotation: euler, length: len };
+  }, [from, to]);
+
   const mid: [number, number, number] = [
     (from[0] + to[0]) / 2,
     (from[1] + to[1]) / 2,
@@ -140,9 +158,15 @@ function EdgeLine({
         transparent
         opacity={opacity}
       />
-      {/* Invisible click target at midpoint */}
-      <mesh position={mid} onClick={(e) => { e.stopPropagation(); onClick(); }}>
-        <sphereGeometry args={[0.3, 8, 8]} />
+      {/* Invisible cylinder covering the full edge length for click detection */}
+      <mesh
+        position={cylPos}
+        rotation={cylRot}
+        onClick={(e) => { e.stopPropagation(); onClick(); }}
+        onPointerOver={() => setHovered(true)}
+        onPointerOut={() => setHovered(false)}
+      >
+        <cylinderGeometry args={[0.15, 0.15, length, 6]} />
         <meshBasicMaterial transparent opacity={0} />
       </mesh>
       {/* Weight label on active highlighted edges */}

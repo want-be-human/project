@@ -8,10 +8,22 @@
       "risk": 0.85
     },
     {
+      "id": "ip:192.0.2.50",
+      "label": "192.0.2.50",
+      "type": "server",
+      "risk": 0.45
+    },
+    {
       "id": "ip:198.51.100.20",
       "label": "198.51.100.20",
       "type": "host",
       "risk": 0.30
+    },
+    {
+      "id": "ip:198.51.100.1",
+      "label": "198.51.100.1",
+      "type": "gateway",
+      "risk": 0.05
     },
     {
       "id": "ip:203.0.113.5",
@@ -22,8 +34,14 @@
     {
       "id": "ip:10.0.0.1",
       "label": "10.0.0.1",
+      "type": "router",
+      "risk": 0.02
+    },
+    {
+      "id": "ip:10.0.0.100",
+      "label": "10.0.0.100",
       "type": "host",
-      "risk": 0.05
+      "risk": 0.60
     }
   ],
   "edges": [
@@ -63,6 +81,58 @@
       "risk": 0.0,
       "activeIntervals": [
         ["2026-01-31T10:00:30Z", "2026-01-31T10:01:00Z"]
+      ],
+      "alert_ids": []
+    },
+    {
+      "id": "e4",
+      "source": "ip:192.0.2.50",
+      "target": "ip:198.51.100.1",
+      "proto": "TCP",
+      "dst_port": 80,
+      "weight": 12,
+      "risk": 0.3,
+      "activeIntervals": [
+        ["2026-01-31T10:00:00Z", "2026-01-31T10:03:00Z"]
+      ],
+      "alert_ids": []
+    },
+    {
+      "id": "e5",
+      "source": "ip:10.0.0.100",
+      "target": "ip:192.0.2.10",
+      "proto": "TCP",
+      "dst_port": 22,
+      "weight": 25,
+      "risk": 0.8,
+      "activeIntervals": [
+        ["2026-01-31T10:02:00Z", "2026-01-31T10:04:00Z"]
+      ],
+      "alert_ids": ["b2c3d4e5-f6a7-8901-bcde-f23456789012"]
+    },
+    {
+      "id": "e6",
+      "source": "ip:198.51.100.1",
+      "target": "ip:10.0.0.1",
+      "proto": "ICMP",
+      "dst_port": 0,
+      "weight": 2,
+      "risk": 0.0,
+      "activeIntervals": [
+        ["2026-01-31T10:00:00Z", "2026-01-31T10:05:00Z"]
+      ],
+      "alert_ids": []
+    },
+    {
+      "id": "e7",
+      "source": "ip:10.0.0.100",
+      "target": "ip:198.51.100.20",
+      "proto": "TCP",
+      "dst_port": 3389,
+      "weight": 8,
+      "risk": 0.6,
+      "activeIntervals": [
+        ["2026-01-31T10:01:30Z", "2026-01-31T10:03:30Z"]
       ],
       "alert_ids": []
     }
