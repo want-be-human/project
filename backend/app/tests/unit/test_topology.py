@@ -1,9 +1,10 @@
 """
 Unit tests for TopologyService.
-Covers DOC B B4.6 & DOC F Week-5 DoD:
+Covers DOC B B4.6 & DOC F Week-5/6 DoD:
   - build_graph 返回 nodes / edges / activeIntervals
   - ip 模式与 subnet 模式
   - edge.alert_ids 关联
+  - Week 6: _merge_intervals, interval clamping, risk capping, dst_node risk
 """
 
 import json
@@ -248,3 +249,159 @@ class TestComputeGraphHash:
         )
 
         assert svc.compute_graph_hash(g1) != svc.compute_graph_hash(g2)
+
+
+# ── Week 6: TestMergeIntervals ───────────────────────────────────
+
+class TestMergeIntervals:
+    """Tests for TopologyService._merge_intervals (Week 6)."""
+
+    def test_empty(self):
+        """Empty input → empty output."""
+        assert TopologyService._merge_intervals([]) == []
+
+    def test_single_interval(self):
+        """Single interval returned as-is."""
+        iv = [["2026-01-15T12:00:00Z", "2026-01-15T12:00:05Z"]]
+        assert TopologyService._merge_intervals(iv) == iv
+
+    def test_non_overlapping_sorted(self):
+        """Disjoint intervals are sorted by start but not merged."""
+        ivs = [
+            ["2026-01-15T12:00:10Z", "2026-01-15T12:00:15Z"],
+            ["2026-01-15T12:00:00Z", "2026-01-15T12:00:05Z"],
+        ]
+        result = TopologyService._merge_intervals(ivs)
+        assert len(result) == 2
+        assert result[0][0] == "2026-01-15T12:00:00Z"
+        assert result[1][0] == "2026-01-15T12:00:10Z"
+
+    def test_overlapping_merged(self):
+        """Overlapping intervals are merged into one."""
+        ivs = [
+            ["2026-01-15T12:00:00Z", "2026-01-15T12:00:10Z"],
+            ["2026-01-15T12:00:05Z", "2026-01-15T12:00:15Z"],
+        ]
+        result = TopologyService._merge_intervals(ivs)
+        assert len(result) == 1
+        assert result[0] == ["2026-01-15T12:00:00Z", "2026-01-15T12:00:15Z"]
+
+    def test_adjacent_merged(self):
+        """Adjacent (touching) intervals are merged."""
+        ivs = [
+            ["2026-01-15T12:00:00Z", "2026-01-15T12:00:05Z"],
+            ["2026-01-15T12:00:05Z", "2026-01-15T12:00:10Z"],
+        ]
+        result = TopologyService._merge_intervals(ivs)
+        assert len(result) == 1
+        assert result[0] == ["2026-01-15T12:00:00Z", "2026-01-15T12:00:10Z"]
+
+    def test_complex_mix(self):
+        """Mix: 3 input intervals → 2 merged groups."""
+        ivs = [
+            ["2026-01-15T12:00:20Z", "2026-01-15T12:00:30Z"],  # group 2
+            ["2026-01-15T12:00:00Z", "2026-01-15T12:00:08Z"],  # group 1 start
+            ["2026-01-15T12:00:05Z", "2026-01-15T12:00:12Z"],  # group 1 extends
+        ]
+        result = TopologyService._merge_intervals(ivs)
+        assert len(result) == 2
+        assert result[0] == ["2026-01-15T12:00:00Z", "2026-01-15T12:00:12Z"]
+        assert result[1] == ["2026-01-15T12:00:20Z", "2026-01-15T12:00:30Z"]
+
+    def test_contained_interval(self):
+        """Interval fully inside another is absorbed."""
+        ivs = [
+            ["2026-01-15T12:00:00Z", "2026-01-15T12:00:20Z"],
+            ["2026-01-15T12:00:05Z", "2026-01-15T12:00:10Z"],
+        ]
+        result = TopologyService._merge_intervals(ivs)
+        assert len(result) == 1
+        assert result[0] == ["2026-01-15T12:00:00Z", "2026-01-15T12:00:20Z"]
+
+
+# ── Week 6: TestIntervalClamping ─────────────────────────────────
+
+class TestIntervalClamping:
+    """Flow intervals are clamped to the query window (Week 6)."""
+
+    def test_flow_wider_than_window(self):
+        """Flow spanning beyond the window gets clamped on both sides."""
+        flow = _make_flow_model(
+            ts_start=_ts(-100),
+            ts_end=_ts(200),
+        )
+        window_start = _ts(0)
+        window_end = _ts(100)
+        db = _setup_db([flow], [])
+        svc = TopologyService(db)
+        g = svc.build_graph(window_start, window_end)
+
+        interval = g.edges[0].activeIntervals[0]
+        # Start should be clamped to window start, end to window end
+        from app.core.utils import datetime_to_iso
+        assert interval[0] == datetime_to_iso(window_start)
+        assert interval[1] == datetime_to_iso(window_end)
+
+    def test_flow_within_window_unclamped(self):
+        """Flow fully inside window: interval equals flow's own times."""
+        flow = _make_flow_model(ts_start=_ts(10), ts_end=_ts(50))
+        db = _setup_db([flow], [])
+        svc = TopologyService(db)
+        g = svc.build_graph(_ts(0), _ts(3600))
+
+        from app.core.utils import datetime_to_iso
+        interval = g.edges[0].activeIntervals[0]
+        assert interval[0] == datetime_to_iso(_ts(10))
+        assert interval[1] == datetime_to_iso(_ts(50))
+
+
+# ── Week 6: TestRiskBehavior ─────────────────────────────────────
+
+class TestRiskBehavior:
+    """Risk capping and dst-node risk propagation (Week 6)."""
+
+    def test_risk_capped_at_1(self):
+        """Edge risk capped to 1.0 even if anomaly_score > 1."""
+        flow = _make_flow_model(anomaly_score=1.5)
+        db = _setup_db([flow], [])
+        svc = TopologyService(db)
+        g = svc.build_graph(_ts(0), _ts(3600))
+
+        assert g.edges[0].risk <= 1.0
+
+    def test_dst_node_risk_is_half(self):
+        """Destination node risk = anomaly_score * 0.5."""
+        flow = _make_flow_model(
+            src_ip="10.0.0.1", dst_ip="10.0.0.2", anomaly_score=0.8
+        )
+        db = _setup_db([flow], [])
+        svc = TopologyService(db)
+        g = svc.build_graph(_ts(0), _ts(3600))
+
+        src = [n for n in g.nodes if n.id == "ip:10.0.0.1"][0]
+        dst = [n for n in g.nodes if n.id == "ip:10.0.0.2"][0]
+        assert src.risk == 0.8
+        assert dst.risk == pytest.approx(0.4, abs=0.01)
+
+    def test_alert_ids_sorted(self):
+        """Alert IDs on edges are returned in sorted order."""
+        flow = _make_flow_model(id="f1", anomaly_score=0.9)
+        alerts = [
+            _make_alert_model(id="z-alert", evidence_flow_ids=["f1"]),
+            _make_alert_model(id="a-alert", evidence_flow_ids=["f1"]),
+        ]
+        db = _setup_db([flow], alerts)
+        svc = TopologyService(db)
+        g = svc.build_graph(_ts(0), _ts(3600))
+
+        assert g.edges[0].alert_ids == ["a-alert", "z-alert"]
+
+    def test_node_type_is_host_in_ip_mode(self):
+        """IP mode produces type='host' nodes, not 'gateway'."""
+        flow = _make_flow_model()
+        db = _setup_db([flow], [])
+        svc = TopologyService(db)
+        g = svc.build_graph(_ts(0), _ts(3600), mode="ip")
+
+        for n in g.nodes:
+            assert n.type == "host"

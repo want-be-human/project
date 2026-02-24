@@ -49,26 +49,31 @@ class TopologyService:
         
         logger.info(f"Building graph: {start} to {end}, mode={mode}")
         
-        # Query flows in time window
+        # Normalize to naive UTC for comparison with SQLite-stored datetimes
+        _start = start.replace(tzinfo=None) if start.tzinfo else start
+        _end = end.replace(tzinfo=None) if end.tzinfo else end
+        
+        # Query flows that OVERLAP the time window (not just contained)
+        # A flow overlaps when: flow.ts_start <= end AND flow.ts_end >= start
         flows = self.db.query(Flow).filter(
-            Flow.ts_start >= start,
-            Flow.ts_end <= end,
+            Flow.ts_start <= _end,
+            Flow.ts_end >= _start,
         ).all()
         
         logger.info(f"Found {len(flows)} flows in window")
         
         # Build node and edge dictionaries
         nodes: dict[str, GraphNode] = {}
-        edges: dict[str, dict] = {}  # edge_id -> edge_data
+        edges: dict[str, dict] = {}  # edge_key -> edge_data
         
-        # Get all alerts in window for risk calculation
+        # Get all alerts that OVERLAP the time window
         alerts = self.db.query(Alert).filter(
-            Alert.time_window_start >= start,
-            Alert.time_window_end <= end,
+            Alert.time_window_start <= _end,
+            Alert.time_window_end >= _start,
         ).all()
         
         # Build alert lookup by flow
-        alert_by_flow = {}
+        alert_by_flow: dict[str, list] = {}
         for alert in alerts:
             evidence = json.loads(alert.evidence) if isinstance(alert.evidence, str) else alert.evidence
             for flow_id in evidence.get("flow_ids", []):
@@ -121,14 +126,19 @@ class TopologyService:
             edge = edges[edge_key]
             edge["weight"] += 1
             
-            # Add time interval
-            interval = [datetime_to_iso(flow.ts_start), datetime_to_iso(flow.ts_end)]
+            # Clamp interval to the query window for precise time-slider behaviour
+            flow_start = flow.ts_start.replace(tzinfo=None) if flow.ts_start.tzinfo else flow.ts_start
+            flow_end = flow.ts_end.replace(tzinfo=None) if flow.ts_end.tzinfo else flow.ts_end
+            iv_start = max(flow_start, _start)
+            iv_end = min(flow_end, _end)
+            interval = [datetime_to_iso(iv_start), datetime_to_iso(iv_end)]
             edge["activeIntervals"].append(interval)
             
             # Update risk from anomaly score
             if flow.anomaly_score:
                 edge["risk"] = max(edge["risk"], flow.anomaly_score)
                 nodes[src_id].risk = max(nodes[src_id].risk, flow.anomaly_score)
+                nodes[dst_id].risk = max(nodes[dst_id].risk, flow.anomaly_score * 0.5)
             
             # Add alert associations
             if flow.id in alert_by_flow:
@@ -138,6 +148,8 @@ class TopologyService:
         # Convert edges to GraphEdge objects
         edge_list = []
         for edge_data in edges.values():
+            # Sort and merge overlapping intervals for clean time-slider behaviour
+            merged = self._merge_intervals(edge_data["activeIntervals"])
             edge_list.append(GraphEdge(
                 id=edge_data["id"],
                 source=edge_data["source"],
@@ -145,9 +157,9 @@ class TopologyService:
                 proto=edge_data["proto"],
                 dst_port=edge_data["dst_port"],
                 weight=edge_data["weight"],
-                risk=edge_data["risk"],
-                activeIntervals=edge_data["activeIntervals"],
-                alert_ids=list(edge_data["alert_ids"]),
+                risk=round(min(edge_data["risk"], 1.0), 4),
+                activeIntervals=merged,
+                alert_ids=sorted(edge_data["alert_ids"]),
             ))
         
         # Build response
@@ -165,6 +177,27 @@ class TopologyService:
         logger.info(f"Built graph with {len(nodes)} nodes and {len(edge_list)} edges")
         return graph
 
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _merge_intervals(intervals: list[list[str]]) -> list[list[str]]:
+        """Sort intervals chronologically and merge overlapping ones."""
+        if not intervals:
+            return []
+        # Sort by start time (ISO8601 strings are lexicographically sortable)
+        sorted_iv = sorted(intervals, key=lambda iv: iv[0])
+        merged: list[list[str]] = [sorted_iv[0]]
+        for iv in sorted_iv[1:]:
+            if iv[0] <= merged[-1][1]:
+                # Overlapping or adjacent → extend
+                if iv[1] > merged[-1][1]:
+                    merged[-1][1] = iv[1]
+            else:
+                merged.append(iv)
+        return merged
+
     def compute_graph_hash(self, graph: GraphResponseSchema) -> str:
         """Compute SHA256 hash of graph state."""
         # Create deterministic representation
@@ -176,7 +209,8 @@ class TopologyService:
         json_str = json.dumps(data, sort_keys=True)
         return f"sha256:{hashlib.sha256(json_str.encode()).hexdigest()}"
 
-    def _ip_to_subnet(self, ip: str) -> str:
+    @staticmethod
+    def _ip_to_subnet(ip: str) -> str:
         """Convert IP to /24 subnet."""
         parts = ip.split(".")
         if len(parts) == 4:

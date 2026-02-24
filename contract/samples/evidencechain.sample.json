@@ -20,19 +20,19 @@
       "label": "TCP/22 192.0.2.10→198.51.100.20 score=0.92"
     },
     {
-      "id": "feature:syn_count",
+      "id": "feat:syn_count",
       "type": "feature",
       "label": "syn_count=120 (high)"
     },
     {
-      "id": "feature:iat_mean_ms",
+      "id": "feat:iat_mean_ms",
       "type": "feature",
       "label": "iat_mean_ms=50.5 (low)"
     },
     {
-      "id": "inv:c3d4e5f6-a7b8-9012-cdef-345678901234",
-      "type": "investigation",
-      "label": "hypothesis: SSH brute-force, confidence=0.72"
+      "id": "hyp:c3d4e5f6",
+      "type": "hypothesis",
+      "label": "SSH brute-force or scanning, confidence=0.72"
     },
     {
       "id": "act:1",
@@ -45,7 +45,7 @@
       "label": "rate_limit tcp/22 to 10/min"
     },
     {
-      "id": "dry:f6a7b8c9-d0e1-2345-f012-678901234567",
+      "id": "dry:f6a7b8c9",
       "type": "dryrun",
       "label": "risk=0.62 reachability_drop=0.18"
     }
@@ -62,38 +62,38 @@
       "type": "supports"
     },
     {
-      "source": "feature:syn_count",
+      "source": "feat:syn_count",
       "target": "flow:a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-      "type": "extracted_from"
+      "type": "explains"
     },
     {
-      "source": "feature:iat_mean_ms",
+      "source": "feat:iat_mean_ms",
       "target": "flow:a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-      "type": "extracted_from"
+      "type": "explains"
     },
     {
       "source": "alert:b2c3d4e5-f6a7-8901-bcde-f23456789012",
-      "target": "inv:c3d4e5f6-a7b8-9012-cdef-345678901234",
-      "type": "analyzed_by"
+      "target": "hyp:c3d4e5f6",
+      "type": "inferred_as"
     },
     {
-      "source": "inv:c3d4e5f6-a7b8-9012-cdef-345678901234",
+      "source": "hyp:c3d4e5f6",
       "target": "act:1",
-      "type": "recommends"
+      "type": "leads_to"
     },
     {
-      "source": "inv:c3d4e5f6-a7b8-9012-cdef-345678901234",
+      "source": "hyp:c3d4e5f6",
       "target": "act:2",
-      "type": "recommends"
+      "type": "leads_to"
     },
     {
       "source": "act:1",
-      "target": "dry:f6a7b8c9-d0e1-2345-f012-678901234567",
+      "target": "dry:f6a7b8c9",
       "type": "simulated_by"
     },
     {
       "source": "act:2",
-      "target": "dry:f6a7b8c9-d0e1-2345-f012-678901234567",
+      "target": "dry:f6a7b8c9",
       "type": "simulated_by"
     }
   ]

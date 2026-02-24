@@ -22,46 +22,49 @@
     {
       "id": "ip:10.0.0.1",
       "label": "10.0.0.1",
-      "type": "gateway",
+      "type": "host",
       "risk": 0.05
     }
   ],
   "edges": [
     {
-      "id": "edge:192.0.2.10->198.51.100.20",
+      "id": "e1",
       "source": "ip:192.0.2.10",
       "target": "ip:198.51.100.20",
+      "proto": "TCP",
+      "dst_port": 22,
       "weight": 18,
-      "protocols": ["TCP"],
-      "services": [{"proto": "TCP", "port": 22}],
-      "alert_ids": ["b2c3d4e5-f6a7-8901-bcde-f23456789012"],
+      "risk": 0.9,
       "activeIntervals": [
         ["2026-01-31T10:00:00Z", "2026-01-31T10:05:00Z"]
-      ]
+      ],
+      "alert_ids": ["b2c3d4e5-f6a7-8901-bcde-f23456789012"]
     },
     {
-      "id": "edge:192.0.2.10->203.0.113.5",
+      "id": "e2",
       "source": "ip:192.0.2.10",
       "target": "ip:203.0.113.5",
+      "proto": "TCP",
+      "dst_port": 443,
       "weight": 5,
-      "protocols": ["TCP"],
-      "services": [{"proto": "TCP", "port": 443}],
-      "alert_ids": [],
+      "risk": 0.1,
       "activeIntervals": [
         ["2026-01-31T10:01:00Z", "2026-01-31T10:02:00Z"]
-      ]
+      ],
+      "alert_ids": []
     },
     {
-      "id": "edge:198.51.100.20->10.0.0.1",
+      "id": "e3",
       "source": "ip:198.51.100.20",
       "target": "ip:10.0.0.1",
+      "proto": "UDP",
+      "dst_port": 53,
       "weight": 3,
-      "protocols": ["UDP"],
-      "services": [{"proto": "UDP", "port": 53}],
-      "alert_ids": [],
+      "risk": 0.0,
       "activeIntervals": [
         ["2026-01-31T10:00:30Z", "2026-01-31T10:01:00Z"]
-      ]
+      ],
+      "alert_ids": []
     }
   ],
   "meta": {
