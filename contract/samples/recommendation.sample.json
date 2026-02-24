@@ -6,26 +6,40 @@
   "actions": [
     {
       "title": "Temporary block source IP",
-      "action_type": "block_ip",
-      "target": "192.0.2.10",
-      "priority": 1,
-      "rationale": "Immediately stop ongoing brute-force attempts",
+      "priority": "high",
+      "steps": [
+        "Add 192.0.2.10 to firewall blocklist",
+        "Verify block is active via connection test"
+      ],
+      "rollback": [
+        "Remove 192.0.2.10 from firewall blocklist"
+      ],
       "risk": "May block legitimate traffic if IP is shared/NAT"
     },
     {
       "title": "Rate limit SSH service",
-      "action_type": "rate_limit_service",
-      "target": "tcp/22",
-      "priority": 2,
-      "rationale": "Reduce impact of future brute-force attempts",
+      "priority": "medium",
+      "steps": [
+        "Configure rate limit on tcp/22 to 10 conn/min",
+        "Monitor for false positives over 24h"
+      ],
+      "rollback": [
+        "Remove rate limit rule on tcp/22"
+      ],
       "risk": "May slow down legitimate remote access"
     },
     {
       "title": "Enable SSH key-only authentication",
-      "action_type": "segment_subnet",
-      "target": "198.51.100.0/24",
-      "priority": 3,
-      "rationale": "Long-term hardening to prevent password-based attacks",
+      "priority": "low",
+      "steps": [
+        "Disable password authentication in sshd_config",
+        "Distribute SSH keys to authorized users",
+        "Restart SSH daemon"
+      ],
+      "rollback": [
+        "Re-enable password authentication in sshd_config",
+        "Restart SSH daemon"
+      ],
       "risk": "Requires coordination with system administrators"
     }
   ]

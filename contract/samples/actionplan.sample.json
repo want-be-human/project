@@ -7,8 +7,8 @@
   "actions": [
     {
       "action_type": "block_ip",
+      "target": { "type": "ip", "value": "192.0.2.10" },
       "params": {
-        "ip": "192.0.2.10",
         "duration_minutes": 60
       },
       "rollback": {
@@ -20,9 +20,8 @@
     },
     {
       "action_type": "rate_limit_service",
+      "target": { "type": "service", "value": "tcp/22" },
       "params": {
-        "proto": "TCP",
-        "port": 22,
         "max_connections_per_minute": 10
       },
       "rollback": {

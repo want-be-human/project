@@ -12,11 +12,11 @@
     "must_have": [
       {
         "type": "bruteforce",
-        "min_severity": "medium"
+        "severity_at_least": "medium"
       }
     ],
     "evidence_chain_contains": [
-      "feature:syn_count"
+      "feat:syn_count"
     ],
     "dry_run_required": true
   },
