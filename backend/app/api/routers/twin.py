@@ -5,10 +5,17 @@ POST /twin/plans/{plan_id}/dry-run
 GET /twin/dry-runs
 """
 
+import asyncio
+import json
+
 from fastapi import APIRouter, Depends, Query, Path
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
+from app.core.errors import NotFoundError
+from app.core.utils import iso_to_datetime
+from app.models.alert import Alert
+from app.models.twin import TwinPlan, DryRun
 from app.schemas.common import ApiResponse
 from app.schemas.twin import (
     ActionPlanSchema,
@@ -16,6 +23,7 @@ from app.schemas.twin import (
     CreatePlanRequest,
     DryRunRequest,
 )
+from app.services.twin.service import TwinService
 
 router = APIRouter(prefix="/twin", tags=["twin"])
 
@@ -30,19 +38,19 @@ async def create_plan(
     request: CreatePlanRequest,
     db: Session = Depends(get_db),
 ) -> ApiResponse[ActionPlanSchema]:
-    """
-    Create an action plan for an alert.
-    
-    Plans can be:
-    - agent: Generated from recommendation
-    - manual: Created by user
-    
-    The plan is saved and can be used for dry-run simulations.
-    """
-    # TODO: Implement plan creation
-    # Verify alert exists, create and save plan
-    from app.core.errors import NotFoundError
-    raise NotFoundError(resource="Alert", resource_id=request.alert_id)
+    # Verify alert exists
+    alert = db.query(Alert).filter(Alert.id == request.alert_id).first()
+    if not alert:
+        raise NotFoundError(message=f"Alert {request.alert_id} not found")
+
+    service = TwinService(db)
+    plan = service.create_plan(
+        alert_id=request.alert_id,
+        actions=request.actions,
+        source=request.source,
+        notes=request.notes,
+    )
+    return ApiResponse.success(plan)
 
 
 @router.post(
@@ -56,22 +64,41 @@ async def execute_dry_run(
     request: DryRunRequest | None = None,
     db: Session = Depends(get_db),
 ) -> ApiResponse[DryRunResultSchema]:
-    """
-    Execute a dry-run simulation for the given plan.
-    
-    The simulation:
-    1. Builds graph for the time window
-    2. Applies planned actions to graph
-    3. Calculates impact metrics
-    4. Finds alternative paths
-    
-    Optional parameters:
-    - start/end: Override time window (defaults to alert.time_window)
-    - mode: ip or subnet
-    """
-    # TODO: Implement dry-run execution
-    from app.core.errors import NotFoundError
-    raise NotFoundError(resource="TwinPlan", resource_id=plan_id)
+    # Fetch plan
+    plan = db.query(TwinPlan).filter(TwinPlan.id == plan_id).first()
+    if not plan:
+        raise NotFoundError(message=f"TwinPlan {plan_id} not found")
+
+    # Fetch alert for default time window
+    alert = db.query(Alert).filter(Alert.id == plan.alert_id).first()
+    if not alert:
+        raise NotFoundError(message=f"Alert {plan.alert_id} not found")
+
+    # Determine time window: use request params or fall back to alert.time_window
+    mode = "ip"
+    if request and request.start and request.end:
+        start = iso_to_datetime(request.start)
+        end = iso_to_datetime(request.end)
+        if request.mode:
+            mode = request.mode
+    else:
+        start = alert.time_window_start
+        end = alert.time_window_end
+        if request and request.mode:
+            mode = request.mode
+
+    service = TwinService(db)
+    result = service.dry_run(plan, start, end, mode)
+
+    # Broadcast WS event (fire-and-forget)
+    try:
+        from app.api.routers.stream import broadcast_dryrun_created
+        risk = result.impact.service_disruption_risk
+        asyncio.create_task(broadcast_dryrun_created(result.id, result.alert_id, risk))
+    except Exception:
+        pass  # WS failure should not break the request
+
+    return ApiResponse.success(result)
 
 
 @router.get(
@@ -85,8 +112,14 @@ async def list_dry_runs(
     limit: int = Query(default=20, ge=1, le=100, description="Max results"),
     db: Session = Depends(get_db),
 ) -> ApiResponse[list[DryRunResultSchema]]:
-    """
-    List dry-run results, optionally filtered by alert.
-    """
-    # TODO: Implement dry-run listing
-    return ApiResponse.success([])
+    query = db.query(DryRun).order_by(DryRun.created_at.desc())
+    if alert_id:
+        query = query.filter(DryRun.alert_id == alert_id)
+    runs = query.limit(limit).all()
+
+    results = []
+    for run in runs:
+        payload = json.loads(run.payload) if isinstance(run.payload, str) else run.payload
+        results.append(DryRunResultSchema.model_validate(payload))
+
+    return ApiResponse.success(results)

@@ -9,6 +9,8 @@ from fastapi import APIRouter, Depends, Path
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
+from app.core.errors import NotFoundError
+from app.models.alert import Alert
 from app.schemas.common import ApiResponse
 from app.schemas.agent import (
     TriageRequest,
@@ -16,8 +18,17 @@ from app.schemas.agent import (
     InvestigationSchema,
     RecommendationSchema,
 )
+from app.services.agent.service import AgentService
 
 router = APIRouter(prefix="/alerts", tags=["agent"])
+
+
+def _get_alert_or_404(alert_id: str, db: Session) -> Alert:
+    """Fetch alert or raise NotFoundError."""
+    alert = db.query(Alert).filter(Alert.id == alert_id).first()
+    if not alert:
+        raise NotFoundError(message=f"Alert {alert_id} not found")
+    return alert
 
 
 @router.post(
@@ -28,21 +39,13 @@ router = APIRouter(prefix="/alerts", tags=["agent"])
 )
 async def triage_alert(
     alert_id: str = Path(..., description="Alert ID"),
-    request: TriageRequest = ...,
+    request: TriageRequest = TriageRequest(),
     db: Session = Depends(get_db),
 ) -> ApiResponse[TriageResponse]:
-    """
-    Generate a short triage summary for the alert.
-    
-    The summary is also saved to alert.agent.triage_summary.
-    
-    Parameters:
-    - language: 'zh' for Chinese, 'en' for English
-    """
-    # TODO: Implement triage generation
-    # Verify alert exists first
-    from app.core.errors import NotFoundError
-    raise NotFoundError(resource="Alert", resource_id=alert_id)
+    alert = _get_alert_or_404(alert_id, db)
+    service = AgentService(db)
+    summary = service.triage(alert, language=request.language)
+    return ApiResponse.success(TriageResponse(triage_summary=summary))
 
 
 @router.post(
@@ -55,19 +58,10 @@ async def investigate_alert(
     alert_id: str = Path(..., description="Alert ID"),
     db: Session = Depends(get_db),
 ) -> ApiResponse[InvestigationSchema]:
-    """
-    Generate a structured investigation for the alert.
-    
-    Returns Investigation with:
-    - hypothesis: What the agent thinks is happening
-    - why: Reasons supporting the hypothesis
-    - impact: Scope and confidence assessment
-    - next_steps: Recommended actions
-    - safety_note: Disclaimer about advisory nature
-    """
-    # TODO: Implement investigation generation
-    from app.core.errors import NotFoundError
-    raise NotFoundError(resource="Alert", resource_id=alert_id)
+    alert = _get_alert_or_404(alert_id, db)
+    service = AgentService(db)
+    investigation = service.investigate(alert)
+    return ApiResponse.success(investigation)
 
 
 @router.post(
@@ -80,16 +74,7 @@ async def recommend_actions(
     alert_id: str = Path(..., description="Alert ID"),
     db: Session = Depends(get_db),
 ) -> ApiResponse[RecommendationSchema]:
-    """
-    Generate action recommendations for the alert.
-    
-    Returns Recommendation with list of actions including:
-    - title: Action description
-    - priority: high/medium/low
-    - steps: Implementation steps
-    - rollback: Rollback instructions
-    - risk: Risk description
-    """
-    # TODO: Implement recommendation generation
-    from app.core.errors import NotFoundError
-    raise NotFoundError(resource="Alert", resource_id=alert_id)
+    alert = _get_alert_or_404(alert_id, db)
+    service = AgentService(db)
+    recommendation = service.recommend(alert)
+    return ApiResponse.success(recommendation)
