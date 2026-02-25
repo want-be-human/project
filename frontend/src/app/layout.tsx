@@ -14,8 +14,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className="flex h-screen overflow-hidden bg-gray-50 text-gray-900">
+    <html lang="en" suppressHydrationWarning>
+      <body className="flex h-screen overflow-hidden bg-gray-50 text-gray-900" suppressHydrationWarning>
         <SideNav />
         <div className="flex-1 flex flex-col overflow-hidden">
           <TopBar />

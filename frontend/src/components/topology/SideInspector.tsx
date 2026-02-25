@@ -1,17 +1,22 @@
 'use client';
 
-import { GraphNode, GraphEdge } from '@/lib/api/types';
-import { X, Globe, Router, ArrowRight, ShieldAlert } from 'lucide-react';
+import { GraphNode, GraphEdge, DryRunResult } from '@/lib/api/types';
+import { X, Globe, Router, ArrowRight, ShieldAlert, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 
 interface SideInspectorProps {
   selectedNode: GraphNode | null;
   selectedEdge: GraphEdge | null;
+  dryRunResult?: DryRunResult | null;
+  impactedNodeIds?: Set<string>;
+  impactedEdgeIds?: Set<string>;
   onClose: () => void;
 }
 
-export default function SideInspector({ selectedNode, selectedEdge, onClose }: SideInspectorProps) {
+export default function SideInspector({ selectedNode, selectedEdge, dryRunResult, impactedNodeIds, impactedEdgeIds, onClose }: SideInspectorProps) {
   const hasSelection = selectedNode || selectedEdge;
+  const nodeIsImpacted = selectedNode && impactedNodeIds?.has(selectedNode.id);
+  const edgeIsImpacted = selectedEdge && impactedEdgeIds?.has(selectedEdge.id);
 
   return (
     <div className="w-80 border-l border-gray-200 bg-white flex flex-col overflow-hidden">
@@ -51,6 +56,24 @@ export default function SideInspector({ selectedNode, selectedEdge, onClose }: S
                 <RiskBadge risk={selectedNode.risk} />
               </DetailRow>
             </div>
+
+            {/* Dry-run impact info */}
+            {nodeIsImpacted && dryRunResult && (
+              <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <div className="flex items-center gap-1.5 text-amber-800 font-semibold text-xs mb-2">
+                  <AlertTriangle className="w-3.5 h-3.5" /> Dry-Run Impact
+                </div>
+                <div className="space-y-1 text-xs text-amber-900">
+                  <div>Reachability drop: <b>{((dryRunResult.impact.reachability_drop || 0) * 100).toFixed(0)}%</b></div>
+                  <div>Disruption risk: <b>{((dryRunResult.impact.service_disruption_risk || 0) * 100).toFixed(0)}%</b></div>
+                  {dryRunResult.impact.warnings?.map((w, i) =>
+                    w.toLowerCase().includes(selectedNode.label.toLowerCase()) && (
+                      <div key={i} className="text-amber-700 italic">⚠ {w}</div>
+                    )
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -119,6 +142,28 @@ export default function SideInspector({ selectedNode, selectedEdge, onClose }: S
             )}
             {(selectedEdge.alert_ids ?? []).length === 0 && (
               <div className="text-xs text-gray-400 italic">No alerts on this edge.</div>
+            )}
+
+            {/* Dry-run impact info */}
+            {edgeIsImpacted && dryRunResult && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <div className="flex items-center gap-1.5 text-amber-800 font-semibold text-xs mb-2">
+                  <AlertTriangle className="w-3.5 h-3.5" /> Dry-Run Impact
+                </div>
+                <div className="space-y-1 text-xs text-amber-900">
+                  <div>This edge is <b>affected</b> by the simulated action plan.</div>
+                  <div>Impacted nodes: <b>{dryRunResult.impact.impacted_nodes_count || 0}</b></div>
+                  <div>Disruption risk: <b>{((dryRunResult.impact.service_disruption_risk || 0) * 100).toFixed(0)}%</b></div>
+                  {dryRunResult.alternative_paths?.map((p, i) => (
+                    (p.from === selectedEdge.source || p.from === selectedEdge.target ||
+                     p.to === selectedEdge.source || p.to === selectedEdge.target) && (
+                      <div key={i} className="mt-1 font-mono text-[10px] bg-amber-100 rounded p-1">
+                        Alt: {p.path.join(' → ')}
+                      </div>
+                    )
+                  ))}
+                </div>
+              </div>
             )}
           </div>
         )}

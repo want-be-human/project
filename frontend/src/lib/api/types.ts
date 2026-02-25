@@ -37,7 +37,7 @@ export interface Alert {
   id: string;
   created_at: string;
   severity: 'low' | 'medium' | 'high' | 'critical';
-  status: 'new' | 'triaged' | 'resolved' | 'false_positive';
+  status: 'new' | 'triaged' | 'investigating' | 'resolved' | 'false_positive';
   type: string;
   time_window: {
     start: string;
@@ -122,37 +122,64 @@ export interface EvidenceChain {
 }
 
 export interface Investigation {
-    why: string;
-    confidence: number;
+    version: string;
+    id: string;
+    created_at: string;
+    alert_id: string;
+    hypothesis: string;
+    why: string[];
+    impact: {
+        scope: string[];
+        confidence: number;
+    };
     next_steps: string[];
+    safety_note?: string;
 }
 
 export interface Recommendation {
+    version: string;
+    id: string;
+    created_at: string;
+    alert_id: string; // Add missing fields
     actions: Array<{
         title: string;
         type: string;
-        target: string;
+        target: any; // Can be complex object or string
         params: any;
         risk: string;
-        rollback: string;
+        rollback: any;
     }>
 }
 
 export interface ActionPlan {
+    version?: string;
     id: string;
-    alert_id: string;
-    actions: any[]; 
-    source: 'agent' | 'manual';
     created_at: string;
+    alert_id: string;
+    source: 'agent' | 'manual';
+    actions: any[]; 
+    notes?: string;
 }
 
 export interface DryRunResult {
+    version?: string;
     id: string;
+    created_at?: string;
+    alert_id: string;
     plan_id: string;
-    impact: any; 
-    warnings: string[];
-    reachability_drop: number;
-    service_disruption_risk: number;
+    impact: {
+        impacted_nodes_count?: number;
+        reachability_drop?: number;
+        service_disruption_risk?: number;
+        warnings?: string[];
+        [key: string]: any;
+    };
+    alternative_paths?: Array<{
+        from: string;
+        to: string;
+        path: string[];
+    }>;
+    explain?: string[];
 }
 
 export interface Scenario {

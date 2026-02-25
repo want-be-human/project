@@ -1,15 +1,16 @@
 'use client';
 
-import { useEffect, useState, useCallback, Suspense } from 'react';
+import { useEffect, useState, useCallback, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { api } from '@/lib/api';
-import { GraphResponse, GraphNode, GraphEdge } from '@/lib/api/types';
+import { GraphResponse, GraphNode, GraphEdge, DryRunResult } from '@/lib/api/types';
 import { RefreshCw } from 'lucide-react';
 import TopologyToolbar from '@/components/topology/TopologyToolbar';
 import TimeSlider from '@/components/topology/TimeSlider';
 import SideInspector from '@/components/topology/SideInspector';
 import TopologyLegend from '@/components/topology/TopologyLegend';
+import DryRunOverlay from '@/components/topology/DryRunOverlay';
 
 // Dynamic import for 3D canvas (SSR-incompatible)
 const Topology3D = dynamic(() => import('@/components/topology/Topology3D'), {
@@ -24,15 +25,57 @@ const Topology3D = dynamic(() => import('@/components/topology/Topology3D'), {
 function TopologyInner() {
   const searchParams = useSearchParams();
   const highlightAlertId = searchParams.get('highlightAlertId');
+  const dryRunId = searchParams.get('dryRunId');
 
   const [graph, setGraph] = useState<GraphResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<'ip' | 'subnet'>('ip');
   const [currentTime, setCurrentTime] = useState(0);
 
+  // Dry-run state
+  const [dryRunResult, setDryRunResult] = useState<DryRunResult | null>(null);
+  const [dryRunLoading, setDryRunLoading] = useState(false);
+
   // Selection state for SideInspector
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<GraphEdge | null>(null);
+
+  // Fetch DryRunResult when dryRunId is present
+  useEffect(() => {
+    if (!dryRunId) { setDryRunResult(null); return; }
+    setDryRunLoading(true);
+    api.listDryRuns({ alert_id: '' })
+      .then(results => {
+        const found = results.find(r => r.id === dryRunId);
+        setDryRunResult(found || results[0] || null);
+      })
+      .catch(e => console.error('Failed to load dry-run result', e))
+      .finally(() => setDryRunLoading(false));
+  }, [dryRunId]);
+
+  // Compute impacted node IDs and edge IDs from dry-run result
+  const impactedNodeIds = useMemo(() => {
+    if (!dryRunResult) return undefined;
+    const ids = new Set<string>();
+    dryRunResult.alternative_paths?.forEach(p => {
+      if (p.from) ids.add(p.from);
+      if (p.to) ids.add(p.to);
+      p.path?.forEach(nodeId => ids.add(nodeId));
+    });
+    return ids.size > 0 ? ids : undefined;
+  }, [dryRunResult]);
+
+  // Edges impacted by dry-run: edges whose source or target is an impacted node
+  const impactedEdgeIds = useMemo(() => {
+    if (!impactedNodeIds || !graph) return undefined;
+    const ids = new Set<string>();
+    graph.edges.forEach(e => {
+      if (impactedNodeIds.has(e.source) || impactedNodeIds.has(e.target)) {
+        ids.add(e.id);
+      }
+    });
+    return ids.size > 0 ? ids : undefined;
+  }, [impactedNodeIds, graph]);
 
   const fetchGraph = useCallback(async () => {
     setLoading(true);
@@ -91,6 +134,8 @@ function TopologyInner() {
                 edges={graph.edges}
                 currentTime={currentTime}
                 highlightAlertId={highlightAlertId}
+                impactedNodeIds={impactedNodeIds}
+                impactedEdgeIds={impactedEdgeIds}
                 onSelectNode={(node) => {
                   setSelectedNode(node);
                   if (node !== null) setSelectedEdge(null);
@@ -110,6 +155,9 @@ function TopologyInner() {
           {/* Legend overlay */}
           <TopologyLegend />
 
+          {/* Dry-Run impact overlay */}
+          {dryRunId && <DryRunOverlay result={dryRunResult} loading={dryRunLoading} />}
+
           {/* TimeSlider overlay */}
           {graph && startTime > 0 && endTime > 0 && (
             <div className="absolute bottom-4 left-4 right-4">
@@ -127,6 +175,9 @@ function TopologyInner() {
         <SideInspector
           selectedNode={selectedNode}
           selectedEdge={selectedEdge}
+          dryRunResult={dryRunResult}
+          impactedNodeIds={impactedNodeIds}
+          impactedEdgeIds={impactedEdgeIds}
           onClose={handleClearSelection}
         />
       </div>

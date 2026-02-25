@@ -3,9 +3,12 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
-import { Alert, EvidenceChain } from '@/lib/api/types';
+import { Alert, EvidenceChain, Recommendation, ActionPlan } from '@/lib/api/types';
 import AlertEvidenceSection from '@/components/alerts/AlertEvidenceSection';
 import EvidenceChainView from '@/components/evidence/EvidenceChainView';
+import AgentPanel from '@/components/agent/AgentPanel';
+import ActionBuilder from '@/components/twin/ActionBuilder';
+import DryRunPanel from '@/components/twin/DryRunPanel';
 import { ArrowLeft, Tag, Clock, ShieldAlert, Activity } from 'lucide-react';
 import { format } from 'date-fns';
 import { clsx } from 'clsx';
@@ -17,6 +20,8 @@ export default function AlertDetailPage() {
   
   const [alert, setAlert] = useState<Alert | null>(null);
   const [evidenceChain, setEvidenceChain] = useState<EvidenceChain | null>(null);
+  const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
+  const [actionPlan, setActionPlan] = useState<ActionPlan | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -152,14 +157,17 @@ export default function AlertDetailPage() {
       {/* Evidence Chain (Week 5) */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-bold text-gray-900">Evidence Chain</h2>
+          <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+            <Activity className="w-5 h-5 text-blue-600" /> Evidence Chain
+          </h2>
           <button 
             onClick={() => router.push(`/topology?highlightAlertId=${alert.id}`)}
-            className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+            className="text-sm text-blue-600 hover:text-blue-800 font-medium px-3 py-1 bg-blue-50 rounded-full hover:bg-blue-100 transition-colors"
           >
             View in 3D Topology →
           </button>
         </div>
+        
         {evidenceChain ? (
           <EvidenceChainView chain={evidenceChain} />
         ) : (
@@ -169,11 +177,32 @@ export default function AlertDetailPage() {
         )}
       </div>
 
-      {/* Placeholders for Week 7 */}
-      <div className="bg-gray-50 rounded-lg border border-dashed border-gray-300 p-8 text-center text-gray-500">
-        <ShieldAlert className="w-8 h-8 mx-auto mb-3 text-gray-400" />
-        <h3 className="text-lg font-medium text-gray-900 mb-1">Agent Investigation & Dry-Run</h3>
-        <p className="text-sm">Will be implemented in Week 7.</p>
+      {/* Week 7 Components */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left Column: Agent & Recommendation */}
+        <div className="space-y-6">
+          <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+            <ShieldAlert className="w-5 h-5 text-purple-600" /> AI Analyst
+          </h2>
+          <AgentPanel alertId={id} onRecommendationLoaded={setRecommendation} />
+        </div>
+
+        {/* Right Column: Act -> Twin */}
+        <div className="space-y-6">
+          <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+            <Activity className="w-5 h-5 text-indigo-600" /> Remediation & Twin
+          </h2>
+          
+          <ActionBuilder 
+            alertId={id} 
+            initialRecommendation={recommendation} 
+            onPlanCreated={setActionPlan}
+          />
+          
+          {actionPlan && (
+            <DryRunPanel alertId={id} planId={actionPlan.id} />
+          )}
+        </div>
       </div>
 
     </div>

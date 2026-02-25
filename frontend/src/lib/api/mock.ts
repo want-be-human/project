@@ -17,17 +17,126 @@ import evidenceChainSample from '../../../../contract/samples/evidencechain.samp
 import scenarioSample from '../../../../contract/samples/scenario.sample.json';
 import scenarioRunResultSample from '../../../../contract/samples/scenario_run_result.sample.json';
 
+// ── Per-alert variation data ──
+const ALERT_VARIATIONS: Array<{
+    type: string;
+    srcIp: string;
+    dstIp: string;
+    service: { proto: string; dst_port: number };
+    hypothesis: string;
+    triageSummary: string;
+    whyReasons: string[];
+    actionTitle: string;
+    actionType: string;
+    impactedNodes: number;
+    reachabilityDrop: number;
+    disruptionRisk: number;
+    warnings: string[];
+    altPath: { from: string; to: string; path: string[] };
+    explain: string[];
+}> = [
+    {
+        type: 'bruteforce',
+        srcIp: '192.0.2.10', dstIp: '198.51.100.20',
+        service: { proto: 'TCP', dst_port: 22 },
+        hypothesis: 'SSH brute-force attack from external source 192.0.2.10',
+        triageSummary: 'Automated triage: High-volume SSH brute-force detected from 192.0.2.10 targeting 198.51.100.20:22. 120 SYN packets in 5 min window.',
+        whyReasons: ['120 TCP SYN packets to port 22 in 5 min', 'Source IP has no prior communication history', 'Inter-arrival time ~50ms consistent with automated tooling'],
+        actionTitle: 'Block source IP 192.0.2.10',
+        actionType: 'block_ip',
+        impactedNodes: 2, reachabilityDrop: 0.18, disruptionRisk: 0.62,
+        warnings: ['May isolate admin host 198.51.100.20', 'Blocking 192.0.2.10 affects 3 active connections'],
+        altPath: { from: 'ip:192.0.2.10', to: 'ip:198.51.100.20', path: ['ip:192.0.2.10','ip:10.0.0.1','ip:198.51.100.20'] },
+        explain: ['Blocking ip:192.0.2.10 removes 2 edges from graph', 'Reachability reduced for 18% of nodes', 'Alternative path via gateway 10.0.0.1'],
+    },
+    {
+        type: 'port_scan',
+        srcIp: '10.0.0.100', dstIp: '192.0.2.50',
+        service: { proto: 'TCP', dst_port: 443 },
+        hypothesis: 'Internal port scan from compromised host 10.0.0.100',
+        triageSummary: 'Automated triage: Port scan activity detected. Host 10.0.0.100 probing 192.0.2.50 across multiple ports (22,80,443,3389).',
+        whyReasons: ['Connections to 4+ distinct ports in 2 min window', '10.0.0.100 not typically a scanner', 'Behavioural deviation score 0.89'],
+        actionTitle: 'Isolate host 10.0.0.100',
+        actionType: 'isolate_host',
+        impactedNodes: 3, reachabilityDrop: 0.25, disruptionRisk: 0.45,
+        warnings: ['Isolating 10.0.0.100 affects 2 outbound connections', 'Host may be running legitimate monitoring'],
+        altPath: { from: 'ip:10.0.0.100', to: 'ip:192.0.2.50', path: ['ip:10.0.0.100','ip:10.0.0.1','ip:198.51.100.1','ip:192.0.2.50'] },
+        explain: ['Isolating ip:10.0.0.100 removes 2 edges (e5, e7)', 'Nodes 192.0.2.10 and 198.51.100.20 lose one inbound path each', 'Low service disruption — host is not a gateway'],
+    },
+    {
+        type: 'data_exfiltration',
+        srcIp: '192.0.2.50', dstIp: '203.0.113.5',
+        service: { proto: 'TCP', dst_port: 443 },
+        hypothesis: 'Possible data exfiltration via encrypted channel from server 192.0.2.50',
+        triageSummary: 'Automated triage: Anomalous outbound data volume from server 192.0.2.50 to external 203.0.113.5 over HTTPS. Payload size 3x historical baseline.',
+        whyReasons: ['Outbound volume 340MB in 30 min (baseline 110MB)', 'Destination 203.0.113.5 first seen today', 'Encrypted channel prevents payload inspection'],
+        actionTitle: 'Rate-limit outbound to 203.0.113.5',
+        actionType: 'rate_limit_service',
+        impactedNodes: 1, reachabilityDrop: 0.05, disruptionRisk: 0.20,
+        warnings: ['Rate-limiting may slow legitimate HTTPS traffic from server'],
+        altPath: { from: 'ip:192.0.2.50', to: 'ip:203.0.113.5', path: ['ip:192.0.2.50','ip:198.51.100.1','ip:203.0.113.5'] },
+        explain: ['Rate-limiting ip:192.0.2.50→ip:203.0.113.5 reduces edge weight', 'Minimal reachability impact (5%)', 'Alternative path via gateway exists for critical traffic'],
+    },
+    {
+        type: 'lateral_movement',
+        srcIp: '10.0.0.100', dstIp: '198.51.100.20',
+        service: { proto: 'TCP', dst_port: 3389 },
+        hypothesis: 'Lateral movement via RDP from internal host 10.0.0.100 to 198.51.100.20',
+        triageSummary: 'Automated triage: Suspicious RDP session from 10.0.0.100 to 198.51.100.20. Source host flagged in prior port scan alert.',
+        whyReasons: ['RDP session to admin host from non-admin source', '10.0.0.100 was source of earlier port scan', 'Connection timing correlates with scan completion +2 min'],
+        actionTitle: 'Block RDP from 10.0.0.100',
+        actionType: 'block_ip',
+        impactedNodes: 2, reachabilityDrop: 0.12, disruptionRisk: 0.55,
+        warnings: ['May block legitimate admin RDP if 10.0.0.100 is dual-use', 'Consider disabling RDP service globally'],
+        altPath: { from: 'ip:10.0.0.100', to: 'ip:198.51.100.20', path: ['ip:10.0.0.100','ip:10.0.0.1','ip:198.51.100.20'] },
+        explain: ['Blocking RDP from ip:10.0.0.100 removes edge e7', 'Admin host 198.51.100.20 retains SSH access from other sources', 'Alternative admin path exists via gateway 10.0.0.1'],
+    },
+    {
+        type: 'c2_beacon',
+        srcIp: '192.0.2.10', dstIp: '203.0.113.5',
+        service: { proto: 'TCP', dst_port: 443 },
+        hypothesis: 'Command-and-control beacon from compromised host 192.0.2.10',
+        triageSummary: 'Automated triage: Periodic HTTPS beaconing from 192.0.2.10 to external 203.0.113.5 at ~60s intervals. Pattern matches known C2 framework.',
+        whyReasons: ['Periodic outbound connections every 58-62 seconds', 'Packet sizes consistent with C2 heartbeat (64-128 bytes)', 'Destination IP in threat intelligence feed (confidence 0.85)'],
+        actionTitle: 'Block all traffic to 203.0.113.5',
+        actionType: 'block_ip',
+        impactedNodes: 1, reachabilityDrop: 0.08, disruptionRisk: 0.15,
+        warnings: ['Blocking C2 destination may trigger failover to backup C2 channel'],
+        altPath: { from: 'ip:192.0.2.10', to: 'ip:203.0.113.5', path: ['ip:192.0.2.10','ip:10.0.0.1','ip:203.0.113.5'] },
+        explain: ['Blocking ip:203.0.113.5 severs C2 channel', 'Minimal network disruption — host is not a hub', 'Recommend additional host forensics on 192.0.2.10'],
+    },
+];
+
+// Per-alert edges that carry alert_ids (different edges for different alert types)
+const ALERT_EDGE_INDICES: number[][] = [
+    [0, 4],    // alert-0 (bruteforce): e1 (192.0.2.10→198.51.100.20) + e5 (10.0.0.100→192.0.2.10)
+    [4, 6],    // alert-1 (port_scan): e5 (10.0.0.100→192.0.2.10) + e7 (10.0.0.100→198.51.100.20) — note e7 is index 6
+    [1, 3],    // alert-2 (data_exfil): e2 (192.0.2.10→203.0.113.5) + e4 (192.0.2.50→198.51.100.1)
+    [4, 6],    // alert-3 (lateral_mvmt): e5 + e7
+    [1],       // alert-4 (c2_beacon): e2 (192.0.2.10→203.0.113.5)
+];
+
 // ── In-memory store (survives SPA navigation, resets on full page reload) ──
 
 function initAlertStore(): Alert[] {
     const base = alertSample as unknown as Alert;
-    return Array.from({ length: 5 }).map((_, i) => ({
-        ...base,
-        id: `${base.id}-${i}`,
-        severity: (['low', 'medium', 'high', 'critical'] as const)[i % 4] as any,
-        status: (['new', 'triaged', 'investigating', 'resolved', 'false_positive'] as const)[i % 5] as any,
-        created_at: new Date(new Date(base.created_at).getTime() + i * 60000).toISOString(),
-    }));
+    return Array.from({ length: 5 }).map((_, i) => {
+        const v = ALERT_VARIATIONS[i];
+        return {
+            ...base,
+            id: `${base.id}-${i}`,
+            type: v.type,
+            severity: (['low', 'medium', 'high', 'critical'] as const)[i % 4] as any,
+            status: (['new', 'triaged', 'investigating', 'resolved', 'false_positive'] as const)[i % 5] as any,
+            created_at: new Date(new Date(base.created_at).getTime() + i * 60000).toISOString(),
+            entities: {
+                ...base.entities,
+                primary_src_ip: v.srcIp,
+                primary_dst_ip: v.dstIp,
+                primary_service: v.service,
+            },
+        };
+    });
 }
 
 function initFlowStore(): FlowRecord[] {
@@ -41,9 +150,16 @@ function initFlowStore(): FlowRecord[] {
     }));
 }
 
-const store = {
+const store: {
+    alerts: Alert[];
+    flows: FlowRecord[];
+    lastPlan: any;
+    lastDryRun: any;
+} = {
     alerts: initAlertStore(),
     flows: initFlowStore(),
+    lastPlan: null,
+    lastDryRun: null,
 };
 
 const mockPcap: PcapFile = {
@@ -106,16 +222,26 @@ export const mockApi = {
 
     getGraph: async (params: any): Promise<GraphResponse> => {
         const raw = graphSample as any;
+        // Build per-edge alert_ids: each edge only belongs to alerts that reference it
+        const edgeAlertMap = new Map<number, string[]>();
+        store.alerts.forEach((a, i) => {
+            const edgeIndices = ALERT_EDGE_INDICES[i] ?? [];
+            for (const ei of edgeIndices) {
+                const existing = edgeAlertMap.get(ei) ?? [];
+                existing.push(a.id);
+                edgeAlertMap.set(ei, existing);
+            }
+        });
         // Normalize edges: sample has proto/dst_port, types expect protocols/services
         const normalizeEdges = (edges: any[]): GraphEdge[] =>
-            edges.map((e: any) => ({
+            edges.map((e: any, idx: number) => ({
                 id: e.id,
                 source: e.source,
                 target: e.target,
                 weight: e.weight,
                 protocols: e.protocols ?? (e.proto ? [e.proto] : []),
                 services: e.services ?? (e.proto && e.dst_port ? [{ proto: e.proto, port: e.dst_port }] : []),
-                alert_ids: e.alert_ids ?? [],
+                alert_ids: edgeAlertMap.get(idx) ?? [],
                 activeIntervals: e.activeIntervals ?? [],
             }));
 
@@ -145,11 +271,14 @@ export const mockApi = {
                 const st = subnetOf(e.target);
                 if (ss === st) continue; // skip intra-subnet
                 const key = edgeKey(ss, st);
+                // Use per-edge alert IDs from the map
+                const eIdx = raw.edges.indexOf(e);
+                const realAlertIds = edgeAlertMap.get(eIdx) ?? [];
                 const existing = edgeAgg.get(key);
                 if (existing) {
                     existing.weight += e.weight;
                     if (e.proto && !existing._protos.has(e.proto)) existing._protos.add(e.proto);
-                    if (e.alert_ids) existing.alert_ids.push(...e.alert_ids);
+                    if (realAlertIds.length > 0) existing.alert_ids.push(...realAlertIds);
                     if (e.activeIntervals) existing.activeIntervals.push(...e.activeIntervals);
                     if (e.proto && e.dst_port) existing._services.set(`${e.proto}/${e.dst_port}`, { proto: e.proto, port: e.dst_port });
                 } else {
@@ -162,7 +291,7 @@ export const mockApi = {
                         source: ss,
                         target: st,
                         weight: e.weight,
-                        alert_ids: [...(e.alert_ids ?? [])],
+                        alert_ids: [...realAlertIds],
                         activeIntervals: [...(e.activeIntervals ?? [])],
                         _protos: protos,
                         _services: services,
@@ -197,26 +326,114 @@ export const mockApi = {
     },
 
     triage: async (id: string, body: any): Promise<{triage_summary: string}> => {
-        return { triage_summary: "Automated triage: This looks like a brute force attack." };
+        const idx = store.alerts.findIndex(a => a.id === id);
+        const v = ALERT_VARIATIONS[idx >= 0 ? idx : 0];
+        return { triage_summary: v.triageSummary };
     },
     investigate: async (id: string): Promise<Investigation> => {
-        return investigationSample as unknown as Investigation;
+        const base = investigationSample as any;
+        const idx = store.alerts.findIndex(a => a.id === id);
+        const v = ALERT_VARIATIONS[idx >= 0 ? idx : 0];
+        const alert = store.alerts[idx >= 0 ? idx : 0];
+        return {
+            ...base,
+            id: `inv-${id}`,
+            alert_id: id,
+            hypothesis: v.hypothesis,
+            why: v.whyReasons,
+            impact: {
+                scope: [`dst_ip:${v.dstIp}`, `service:${v.service.proto.toLowerCase()}/${v.service.dst_port}`],
+                confidence: 0.65 + idx * 0.05,
+            },
+            next_steps: [
+                `Verify logs on ${v.dstIp} for ${v.type} indicators`,
+                `Check threat intelligence for ${v.srcIp}`,
+                `Review firewall rules for ${v.service.proto}/${v.service.dst_port}`,
+                `Consider implementing rate limiting`,
+            ],
+        } as unknown as Investigation;
     },
     recommend: async (id: string): Promise<Recommendation> => {
-        return recommendationSample as unknown as Recommendation;
+        const base = recommendationSample as any;
+        const idx = store.alerts.findIndex(a => a.id === id);
+        const v = ALERT_VARIATIONS[idx >= 0 ? idx : 0];
+        return {
+            ...base,
+            id: `rec-${id}`,
+            alert_id: id,
+            actions: [
+                {
+                    ...base.actions[0],
+                    title: v.actionTitle,
+                    steps: [`Apply ${v.actionType} on ${v.srcIp}`, 'Verify action is active'],
+                    risk: `May affect legitimate traffic from ${v.srcIp}`,
+                },
+                ...(base.actions.slice(1) || []),
+            ],
+        } as unknown as Recommendation;
     },
 
     getEvidenceChain: async (id: string): Promise<EvidenceChain> => {
-        return evidenceChainSample as unknown as EvidenceChain;
+        const base = evidenceChainSample as any;
+        const idx = store.alerts.findIndex(a => a.id === id);
+        const v = ALERT_VARIATIONS[idx >= 0 ? idx : 0];
+        return {
+            ...base,
+            id: `ec-${id}`,
+            alert_id: id,
+            nodes: base.nodes.map((n: any) => ({
+                ...n,
+                label: n.type === 'alert' ? `${v.type} alert` :
+                       n.type === 'hypothesis' ? v.hypothesis.substring(0, 40) + '...' :
+                       n.label,
+            })),
+        } as unknown as EvidenceChain;
     },
 
     createPlan: async (body: any): Promise<ActionPlan> => {
-        return actionPlanSample as unknown as ActionPlan;
+        const base = actionPlanSample as any;
+        const alertId = body?.alert_id || store.alerts[0].id;
+        const planId = `plan-${alertId}-${Date.now()}`;
+        // Store the plan so dry-run can reference it
+        const plan = {
+            ...base,
+            id: planId,
+            alert_id: alertId,
+            created_at: new Date().toISOString(),
+            actions: body?.actions || base.actions,
+        };
+        // Save to store for later dry-run reference
+        store.lastPlan = plan as any;
+        return plan as unknown as ActionPlan;
     },
     dryRunPlan: async (planId: string, body?: any): Promise<DryRunResult> => {
-        return dryRunSample as unknown as DryRunResult;
+        const base = dryRunSample as any;
+        // Find which alert this plan belongs to
+        const alertId = store.lastPlan?.alert_id || store.alerts[0].id;
+        const idx = store.alerts.findIndex(a => a.id === alertId);
+        const v = ALERT_VARIATIONS[idx >= 0 ? idx : 0];
+        const result: any = {
+            ...base,
+            id: `dr-${planId}-${Date.now()}`,
+            alert_id: alertId,
+            plan_id: planId,
+            created_at: new Date().toISOString(),
+            impact: {
+                ...base.impact,
+                impacted_nodes_count: v.impactedNodes,
+                reachability_drop: v.reachabilityDrop,
+                service_disruption_risk: v.disruptionRisk,
+                warnings: v.warnings,
+            },
+            alternative_paths: [v.altPath],
+            explain: v.explain,
+        };
+        // Store result for topology page retrieval
+        store.lastDryRun = result;
+        return result as DryRunResult;
     },
     listDryRuns: async (params: any): Promise<DryRunResult[]> => {
+        if (store.lastDryRun) return [store.lastDryRun as DryRunResult];
         return [dryRunSample as unknown as DryRunResult];
     },
 
