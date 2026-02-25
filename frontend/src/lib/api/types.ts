@@ -172,6 +172,10 @@ export interface DryRunResult {
         reachability_drop?: number;
         service_disruption_risk?: number;
         warnings?: string[];
+        /** Per-node risk score changes: nodeId → new risk after action */
+        node_risk_deltas?: Record<string, number>;
+        /** Per-edge weight changes: edgeId → new weight after action */
+        edge_weight_deltas?: Record<string, number>;
         [key: string]: any;
     };
     alternative_paths?: Array<{

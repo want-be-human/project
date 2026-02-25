@@ -34,6 +34,8 @@ const ALERT_VARIATIONS: Array<{
     warnings: string[];
     altPath: { from: string; to: string; path: string[] };
     explain: string[];
+    nodeRiskDeltas: Record<string, number>;
+    edgeWeightDeltas: Record<string, number>;
 }> = [
     {
         type: 'bruteforce',
@@ -48,6 +50,8 @@ const ALERT_VARIATIONS: Array<{
         warnings: ['May isolate admin host 198.51.100.20', 'Blocking 192.0.2.10 affects 3 active connections'],
         altPath: { from: 'ip:192.0.2.10', to: 'ip:198.51.100.20', path: ['ip:192.0.2.10','ip:10.0.0.1','ip:198.51.100.20'] },
         explain: ['Blocking ip:192.0.2.10 removes 2 edges from graph', 'Reachability reduced for 18% of nodes', 'Alternative path via gateway 10.0.0.1'],
+        nodeRiskDeltas: { 'ip:192.0.2.10': 0.15, 'ip:198.51.100.20': 0.10 },
+        edgeWeightDeltas: { 'e1': 0, 'e5': 2 },
     },
     {
         type: 'port_scan',
@@ -62,6 +66,8 @@ const ALERT_VARIATIONS: Array<{
         warnings: ['Isolating 10.0.0.100 affects 2 outbound connections', 'Host may be running legitimate monitoring'],
         altPath: { from: 'ip:10.0.0.100', to: 'ip:192.0.2.50', path: ['ip:10.0.0.100','ip:10.0.0.1','ip:198.51.100.1','ip:192.0.2.50'] },
         explain: ['Isolating ip:10.0.0.100 removes 2 edges (e5, e7)', 'Nodes 192.0.2.10 and 198.51.100.20 lose one inbound path each', 'Low service disruption — host is not a gateway'],
+        nodeRiskDeltas: { 'ip:10.0.0.100': 0.10, 'ip:192.0.2.10': 0.50, 'ip:198.51.100.20': 0.12 },
+        edgeWeightDeltas: { 'e5': 0, 'e7': 0 },
     },
     {
         type: 'data_exfiltration',
@@ -76,6 +82,8 @@ const ALERT_VARIATIONS: Array<{
         warnings: ['Rate-limiting may slow legitimate HTTPS traffic from server'],
         altPath: { from: 'ip:192.0.2.50', to: 'ip:203.0.113.5', path: ['ip:192.0.2.50','ip:198.51.100.1','ip:203.0.113.5'] },
         explain: ['Rate-limiting ip:192.0.2.50→ip:203.0.113.5 reduces edge weight', 'Minimal reachability impact (5%)', 'Alternative path via gateway exists for critical traffic'],
+        nodeRiskDeltas: { 'ip:192.0.2.50': 0.20 },
+        edgeWeightDeltas: { 'e2': 1, 'e4': 4 },
     },
     {
         type: 'lateral_movement',
@@ -90,6 +98,8 @@ const ALERT_VARIATIONS: Array<{
         warnings: ['May block legitimate admin RDP if 10.0.0.100 is dual-use', 'Consider disabling RDP service globally'],
         altPath: { from: 'ip:10.0.0.100', to: 'ip:198.51.100.20', path: ['ip:10.0.0.100','ip:10.0.0.1','ip:198.51.100.20'] },
         explain: ['Blocking RDP from ip:10.0.0.100 removes edge e7', 'Admin host 198.51.100.20 retains SSH access from other sources', 'Alternative admin path exists via gateway 10.0.0.1'],
+        nodeRiskDeltas: { 'ip:10.0.0.100': 0.25, 'ip:198.51.100.20': 0.08 },
+        edgeWeightDeltas: { 'e5': 5, 'e7': 0 },
     },
     {
         type: 'c2_beacon',
@@ -104,6 +114,8 @@ const ALERT_VARIATIONS: Array<{
         warnings: ['Blocking C2 destination may trigger failover to backup C2 channel'],
         altPath: { from: 'ip:192.0.2.10', to: 'ip:203.0.113.5', path: ['ip:192.0.2.10','ip:10.0.0.1','ip:203.0.113.5'] },
         explain: ['Blocking ip:203.0.113.5 severs C2 channel', 'Minimal network disruption — host is not a hub', 'Recommend additional host forensics on 192.0.2.10'],
+        nodeRiskDeltas: { 'ip:203.0.113.5': 0.02 },
+        edgeWeightDeltas: { 'e2': 0 },
     },
 ];
 
@@ -424,6 +436,8 @@ export const mockApi = {
                 reachability_drop: v.reachabilityDrop,
                 service_disruption_risk: v.disruptionRisk,
                 warnings: v.warnings,
+                node_risk_deltas: v.nodeRiskDeltas,
+                edge_weight_deltas: v.edgeWeightDeltas,
             },
             alternative_paths: [v.altPath],
             explain: v.explain,

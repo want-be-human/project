@@ -77,6 +77,56 @@ function TopologyInner() {
     return ids.size > 0 ? ids : undefined;
   }, [impactedNodeIds, graph]);
 
+  // Apply dry-run deltas to produce the "after" graph for display
+  const displayGraph = useMemo<GraphResponse | null>(() => {
+    if (!graph) return null;
+    if (!dryRunResult) return graph;
+
+    const nodeDeltas = dryRunResult.impact?.node_risk_deltas;
+    const edgeDeltas = dryRunResult.impact?.edge_weight_deltas;
+    if (!nodeDeltas && !edgeDeltas) return graph;
+
+    const newNodes = nodeDeltas
+      ? graph.nodes.map(n =>
+          nodeDeltas[n.id] !== undefined
+            ? { ...n, risk: nodeDeltas[n.id] }
+            : n
+        )
+      : graph.nodes;
+
+    const newEdges = edgeDeltas
+      ? graph.edges.map(e =>
+          edgeDeltas[e.id] !== undefined
+            ? { ...e, weight: edgeDeltas[e.id] }
+            : e
+        )
+      : graph.edges;
+
+    return { ...graph, nodes: newNodes, edges: newEdges };
+  }, [graph, dryRunResult]);
+
+  // Keep a map of original values so SideInspector can show before→after
+  const originalValues = useMemo(() => {
+    if (!graph || !dryRunResult) return undefined;
+    const nodeDeltas = dryRunResult.impact?.node_risk_deltas;
+    const edgeDeltas = dryRunResult.impact?.edge_weight_deltas;
+    if (!nodeDeltas && !edgeDeltas) return undefined;
+
+    const nodeRisks: Record<string, number> = {};
+    const edgeWeights: Record<string, number> = {};
+    if (nodeDeltas) {
+      graph.nodes.forEach(n => {
+        if (nodeDeltas[n.id] !== undefined) nodeRisks[n.id] = n.risk;
+      });
+    }
+    if (edgeDeltas) {
+      graph.edges.forEach(e => {
+        if (edgeDeltas[e.id] !== undefined) edgeWeights[e.id] = e.weight;
+      });
+    }
+    return { nodeRisks, edgeWeights };
+  }, [graph, dryRunResult]);
+
   const fetchGraph = useCallback(async () => {
     setLoading(true);
     try {
@@ -130,8 +180,8 @@ function TopologyInner() {
           ) : graph ? (
             <div className="flex-grow">
               <Topology3D
-                nodes={graph.nodes}
-                edges={graph.edges}
+                nodes={displayGraph!.nodes}
+                edges={displayGraph!.edges}
                 currentTime={currentTime}
                 highlightAlertId={highlightAlertId}
                 impactedNodeIds={impactedNodeIds}
@@ -178,6 +228,7 @@ function TopologyInner() {
           dryRunResult={dryRunResult}
           impactedNodeIds={impactedNodeIds}
           impactedEdgeIds={impactedEdgeIds}
+          originalValues={originalValues}
           onClose={handleClearSelection}
         />
       </div>

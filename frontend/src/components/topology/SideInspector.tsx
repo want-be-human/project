@@ -10,10 +10,12 @@ interface SideInspectorProps {
   dryRunResult?: DryRunResult | null;
   impactedNodeIds?: Set<string>;
   impactedEdgeIds?: Set<string>;
+  /** Original risk/weight values before dry-run deltas were applied */
+  originalValues?: { nodeRisks: Record<string, number>; edgeWeights: Record<string, number> };
   onClose: () => void;
 }
 
-export default function SideInspector({ selectedNode, selectedEdge, dryRunResult, impactedNodeIds, impactedEdgeIds, onClose }: SideInspectorProps) {
+export default function SideInspector({ selectedNode, selectedEdge, dryRunResult, impactedNodeIds, impactedEdgeIds, originalValues, onClose }: SideInspectorProps) {
   const hasSelection = selectedNode || selectedEdge;
   const nodeIsImpacted = selectedNode && impactedNodeIds?.has(selectedNode.id);
   const edgeIsImpacted = selectedEdge && impactedEdgeIds?.has(selectedEdge.id);
@@ -52,9 +54,20 @@ export default function SideInspector({ selectedNode, selectedEdge, dryRunResult
             <div className="space-y-2">
               <DetailRow label="ID" value={selectedNode.id} mono />
               <DetailRow label="Type" value={selectedNode.type} />
-              <DetailRow label="Risk Score" value={selectedNode.risk.toFixed(2)}>
-                <RiskBadge risk={selectedNode.risk} />
-              </DetailRow>
+              {originalValues?.nodeRisks[selectedNode.id] !== undefined ? (
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-500">Risk Score</span>
+                  <div className="flex items-center gap-2">
+                    <RiskBadge risk={selectedNode.risk} />
+                    <span className="text-gray-400 line-through text-xs">{originalValues.nodeRisks[selectedNode.id].toFixed(2)}</span>
+                    <span className="text-green-600 font-bold">&rarr; {selectedNode.risk.toFixed(2)}</span>
+                  </div>
+                </div>
+              ) : (
+                <DetailRow label="Risk Score" value={selectedNode.risk.toFixed(2)}>
+                  <RiskBadge risk={selectedNode.risk} />
+                </DetailRow>
+              )}
             </div>
 
             {/* Dry-run impact info */}
@@ -88,7 +101,19 @@ export default function SideInspector({ selectedNode, selectedEdge, dryRunResult
             <div className="space-y-2">
               <DetailRow label="Source" value={selectedEdge.source} mono />
               <DetailRow label="Target" value={selectedEdge.target} mono />
-              <DetailRow label="Weight" value={String(selectedEdge.weight)} />
+              {originalValues?.edgeWeights[selectedEdge.id] !== undefined ? (
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-500">Weight</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-400 line-through text-xs">{originalValues.edgeWeights[selectedEdge.id]}</span>
+                    <span className={`font-bold ${selectedEdge.weight === 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      &rarr; {selectedEdge.weight}{selectedEdge.weight === 0 && ' (severed)'}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <DetailRow label="Weight" value={String(selectedEdge.weight)} />
+              )}
               <DetailRow label="Protocols" value={(selectedEdge.protocols ?? []).join(', ') || '—'} />
             </div>
 
