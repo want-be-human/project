@@ -5,16 +5,22 @@ GET /scenarios
 POST /scenarios/{scenario_id}/run
 """
 
+import asyncio
+
 from fastapi import APIRouter, Depends, Query, Path
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
+from app.core.errors import NotFoundError
+from app.models.pcap import PcapFile
 from app.schemas.common import ApiResponse
 from app.schemas.scenario import (
     ScenarioSchema,
     ScenarioRunResultSchema,
     CreateScenarioRequest,
 )
+from app.services.scenarios.service import ScenariosService
+from app.api.routers.stream import broadcast_scenario_done
 
 router = APIRouter(prefix="/scenarios", tags=["scenarios"])
 
@@ -38,10 +44,20 @@ async def create_scenario(
     - Evidence chain requirements
     - Whether dry-run is required
     """
-    # TODO: Implement scenario creation
-    # Verify PCAP exists, create and save scenario
-    from app.core.errors import NotFoundError
-    raise NotFoundError(resource="PcapFile", resource_id=request.pcap_ref.pcap_id)
+    # Verify PCAP exists
+    pcap = db.query(PcapFile).filter(PcapFile.id == request.pcap_ref.pcap_id).first()
+    if not pcap:
+        raise NotFoundError(message=f"PcapFile {request.pcap_ref.pcap_id} not found")
+
+    svc = ScenariosService(db)
+    scenario = svc.create_scenario(
+        name=request.name,
+        description=request.description,
+        pcap_id=request.pcap_ref.pcap_id,
+        expectations=request.expectations,
+        tags=request.tags,
+    )
+    return ApiResponse.success(scenario)
 
 
 @router.get(
@@ -58,8 +74,9 @@ async def list_scenarios(
     """
     List all scenarios with pagination.
     """
-    # TODO: Implement scenario listing
-    return ApiResponse.success([])
+    svc = ScenariosService(db)
+    scenarios = svc.list_scenarios(limit=limit, offset=offset)
+    return ApiResponse.success(scenarios)
 
 
 @router.post(
@@ -76,17 +93,26 @@ async def run_scenario(
     Run a scenario and check expectations.
     
     The run:
-    1. Processes the referenced PCAP (if not already done)
-    2. Checks min_alerts expectation
-    3. Checks must_have patterns
-    4. Checks evidence_chain_contains
-    5. If dry_run_required, verifies dry-run exists or triggers one
+    1. Checks min_alerts expectation
+    2. Checks must_have patterns
+    3. Checks evidence_chain_contains
+    4. If dry_run_required, verifies dry-run exists
     
     Returns ScenarioRunResult with:
     - status: pass/fail
     - checks: Individual check results
     - metrics: Aggregate metrics
     """
-    # TODO: Implement scenario execution
-    from app.core.errors import NotFoundError
-    raise NotFoundError(resource="Scenario", resource_id=scenario_id)
+    svc = ScenariosService(db)
+    scenario = svc.get_scenario(scenario_id)
+    if not scenario:
+        raise NotFoundError(message=f"Scenario {scenario_id} not found")
+
+    result = svc.run_scenario(scenario)
+
+    # WS broadcast: scenario.run.done (DOC C C7.2)
+    asyncio.create_task(
+        broadcast_scenario_done(scenario_id=scenario.id, status=result.status)
+    )
+
+    return ApiResponse.success(result)

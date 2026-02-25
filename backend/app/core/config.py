@@ -7,6 +7,10 @@ from pathlib import Path
 from functools import lru_cache
 from pydantic_settings import BaseSettings
 
+# Resolve BASE_DIR to the backend/ directory regardless of CWD
+# config.py → core/ → app/ → backend/
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
@@ -16,12 +20,12 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.1"
     DEBUG: bool = False
 
-    # Database
-    DATABASE_URL: str = "sqlite:///./data/nettwin.db"
+    # Database – absolute path derived from backend/
+    DATABASE_URL: str = f"sqlite:///{(BASE_DIR / 'data' / 'nettwin.db').as_posix()}"
 
-    # Data storage
-    DATA_DIR: Path = Path("./data")
-    PCAP_DIR: Path = Path("./data/pcaps")
+    # Data storage – absolute paths derived from backend/
+    DATA_DIR: Path = BASE_DIR / "data"
+    PCAP_DIR: Path = BASE_DIR / "data" / "pcaps"
 
     # Detection model parameters (JSON string, parsed in detection service)
     MODEL_PARAMS: str = "{}"
