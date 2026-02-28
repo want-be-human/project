@@ -455,9 +455,41 @@ export const mockApi = {
         return scenarioSample as unknown as Scenario;
     },
     listScenarios: async (params: any): Promise<Scenario[]> => {
-        return [scenarioSample as unknown as Scenario];
+        const scenario2 = {
+            ...scenarioSample,
+            id: 'c9d0e1f2-a3b4-5678-2345-901234567890',
+            name: 'scan_demo',
+            description: 'Regression scenario for port scan detection.',
+            tags: ['regression', 'demo', 'scan', 'network']
+        };
+        return [
+            scenarioSample as unknown as Scenario,
+            scenario2 as unknown as Scenario
+        ];
     },
     runScenario: async (id: string): Promise<ScenarioRunResult> => {
-        return scenarioRunResultSample as unknown as ScenarioRunResult;
+        // Return matching result or default
+        const result = {
+            ...scenarioRunResultSample,
+            id: `run-${Date.now()}`,
+            scenario_id: id,
+            created_at: new Date().toISOString()
+        };
+        
+        // Simulate WS event after 1.5s
+        setTimeout(() => {
+            wsClient.simulateEvent('scenario.run.done', {
+                scenario_id: id,
+                run_id: result.id,
+                status: 'pass'
+            });
+        }, 1500);
+
+        // API immediately returns the result (or we can simulate a delay if the API blocks, but let's just use a promise with delay)
+        return new Promise(resolve => {
+            setTimeout(() => {
+                resolve(result as unknown as ScenarioRunResult);
+            }, 1000);
+        });
     }
 };
