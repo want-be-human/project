@@ -33,12 +33,21 @@ export default function FlowsPage() {
 
   // Derive filtered flows from state
   const filteredFlows = flows.filter(f => {
+    if (filters.pcap_id && !f.pcap_id.includes(filters.pcap_id)) return false;
     if (filters.src_ip && !f.src_ip.includes(filters.src_ip)) return false;
     if (filters.dst_ip && !f.dst_ip.includes(filters.dst_ip)) return false;
     if (filters.proto && f.proto !== filters.proto) return false;
     if (filters.min_score) {
       const min = parseFloat(filters.min_score);
       if (!isNaN(min) && f.anomaly_score < min) return false;
+    }
+    if (filters.time_start) {
+      const start = new Date(filters.time_start).getTime();
+      if (!isNaN(start) && new Date(f.ts_start).getTime() < start) return false;
+    }
+    if (filters.time_end) {
+      const end = new Date(filters.time_end).getTime();
+      if (!isNaN(end) && new Date(f.ts_end).getTime() > end) return false;
     }
     return true;
   });

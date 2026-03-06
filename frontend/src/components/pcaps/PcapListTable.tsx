@@ -46,7 +46,7 @@ export default function PcapListTable({ pcaps, onProcess, processingId }: PcapLi
             pcaps.map((pcap) => (
               <tr key={pcap.id} className="hover:bg-gray-50 group transition-colors">
                 <td className="px-6 py-3 font-medium text-gray-900">{pcap.filename}</td>
-                <td className="px-6 py-3 text-gray-500">{formatBytes(pcap.size)}</td>
+                <td className="px-6 py-3 text-gray-500">{formatBytes(pcap.size_bytes)}</td>
                 <td className="px-6 py-3 text-gray-500">
                   {pcap.created_at ? format(new Date(pcap.created_at), 'yyyy-MM-dd HH:mm') : '-'}
                 </td>

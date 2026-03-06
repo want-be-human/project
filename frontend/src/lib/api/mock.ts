@@ -178,7 +178,7 @@ const mockPcap: PcapFile = {
     id: "11111111-2222-3333-4444-555555555555",
     created_at: new Date().toISOString(),
     filename: "demo.pcap",
-    size: 1024 * 1024 * 5,
+    size_bytes: 1024 * 1024 * 5,
     status: "done",
     progress: 100,
     flow_count: 1000,

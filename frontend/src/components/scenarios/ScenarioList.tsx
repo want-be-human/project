@@ -46,10 +46,10 @@ export default function ScenarioList({ scenarios, onSelect, selectedId, runningI
             </div>
             <div className="grid grid-cols-2 gap-2 text-xs text-gray-500 mb-1">
               <div>
-                <span className="font-semibold text-gray-400">Min Alerts:</span> {s.min_alerts || 0}
+                <span className="font-semibold text-gray-400">Min Alerts:</span> {s.expectations?.min_alerts || 0}
               </div>
               <div>
-                <span className="font-semibold text-gray-400">Dry-Run:</span> {s.dry_run_required ? 'Required' : 'Skipped'}
+                <span className="font-semibold text-gray-400">Dry-Run:</span> {s.expectations?.dry_run_required ? 'Required' : 'Skipped'}
               </div>
             </div>
             <div className="text-xs text-gray-500">

@@ -5,6 +5,9 @@ interface FlowFilters {
   dst_ip?: string;
   proto?: string;
   min_score?: string;
+  pcap_id?: string;
+  time_start?: string;
+  time_end?: string;
 }
 
 interface FlowFilterBarProps {
@@ -25,6 +28,15 @@ export default function FlowFilterBar({ onFilterChange }: FlowFilterBarProps) {
 
   return (
     <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-4 flex gap-4 items-end flex-wrap">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">PCAP ID</label>
+        <input 
+          type="text" 
+          placeholder="uuid..." 
+          className="border border-gray-300 rounded px-3 py-2 text-sm w-44 focus:ring-blue-500 focus:border-blue-500 font-mono text-xs"
+          onChange={(e) => updateFilter('pcap_id', e.target.value)}
+        />
+      </div>
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Source IP</label>
         <input 
@@ -67,7 +79,25 @@ export default function FlowFilterBar({ onFilterChange }: FlowFilterBarProps) {
           onChange={(e) => updateFilter('min_score', e.target.value)}
         />
       </div>
-       <div className="flex-grow"></div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+        <input 
+          type="datetime-local" 
+          className="border border-gray-300 rounded px-3 py-2 text-sm w-48"
+          onChange={(e) => updateFilter('time_start', e.target.value)}
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+        <input 
+          type="datetime-local" 
+          className="border border-gray-300 rounded px-3 py-2 text-sm w-48"
+          onChange={(e) => updateFilter('time_end', e.target.value)}
+        />
+      </div>
+      <div className="flex-grow"></div>
     </div>
   );
 }
+
+export type { FlowFilters };

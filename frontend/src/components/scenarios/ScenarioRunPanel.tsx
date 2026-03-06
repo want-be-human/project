@@ -127,7 +127,7 @@ export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props)
               {result.status === 'pass' ? <CheckCircle2 className="w-8 h-8" /> : <XCircle className="w-8 h-8" />}
               <div>
                 <h3 className="font-bold text-lg capitalize">Scenario {result.status}ed</h3>
-                <p className="opacity-80 text-sm">Completed at {new Date((result as any).created_at || Date.now()).toLocaleString()}</p>
+                <p className="opacity-80 text-sm">Completed at {new Date(result.created_at || Date.now()).toLocaleString()}</p>
               </div>
             </div>
 

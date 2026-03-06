@@ -8,6 +8,10 @@ interface TopologyToolbarProps {
   highlightAlertId: string | null;
   onRefresh: () => void;
   loading?: boolean;
+  startTime?: string;
+  endTime?: string;
+  onStartTimeChange?: (value: string) => void;
+  onEndTimeChange?: (value: string) => void;
 }
 
 export default function TopologyToolbar({
@@ -16,9 +20,13 @@ export default function TopologyToolbar({
   highlightAlertId,
   onRefresh,
   loading,
+  startTime,
+  endTime,
+  onStartTimeChange,
+  onEndTimeChange,
 }: TopologyToolbarProps) {
   return (
-    <div className="flex items-center gap-3 px-4 py-2 border-b border-gray-200 bg-white shrink-0">
+    <div className="flex items-center gap-3 px-4 py-2 border-b border-gray-200 bg-white shrink-0 flex-wrap">
       {/* Mode toggle */}
       <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
         <button
@@ -42,6 +50,26 @@ export default function TopologyToolbar({
           Subnet
         </button>
       </div>
+
+      {/* Time range */}
+      {onStartTimeChange && onEndTimeChange && (
+        <div className="flex items-center gap-2 text-sm">
+          <label className="text-gray-500 font-medium text-xs">From</label>
+          <input
+            type="datetime-local"
+            value={startTime || ''}
+            onChange={(e) => onStartTimeChange(e.target.value)}
+            className="border border-gray-200 rounded px-2 py-1 text-xs w-44"
+          />
+          <label className="text-gray-500 font-medium text-xs">To</label>
+          <input
+            type="datetime-local"
+            value={endTime || ''}
+            onChange={(e) => onEndTimeChange(e.target.value)}
+            className="border border-gray-200 rounded px-2 py-1 text-xs w-44"
+          />
+        </div>
+      )}
 
       {/* Refresh */}
       <button

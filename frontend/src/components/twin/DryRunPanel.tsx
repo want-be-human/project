@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
+import { wsClient } from '@/lib/ws';
 import { DryRunResult } from '@/lib/api/types';
 import { Play, AlertTriangle, ArrowRight, Activity, Map, ExternalLink } from 'lucide-react';
 import clsx from 'clsx';
@@ -16,6 +17,18 @@ export default function DryRunPanel({ alertId, planId }: DryRunPanelProps) {
   const router = useRouter();
   const [result, setResult] = useState<DryRunResult | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Subscribe to twin.dryrun.created WS event
+  useEffect(() => {
+    const unsub = wsClient.onEvent('twin.dryrun.created', (payload: DryRunResult) => {
+      // Update result if it matches our current plan
+      if (payload.plan_id === planId) {
+        setResult(payload);
+        setLoading(false);
+      }
+    });
+    return unsub;
+  }, [planId]);
 
   const handleDryRun = async () => {
     setLoading(true);

@@ -2,10 +2,11 @@
 export type API_MODE_TYPE = 'mock' | 'real';
 
 export interface PcapFile {
+  version?: string;
   id: string; // uuid
   created_at: string; // ISO8601
   filename: string;
-  size: number;
+  size_bytes: number;
   status: 'uploaded' | 'processing' | 'done' | 'failed';
   progress?: number; // 0-100
   flow_count?: number;
@@ -13,6 +14,7 @@ export interface PcapFile {
 }
 
 export interface FlowRecord {
+  version?: string;
   id: string;
   created_at: string;
   pcap_id: string;
@@ -65,7 +67,22 @@ export interface Alert {
     }>;
     pcap_ref: {
       pcap_id: string;
+      offset_hint?: number | null;
     };
+  };
+  aggregation?: {
+    rule: string;
+    group_key: string;
+    count_flows: number;
+  };
+  agent?: {
+    triage_summary: string | null;
+    investigation_id: string | null;
+    recommendation_id: string | null;
+  };
+  twin?: {
+    plan_id: string | null;
+    dry_run_id: string | null;
   };
   tags?: string[];
   notes?: string;
@@ -187,30 +204,39 @@ export interface DryRunResult {
 }
 
 export interface Scenario {
+    version?: string;
     id: string;
+    created_at?: string;
     name: string;
     description?: string;
     tags?: string[];
     pcap_ref: {
         pcap_id: string;
     };
-    min_alerts: number;
-    dry_run_required: boolean;
+    expectations: {
+        min_alerts: number;
+        must_have?: Array<{ type: string; severity_at_least?: string }>;
+        evidence_chain_contains?: string[];
+        dry_run_required: boolean;
+    };
 }
 
 export interface ScenarioRunResult {
+    version?: string;
     id: string;
+    created_at?: string;
     scenario_id: string;
     status: 'pass' | 'fail';
     checks: Array<{
         name: string;
         pass: boolean;
-        details?: string;
+        details?: any;
     }>;
     metrics: {
         alert_count: number;
         high_severity_count: number;
         avg_dry_run_risk: number;
-        [key: string]: number;
+        processing_time_ms?: number;
+        [key: string]: number | undefined;
     };
 }

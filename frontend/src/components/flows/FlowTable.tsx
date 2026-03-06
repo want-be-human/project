@@ -28,6 +28,7 @@ export default function FlowTable({ flows, onSelect, selectedId }: FlowTableProp
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Destination</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Proto</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duration</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bytes</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Score</th>
           </tr>
@@ -62,6 +63,12 @@ export default function FlowTable({ flows, onSelect, selectedId }: FlowTableProp
                   <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
                     {flow.proto}
                   </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {(() => {
+                    const ms = new Date(flow.ts_end).getTime() - new Date(flow.ts_start).getTime();
+                    return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`;
+                  })()}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {formatBytes(flow.bytes_fwd + flow.bytes_bwd)}

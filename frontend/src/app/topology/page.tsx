@@ -31,6 +31,8 @@ function TopologyInner() {
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<'ip' | 'subnet'>('ip');
   const [currentTime, setCurrentTime] = useState(0);
+  const [filterStart, setFilterStart] = useState('');
+  const [filterEnd, setFilterEnd] = useState('');
 
   // Dry-run state
   const [dryRunResult, setDryRunResult] = useState<DryRunResult | null>(null);
@@ -130,7 +132,10 @@ function TopologyInner() {
   const fetchGraph = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await api.getGraph({ mode });
+      const params: Record<string, string> = { mode };
+      if (filterStart) params.start = new Date(filterStart).toISOString();
+      if (filterEnd) params.end = new Date(filterEnd).toISOString();
+      const data = await api.getGraph(params);
       setGraph(data);
       // Initialize currentTime to the start of the data window
       if (data.meta?.start) {
@@ -141,7 +146,7 @@ function TopologyInner() {
     } finally {
       setLoading(false);
     }
-  }, [mode]);
+  }, [mode, filterStart, filterEnd]);
 
   useEffect(() => {
     fetchGraph();
@@ -164,6 +169,10 @@ function TopologyInner() {
         highlightAlertId={highlightAlertId}
         onRefresh={fetchGraph}
         loading={loading}
+        startTime={filterStart}
+        endTime={filterEnd}
+        onStartTimeChange={setFilterStart}
+        onEndTimeChange={setFilterEnd}
       />
 
       {/* Main body: 3D view + Side inspector */}

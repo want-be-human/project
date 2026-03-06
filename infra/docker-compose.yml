@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   backend:
     build:
@@ -21,19 +19,19 @@ services:
       start_period: 10s
     restart: unless-stopped
 
-  # Frontend placeholder - to be implemented by Gemini
-  # frontend:
-  #   build:
-  #     context: ../frontend
-  #     dockerfile: Dockerfile
-  #   ports:
-  #     - "3000:3000"
-  #   environment:
-  #     - NEXT_PUBLIC_API_MODE=${NEXT_PUBLIC_API_MODE:-real}
-  #     - NEXT_PUBLIC_API_BASE_URL=http://backend:8000
-  #   depends_on:
-  #     - backend
-  #   restart: unless-stopped
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_MODE=${NEXT_PUBLIC_API_MODE:-real}
+      - NEXT_PUBLIC_API_BASE_URL=http://backend:8000
+      - NEXT_PUBLIC_WS_URL=ws://backend:8000
+    depends_on:
+      - backend
+    restart: unless-stopped
 
   # Optional PostgreSQL database - uncomment for production
   # db:

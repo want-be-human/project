@@ -6,12 +6,22 @@ import {
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
 
+interface Envelope<T> {
+  ok: boolean;
+  data: T | null;
+  error: { code: string; message: string; details?: any } | null;
+}
+
 async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${endpoint}`, options);
   if (!res.ok) {
     throw new Error(`API Error: ${res.status} ${res.statusText}`);
   }
-  return res.json();
+  const envelope: Envelope<T> = await res.json();
+  if (!envelope.ok || envelope.data === null || envelope.data === undefined) {
+    throw new Error(envelope.error?.message || 'Unknown API error');
+  }
+  return envelope.data;
 }
 
 export const realApi = {
@@ -28,7 +38,7 @@ export const realApi = {
         return fetchJson<PcapFile[]>(`/api/v1/pcaps?${query}`);
     },
     getPcapStatus: async (id: string): Promise<PcapFile> => {
-        return fetchJson<PcapFile>(`/api/v1/pcaps/${id}`);
+        return fetchJson<PcapFile>(`/api/v1/pcaps/${id}/status`);
     },
     processPcap: async (id: string, body: any): Promise<{accepted: true}> => {
         return fetchJson<{accepted: true}>(`/api/v1/pcaps/${id}/process`, {
