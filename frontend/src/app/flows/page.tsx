@@ -3,11 +3,13 @@
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { FlowRecord } from '@/lib/api/types';
+import { useTranslations } from 'next-intl';
 import FlowFilterBar from '@/components/flows/FlowFilterBar';
 import FlowTable from '@/components/flows/FlowTable';
 import FlowDetailDrawer from '@/components/flows/FlowDetailDrawer';
 
 export default function FlowsPage() {
+  const t = useTranslations('flows');
   const [flows, setFlows] = useState<FlowRecord[]>([]);
   const [filters, setFilters] = useState<any>({});
   const [loading, setLoading] = useState(true);
@@ -56,9 +58,9 @@ export default function FlowsPage() {
     <div className="max-w-7xl mx-auto h-[calc(100vh-100px)] flex flex-col">
        <div className="flex justify-between items-center mb-6 shrink-0">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Network Flows</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t('title')}</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Traffic analysis and anomaly detection results.
+            {t('description')}
           </p>
         </div>
       </div>
@@ -69,7 +71,7 @@ export default function FlowsPage() {
 
       <div className="flex-grow overflow-hidden relative">
         {loading ? (
-          <div className="text-center py-12 text-gray-500">Loading flow data...</div>
+          <div className="text-center py-12 text-gray-500">{t('loading')}</div>
         ) : (
           <FlowTable 
             flows={filteredFlows} 

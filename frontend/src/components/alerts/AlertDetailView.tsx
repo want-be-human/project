@@ -10,6 +10,7 @@ import AgentPanel from '@/components/agent/AgentPanel';
 import ActionBuilder from '@/components/twin/ActionBuilder';
 import DryRunPanel from '@/components/twin/DryRunPanel';
 import { ArrowLeft, Tag, Clock, ShieldAlert, Activity } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { format } from 'date-fns';
 import { clsx } from 'clsx';
 
@@ -20,6 +21,8 @@ interface AlertDetailViewProps {
 }
 
 export default function AlertDetailView({ alert, evidenceChain, onAlertUpdate }: AlertDetailViewProps) {
+  const t = useTranslations('alertDetail');
+  const ta = useTranslations('alerts');
   const router = useRouter();
   const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
   const [actionPlan, setActionPlan] = useState<ActionPlan | null>(null);
@@ -54,7 +57,7 @@ export default function AlertDetailView({ alert, evidenceChain, onAlertUpdate }:
         className="flex items-center text-sm text-gray-500 hover:text-gray-900 mb-6 transition-colors"
       >
         <ArrowLeft className="w-4 h-4 mr-1" />
-        <span>Back to Alerts</span>
+        <span>{t('backToAlerts')}</span>
       </button>
 
       {/* Alert Header */}
@@ -62,7 +65,7 @@ export default function AlertDetailView({ alert, evidenceChain, onAlertUpdate }:
         <div className="flex justify-between items-start mb-4">
           <div>
             <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-2xl font-bold text-gray-900 capitalize">{alert.type} Detected</h1>
+              <h1 className="text-2xl font-bold text-gray-900 capitalize">{t('detected', { type: alert.type })}</h1>
               <span className={clsx("px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full border", getSeverityColor(alert.severity))}>
                 {alert.severity}
               </span>
@@ -87,37 +90,37 @@ export default function AlertDetailView({ alert, evidenceChain, onAlertUpdate }:
           </div>
           
           <div className="flex flex-col items-end gap-2">
-            <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Status</label>
+            <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">{t('status')}</label>
             <select
               value={alert.status}
               onChange={(e) => handleStatusChange(e.target.value)}
               className="border border-gray-300 rounded-md px-3 py-1.5 text-sm font-medium bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
-              <option value="new">New</option>
-              <option value="triaged">Triaged</option>
-              <option value="investigating">Investigating</option>
-              <option value="resolved">Resolved</option>
-              <option value="false_positive">False Positive</option>
+              <option value="new">{ta('new')}</option>
+              <option value="triaged">{ta('triaged')}</option>
+              <option value="investigating">{ta('investigating')}</option>
+              <option value="resolved">{ta('resolved')}</option>
+              <option value="false_positive">{ta('falsePositive')}</option>
             </select>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6 pt-6 border-t border-gray-100">
           <div>
-            <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Source</h3>
+            <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">{t('source')}</h3>
             <div className="font-mono text-sm text-gray-900 bg-gray-50 p-2 rounded border border-gray-200">
               {alert.entities.primary_src_ip}
             </div>
           </div>
           <div>
-            <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Destination</h3>
+            <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">{t('destination')}</h3>
             <div className="font-mono text-sm text-gray-900 bg-gray-50 p-2 rounded border border-gray-200">
               {alert.entities.primary_dst_ip || 'N/A'}
               {alert.entities.primary_service && ` : ${alert.entities.primary_service.dst_port} (${alert.entities.primary_service.proto})`}
             </div>
           </div>
           <div>
-            <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Tags</h3>
+            <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">{t('tags')}</h3>
             <div className="flex flex-wrap gap-2">
               {alert.tags?.map(tag => (
                 <span key={tag} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
@@ -125,7 +128,7 @@ export default function AlertDetailView({ alert, evidenceChain, onAlertUpdate }:
                   <span>{tag}</span>
                 </span>
               ))}
-              {(!alert.tags || alert.tags.length === 0) && <span className="text-sm text-gray-400">No tags</span>}
+              {(!alert.tags || alert.tags.length === 0) && <span className="text-sm text-gray-400">{t('noTags')}</span>}
             </div>
           </div>
         </div>
@@ -133,11 +136,11 @@ export default function AlertDetailView({ alert, evidenceChain, onAlertUpdate }:
         {/* Aggregation info (from DOC C) */}
         {alert.aggregation && (
           <div className="mt-4 pt-4 border-t border-gray-100">
-            <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Aggregation</h3>
+            <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">{t('aggregation')}</h3>
             <div className="flex gap-6 text-sm text-gray-600">
-              <span>Rule: <span className="font-mono text-xs">{alert.aggregation.rule}</span></span>
-              <span>Group: <span className="font-mono text-xs">{alert.aggregation.group_key}</span></span>
-              <span>Flows: <span className="font-semibold">{alert.aggregation.count_flows}</span></span>
+              <span>{t('rule')} <span className="font-mono text-xs">{alert.aggregation.rule}</span></span>
+              <span>{t('group')} <span className="font-mono text-xs">{alert.aggregation.group_key}</span></span>
+              <span>{t('flowCount')} <span className="font-semibold">{alert.aggregation.count_flows}</span></span>
             </div>
           </div>
         )}
@@ -151,13 +154,13 @@ export default function AlertDetailView({ alert, evidenceChain, onAlertUpdate }:
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
             <Activity className="w-5 h-5 text-blue-600" />
-            <span>Evidence Chain</span>
+            <span>{t('evidenceChain')}</span>
           </h2>
           <button 
             onClick={() => router.push(`/topology?highlightAlertId=${alert.id}`)}
             className="text-sm text-blue-600 hover:text-blue-800 font-medium px-3 py-1 bg-blue-50 rounded-full hover:bg-blue-100 transition-colors"
           >
-            View in 3D Topology →
+            {t('viewIn3D')}
           </button>
         </div>
         
@@ -165,7 +168,7 @@ export default function AlertDetailView({ alert, evidenceChain, onAlertUpdate }:
           <EvidenceChainView chain={evidenceChain} />
         ) : (
           <div className="text-center py-12 text-gray-500 bg-gray-50 rounded border border-dashed border-gray-300">
-            No evidence chain available for this alert.
+            {t('noEvidence')}
           </div>
         )}
       </div>
@@ -175,7 +178,7 @@ export default function AlertDetailView({ alert, evidenceChain, onAlertUpdate }:
         <div className="space-y-6">
           <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
             <ShieldAlert className="w-5 h-5 text-purple-600" />
-            <span>AI Analyst</span>
+            <span>{t('aiAnalyst')}</span>
           </h2>
           <AgentPanel alertId={alert.id} onRecommendationLoaded={setRecommendation} />
         </div>
@@ -183,7 +186,7 @@ export default function AlertDetailView({ alert, evidenceChain, onAlertUpdate }:
         <div className="space-y-6">
           <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
             <Activity className="w-5 h-5 text-indigo-600" />
-            <span>Remediation &amp; Twin</span>
+            <span>{t('remediation')}</span>
           </h2>
           
           <ActionBuilder 

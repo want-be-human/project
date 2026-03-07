@@ -1,4 +1,5 @@
 import { FlowRecord } from '@/lib/api/types';
+import { useTranslations } from 'next-intl';
 import { formatBytes } from '@/lib/utils';
 import { format } from 'date-fns';
 import { clsx } from 'clsx';
@@ -11,10 +12,12 @@ interface FlowTableProps {
 }
 
 export default function FlowTable({ flows, onSelect, selectedId }: FlowTableProps) {
+  const t = useTranslations('flows');
+
   if (flows.length === 0) {
     return (
       <div className="bg-white p-8 rounded-lg shadow-sm border border-gray-200 text-center text-gray-500">
-        No flows found.
+        {t('empty')}
       </div>
     );
   }
@@ -24,13 +27,13 @@ export default function FlowTable({ flows, onSelect, selectedId }: FlowTableProp
       <table className="min-w-full divide-y divide-gray-200">
         <thead className="bg-gray-50">
           <tr>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Destination</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Proto</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duration</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bytes</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Score</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('time')}</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('source')}</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('destination')}</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('proto')}</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('duration')}</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('bytes')}</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('score')}</th>
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">

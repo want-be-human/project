@@ -7,6 +7,7 @@ import { wsClient } from '@/lib/ws';
 import { DryRunResult } from '@/lib/api/types';
 import { Play, AlertTriangle, ArrowRight, Activity, Map, ExternalLink } from 'lucide-react';
 import clsx from 'clsx';
+import { useTranslations } from 'next-intl';
 
 interface DryRunPanelProps {
   alertId: string;
@@ -14,6 +15,7 @@ interface DryRunPanelProps {
 }
 
 export default function DryRunPanel({ alertId, planId }: DryRunPanelProps) {
+  const t = useTranslations('twin');
   const router = useRouter();
   const [result, setResult] = useState<DryRunResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -37,7 +39,7 @@ export default function DryRunPanel({ alertId, planId }: DryRunPanelProps) {
       setResult(res);
     } catch (e) {
       console.error(e);
-      alert('Dry Run failed');
+      alert(t('dryRunFailed'));
     } finally {
       setLoading(false);
     }
@@ -53,7 +55,7 @@ export default function DryRunPanel({ alertId, planId }: DryRunPanelProps) {
     <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden" id="dryrun-panel">
       <div className="bg-gray-50 px-4 py-3 border-b border-gray-100 flex justify-between items-center">
         <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-          <Activity className="w-5 h-5 text-indigo-600" /> Dry Run Simulation
+          <Activity className="w-5 h-5 text-indigo-600" /> {t('dryRunTitle')}
         </h3>
         {result && (
           <span className="text-xs text-gray-500 font-mono">ID: {result.id}</span>
@@ -64,7 +66,7 @@ export default function DryRunPanel({ alertId, planId }: DryRunPanelProps) {
         {!result ? (
           <div className="text-center py-6">
             <p className="text-gray-500 mb-4 text-sm">
-              Simulate the impact of this action plan before execution.
+              {t('dryRunPrompt')}
             </p>
             <button
               onClick={handleDryRun}
@@ -72,10 +74,10 @@ export default function DryRunPanel({ alertId, planId }: DryRunPanelProps) {
               className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded shadow-sm font-medium flex items-center gap-2 mx-auto disabled:opacity-50"
             >
               {loading ? (
-                <span className="animate-pulse">Simulating...</span>
+                <span className="animate-pulse">{t('simulating')}</span>
               ) : (
                 <>
-                  <Play className="w-4 h-4" /> Run Simulation
+                  <Play className="w-4 h-4" /> {t('runSimulation')}
                 </>
               )}
             </button>
@@ -85,19 +87,19 @@ export default function DryRunPanel({ alertId, planId }: DryRunPanelProps) {
             {/* Impact Metrics */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="p-3 bg-red-50 rounded border border-red-100 text-center">
-                <div className="text-xs text-red-600 uppercase font-bold tracking-wider mb-1">Disruption Risk</div>
+                <div className="text-xs text-red-600 uppercase font-bold tracking-wider mb-1">{t('disruptionRisk')}</div>
                 <div className="text-2xl font-bold text-red-700">
                   {((result.impact.service_disruption_risk || 0) * 100).toFixed(0)}%
                 </div>
               </div>
               <div className="p-3 bg-orange-50 rounded border border-orange-100 text-center">
-                <div className="text-xs text-orange-600 uppercase font-bold tracking-wider mb-1">Reachability Drop</div>
+                <div className="text-xs text-orange-600 uppercase font-bold tracking-wider mb-1">{t('reachabilityDrop')}</div>
                 <div className="text-2xl font-bold text-orange-700">
                   {((result.impact.reachability_drop || 0) * 100).toFixed(0)}%
                 </div>
               </div>
               <div className="p-3 bg-gray-50 rounded border border-gray-100 text-center">
-                <div className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">Impacted Nodes</div>
+                <div className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1">{t('impactedNodes')}</div>
                 <div className="text-2xl font-bold text-gray-700">
                   {result.impact.impacted_nodes_count || 0}
                 </div>
@@ -108,7 +110,7 @@ export default function DryRunPanel({ alertId, planId }: DryRunPanelProps) {
                   className="flex flex-col items-center text-indigo-600 hover:text-indigo-800 transition-colors"
                 >
                   <ExternalLink className="w-5 h-5 mb-1" />
-                  <span className="text-xs font-semibold">View in Topology</span>
+                  <span className="text-xs font-semibold">{t('viewInTopology')}</span>
                 </button>
               </div>
             </div>
@@ -117,7 +119,7 @@ export default function DryRunPanel({ alertId, planId }: DryRunPanelProps) {
             {result.impact.warnings && result.impact.warnings.length > 0 && (
               <div className="bg-amber-50 border border-amber-200 rounded p-3">
                 <h4 className="flex items-center gap-2 text-amber-800 font-semibold text-sm mb-2">
-                  <AlertTriangle className="w-4 h-4" /> Warnings
+                  <AlertTriangle className="w-4 h-4" /> {t('warnings')}
                 </h4>
                 <ul className="list-disc pl-5 text-sm text-amber-900 space-y-1">
                   {result.impact.warnings.map((w, i) => (
@@ -130,7 +132,7 @@ export default function DryRunPanel({ alertId, planId }: DryRunPanelProps) {
             {/* Explanations */}
              {result.explain && result.explain.length > 0 && (
                <div>
-                  <h4 className="text-sm font-semibold text-gray-700 mb-2">Analysis Explanation</h4>
+                  <h4 className="text-sm font-semibold text-gray-700 mb-2">{t('analysis')}</h4>
                   <ul className="space-y-1 text-sm text-gray-600">
                      {result.explain.map((text, i) => (
                        <li key={i} className="flex gap-2">
@@ -145,7 +147,7 @@ export default function DryRunPanel({ alertId, planId }: DryRunPanelProps) {
             {result.alternative_paths && result.alternative_paths.length > 0 && (
               <div>
                 <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-3">
-                  <Map className="w-4 h-4 text-gray-500" /> Alternative Paths
+                  <Map className="w-4 h-4 text-gray-500" /> {t('altPaths')}
                 </h4>
                 <div className="space-y-2">
                   {result.alternative_paths.map((pathObj, i) => (
@@ -156,7 +158,7 @@ export default function DryRunPanel({ alertId, planId }: DryRunPanelProps) {
                         <span>{pathObj.to}</span>
                       </div>
                       <div className="flex items-center gap-1 text-gray-800">
-                         PATH: {pathObj.path.join(' → ')}
+                         {t('path')} {pathObj.path.join(' → ')}
                       </div>
                     </div>
                   ))}

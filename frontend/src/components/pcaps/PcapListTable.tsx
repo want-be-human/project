@@ -2,6 +2,7 @@
 
 import { Play, FileText, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { PcapFile } from '@/lib/api/types';
+import { useTranslations } from 'next-intl';
 import { formatBytes } from '@/lib/utils';
 import { format } from 'date-fns';
 
@@ -12,6 +13,8 @@ interface PcapListTableProps {
 }
 
 export default function PcapListTable({ pcaps, onProcess, processingId }: PcapListTableProps) {
+  const t = useTranslations('pcaps');
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'done': return <CheckCircle className="w-4 h-4 text-green-500" />;
@@ -26,20 +29,20 @@ export default function PcapListTable({ pcaps, onProcess, processingId }: PcapLi
       <table className="w-full text-sm text-left">
         <thead className="bg-gray-50 text-gray-700 font-medium border-b border-gray-200">
           <tr>
-            <th className="px-6 py-3">Filename</th>
-            <th className="px-6 py-3">Size</th>
-            <th className="px-6 py-3">Uploaded At</th>
-            <th className="px-6 py-3">Status</th>
-            <th className="px-6 py-3">Flows</th>
-            <th className="px-6 py-3">Alerts</th>
-            <th className="px-6 py-3 text-right">Actions</th>
+            <th className="px-6 py-3">{t('filename')}</th>
+            <th className="px-6 py-3">{t('size')}</th>
+            <th className="px-6 py-3">{t('uploadedAt')}</th>
+            <th className="px-6 py-3">{t('status')}</th>
+            <th className="px-6 py-3">{t('flows')}</th>
+            <th className="px-6 py-3">{t('alerts')}</th>
+            <th className="px-6 py-3 text-right">{t('actions')}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
           {pcaps.length === 0 ? (
             <tr>
               <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
-                No PCAP files found. Upload one to get started.
+                {t('empty')}
               </td>
             </tr>
           ) : (
@@ -72,7 +75,7 @@ export default function PcapListTable({ pcaps, onProcess, processingId }: PcapLi
                     ) : (
                       <Play className="w-3 h-3" />
                     )}
-                    Analyze
+                    {t('analyze')}
                   </button>
                 </td>
               </tr>

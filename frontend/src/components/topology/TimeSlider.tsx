@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Play, Pause, SkipBack, SkipForward } from 'lucide-react';
 import { format } from 'date-fns';
+import { useTranslations } from 'next-intl';
 
 interface TimeSliderProps {
   startTime: number;  // unix ms
@@ -12,6 +13,7 @@ interface TimeSliderProps {
 }
 
 export default function TimeSlider({ startTime, endTime, currentTime, onChange }: TimeSliderProps) {
+  const t = useTranslations('topology');
   const [playing, setPlaying] = useState(false);
   const currentTimeRef = useRef(currentTime);
   currentTimeRef.current = currentTime;
@@ -41,21 +43,21 @@ export default function TimeSlider({ startTime, endTime, currentTime, onChange }
       <button
         onClick={() => { setPlaying(false); onChange(startTime); }}
         className="p-1 text-gray-500 hover:text-gray-900 transition-colors"
-        title="Reset to start"
+        title={t('resetToStart')}
       >
         <SkipBack className="w-4 h-4" />
       </button>
       <button
         onClick={() => setPlaying(!playing)}
         className="p-1.5 bg-blue-50 text-blue-600 rounded-full hover:bg-blue-100 transition-colors"
-        title={playing ? 'Pause' : 'Play'}
+        title={playing ? t('pause') : t('play')}
       >
         {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
       </button>
       <button
         onClick={() => { setPlaying(false); onChange(endTime); }}
         className="p-1 text-gray-500 hover:text-gray-900 transition-colors"
-        title="Skip to end"
+        title={t('skipToEnd')}
       >
         <SkipForward className="w-4 h-4" />
       </button>

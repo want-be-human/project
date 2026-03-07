@@ -1,4 +1,5 @@
 import { Alert } from '@/lib/api/types';
+import { useTranslations } from 'next-intl';
 import { format } from 'date-fns';
 import { clsx } from 'clsx';
 import Link from 'next/link';
@@ -9,10 +10,12 @@ interface AlertTableProps {
 }
 
 export default function AlertTable({ alerts, onStatusChange }: AlertTableProps) {
+  const t = useTranslations('alerts');
+
   if (alerts.length === 0) {
     return (
       <div className="bg-white p-8 rounded-lg shadow-sm border border-gray-200 text-center text-gray-500">
-        No alerts found.
+        {t('empty')}
       </div>
     );
   }
@@ -43,14 +46,14 @@ export default function AlertTable({ alerts, onStatusChange }: AlertTableProps) 
       <table className="min-w-full divide-y divide-gray-200">
         <thead className="bg-gray-50">
           <tr>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Severity</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source IP</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dest Port</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tags</th>
-            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('time')}</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('severity')}</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('type')}</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('sourceIp')}</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('destPort')}</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('statusLabel')}</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('tags')}</th>
+            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{t('actions')}</th>
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
@@ -79,11 +82,11 @@ export default function AlertTable({ alerts, onStatusChange }: AlertTableProps) 
                   onChange={(e) => onStatusChange(alert.id, e.target.value)}
                   className={clsx("text-xs font-semibold rounded-full px-2 py-1 border-0 cursor-pointer focus:ring-2 focus:ring-blue-500", getStatusColor(alert.status))}
                 >
-                  <option value="new">New</option>
-                  <option value="triaged">Triaged</option>
-                  <option value="investigating">Investigating</option>
-                  <option value="resolved">Resolved</option>
-                  <option value="false_positive">False Positive</option>
+                  <option value="new">{t('new')}</option>
+                  <option value="triaged">{t('triaged')}</option>
+                  <option value="investigating">{t('investigating')}</option>
+                  <option value="resolved">{t('resolved')}</option>
+                  <option value="false_positive">{t('falsePositive')}</option>
                 </select>
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -97,7 +100,7 @@ export default function AlertTable({ alerts, onStatusChange }: AlertTableProps) 
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                 <Link href={`/alerts/${alert.id}`} className="text-blue-600 hover:text-blue-900">
-                  View Details
+                  {t('viewDetails')}
                 </Link>
               </td>
             </tr>

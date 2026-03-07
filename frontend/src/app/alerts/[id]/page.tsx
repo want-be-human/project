@@ -4,9 +4,11 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { Alert, EvidenceChain } from '@/lib/api/types';
+import { useTranslations } from 'next-intl';
 import AlertDetailView from '@/components/alerts/AlertDetailView';
 
 export default function AlertDetailPage() {
+  const t = useTranslations('alertDetail');
   const params = useParams();
   const id = params.id as string;
   
@@ -33,8 +35,8 @@ export default function AlertDetailPage() {
     fetchData();
   }, [id]);
 
-  if (loading) return <div className="p-12 text-center text-gray-500">Loading alert details...</div>;
-  if (error || !alert) return <div className="p-12 text-center text-red-500">{error || 'Alert not found'}</div>;
+  if (loading) return <div className="p-12 text-center text-gray-500">{t('loading')}</div>;
+  if (error || !alert) return <div className="p-12 text-center text-red-500">{error || t('notFound')}</div>;
 
   return (
     <AlertDetailView 

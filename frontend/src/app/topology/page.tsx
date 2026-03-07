@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic';
 import { api } from '@/lib/api';
 import { GraphResponse, GraphNode, GraphEdge, DryRunResult } from '@/lib/api/types';
 import { RefreshCw } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import TopologyToolbar from '@/components/topology/TopologyToolbar';
 import TimeSlider from '@/components/topology/TimeSlider';
 import SideInspector from '@/components/topology/SideInspector';
@@ -23,6 +24,7 @@ const Topology3D = dynamic(() => import('@/components/topology/Topology3D'), {
 });
 
 function TopologyInner() {
+  const t = useTranslations('topology');
   const searchParams = useSearchParams();
   const highlightAlertId = searchParams.get('highlightAlertId');
   const dryRunId = searchParams.get('dryRunId');
@@ -183,7 +185,7 @@ function TopologyInner() {
             <div className="flex-grow flex items-center justify-center bg-slate-50">
               <div className="text-gray-400 flex flex-col items-center">
                 <RefreshCw className="w-8 h-8 animate-spin mb-2" />
-                <p>Loading topology data...</p>
+                <p>{t('loading')}</p>
               </div>
             </div>
           ) : graph ? (
@@ -207,7 +209,7 @@ function TopologyInner() {
             </div>
           ) : (
             <div className="flex-grow flex items-center justify-center text-gray-400">
-              No topology data available.
+              {t('noData')}
             </div>
           )}
 

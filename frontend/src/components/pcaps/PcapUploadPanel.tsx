@@ -2,10 +2,12 @@
 
 import { useState } from 'react';
 import { Upload, FileUp } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils'; // Assuming you added this in previous step, else remove cn
 
 export default function PcapUploadPanel({ onUploadSuccess }: { onUploadSuccess: () => void }) {
+  const t = useTranslations('pcaps');
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -17,7 +19,7 @@ export default function PcapUploadPanel({ onUploadSuccess }: { onUploadSuccess: 
       await api.uploadPcap(file);
       onUploadSuccess();
     } catch (e: any) {
-      setError(e.message || 'Upload failed');
+      setError(e.message || t('uploadFailed'));
     } finally {
       setIsUploading(false);
     }
@@ -27,7 +29,7 @@ export default function PcapUploadPanel({ onUploadSuccess }: { onUploadSuccess: 
     <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6">
       <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
         <Upload className="w-5 h-5 text-blue-600" />
-        Upload PCAP
+        {t('uploadTitle')}
       </h2>
       <div 
         className={cn(
@@ -49,9 +51,9 @@ export default function PcapUploadPanel({ onUploadSuccess }: { onUploadSuccess: 
             <FileUp className="w-6 h-6 text-gray-600" />
           </div>
           <div className="text-sm text-gray-600">
-            <span className="font-semibold text-blue-600">Click to upload</span> or drag and drop
+            <span className="font-semibold text-blue-600">{t('clickToUpload')}</span> {t('dragAndDrop')}
           </div>
-          <p className="text-xs text-gray-500">PCAP/PCAPNG files (Max 100MB)</p>
+          <p className="text-xs text-gray-500">{t('fileTypes')}</p>
           <input 
             type="file" 
             className="hidden" 
@@ -75,7 +77,7 @@ export default function PcapUploadPanel({ onUploadSuccess }: { onUploadSuccess: 
       )}
       {isUploading && (
         <div className="mt-3 text-sm text-blue-600 text-center animate-pulse">
-          Uploading...
+          {t('uploading')}
         </div>
       )}
     </div>

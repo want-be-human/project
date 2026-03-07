@@ -3,11 +3,13 @@
 import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
 import { Scenario } from '@/lib/api/types';
+import { useTranslations } from 'next-intl';
 import ScenarioList from '@/components/scenarios/ScenarioList';
 import ScenarioRunPanel from '@/components/scenarios/ScenarioRunPanel';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 
 export default function ScenariosPage() {
+  const t = useTranslations('scenarios');
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -37,8 +39,8 @@ export default function ScenariosPage() {
     <div className="flex flex-col h-full space-y-4">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Security Scenarios</h1>
-          <p className="text-gray-500 text-sm mt-1">Regression testing and dry-run validation pipelines.</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t('title')}</h1>
+          <p className="text-gray-500 text-sm mt-1">{t('description')}</p>
         </div>
       </div>
 
@@ -50,7 +52,7 @@ export default function ScenariosPage() {
       ) : loading ? (
         <div key="loading" className="flex-1 flex items-center justify-center text-gray-400">
           <RefreshCw className="w-6 h-6 animate-spin mr-2" />
-          <span>Loading scenarios...</span>
+          <span>{t('loading')}</span>
         </div>
       ) : (
         <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 h-full min-h-0">

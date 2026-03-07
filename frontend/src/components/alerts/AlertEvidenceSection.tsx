@@ -1,4 +1,5 @@
 import { Alert } from '@/lib/api/types';
+import { useTranslations } from 'next-intl';
 import { format } from 'date-fns';
 
 interface AlertEvidenceSectionProps {
@@ -6,21 +7,23 @@ interface AlertEvidenceSectionProps {
 }
 
 export default function AlertEvidenceSection({ alert }: AlertEvidenceSectionProps) {
+  const t = useTranslations('alertDetail');
+
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-      <h2 className="text-lg font-semibold text-gray-900 mb-4">Evidence & Context</h2>
+      <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('evidenceTitle')}</h2>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Top Flows */}
         <div>
-          <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-3">Top Flows</h3>
+          <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-3">{t('topFlows')}</h3>
           <div className="bg-gray-50 rounded-lg border border-gray-200 overflow-hidden">
             <table className="min-w-full text-sm text-left">
               <thead className="bg-gray-100 text-gray-600">
                 <tr>
-                  <th className="px-4 py-2 font-medium">Flow ID</th>
-                  <th className="px-4 py-2 font-medium">Score</th>
-                  <th className="px-4 py-2 font-medium">Summary</th>
+                  <th className="px-4 py-2 font-medium">{t('flowId')}</th>
+                  <th className="px-4 py-2 font-medium">{t('score')}</th>
+                  <th className="px-4 py-2 font-medium">{t('summary')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -39,7 +42,7 @@ export default function AlertEvidenceSection({ alert }: AlertEvidenceSectionProp
                 ))}
                 {alert.evidence.top_flows.length === 0 && (
                   <tr>
-                    <td colSpan={3} className="px-4 py-4 text-center text-gray-500">No flows recorded</td>
+                    <td colSpan={3} className="px-4 py-4 text-center text-gray-500">{t('noFlows')}</td>
                   </tr>
                 )}
               </tbody>
@@ -49,14 +52,14 @@ export default function AlertEvidenceSection({ alert }: AlertEvidenceSectionProp
 
         {/* Top Features */}
         <div>
-          <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-3">Top Features</h3>
+          <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-3">{t('topFeatures')}</h3>
           <div className="bg-gray-50 rounded-lg border border-gray-200 overflow-hidden">
             <table className="min-w-full text-sm text-left">
               <thead className="bg-gray-100 text-gray-600">
                 <tr>
-                  <th className="px-4 py-2 font-medium">Feature Name</th>
-                  <th className="px-4 py-2 font-medium">Value</th>
-                  <th className="px-4 py-2 font-medium">Direction</th>
+                  <th className="px-4 py-2 font-medium">{t('featureName')}</th>
+                  <th className="px-4 py-2 font-medium">{t('value')}</th>
+                  <th className="px-4 py-2 font-medium">{t('direction')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -75,7 +78,7 @@ export default function AlertEvidenceSection({ alert }: AlertEvidenceSectionProp
                 ))}
                 {alert.evidence.top_features.length === 0 && (
                   <tr>
-                    <td colSpan={3} className="px-4 py-4 text-center text-gray-500">No features recorded</td>
+                    <td colSpan={3} className="px-4 py-4 text-center text-gray-500">{t('noFeaturesRecorded')}</td>
                   </tr>
                 )}
               </tbody>
@@ -86,14 +89,14 @@ export default function AlertEvidenceSection({ alert }: AlertEvidenceSectionProp
 
       {/* Time Window */}
       <div className="mt-6 pt-6 border-t border-gray-100">
-        <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-3">Time Window</h3>
+        <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-3">{t('timeWindow')}</h3>
         <div className="flex gap-8 text-sm">
           <div>
-            <span className="text-gray-500 mr-2">Start:</span>
+            <span className="text-gray-500 mr-2">{t('start')}</span>
             <span className="font-mono text-gray-900">{format(new Date(alert.time_window.start), 'yyyy-MM-dd HH:mm:ss.SSS')}</span>
           </div>
           <div>
-            <span className="text-gray-500 mr-2">End:</span>
+            <span className="text-gray-500 mr-2">{t('end')}</span>
             <span className="font-mono text-gray-900">{format(new Date(alert.time_window.end), 'yyyy-MM-dd HH:mm:ss.SSS')}</span>
           </div>
         </div>

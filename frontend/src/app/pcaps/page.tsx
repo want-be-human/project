@@ -4,10 +4,12 @@ import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { PcapFile } from '@/lib/api/types';
 import { wsClient } from '@/lib/ws';
+import { useTranslations } from 'next-intl';
 import PcapUploadPanel from '@/components/pcaps/PcapUploadPanel';
 import PcapListTable from '@/components/pcaps/PcapListTable';
 
 export default function PcapsPage() {
+  const t = useTranslations('pcaps');
   const [pcaps, setPcaps] = useState<PcapFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -64,7 +66,7 @@ export default function PcapsPage() {
       ));
     } catch (e) {
       console.error(e);
-      alert('Failed to start processing');
+      alert(t('processFailed'));
     } finally {
       setProcessingId(null);
     }
@@ -74,9 +76,9 @@ export default function PcapsPage() {
     <div className="max-w-6xl mx-auto">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">PCAP Management</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t('title')}</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Upload traffic captures for analysis.
+            {t('description')}
           </p>
         </div>
       </div>
@@ -84,7 +86,7 @@ export default function PcapsPage() {
       <PcapUploadPanel onUploadSuccess={fetchPcaps} />
       
       {loading ? (
-        <div className="text-center py-12 text-gray-500">Loading...</div>
+        <div className="text-center py-12 text-gray-500">{t('uploading')}</div>
       ) : (
         <PcapListTable 
           pcaps={pcaps} 

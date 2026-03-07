@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 
 interface FlowFilters {
   src_ip?: string;
@@ -15,6 +16,7 @@ interface FlowFilterBarProps {
 }
 
 export default function FlowFilterBar({ onFilterChange }: FlowFilterBarProps) {
+  const t = useTranslations('flows');
   const [filters, setFilters] = useState<FlowFilters>({});
 
   const updateFilter = (key: keyof FlowFilters, value: string) => {
@@ -29,46 +31,46 @@ export default function FlowFilterBar({ onFilterChange }: FlowFilterBarProps) {
   return (
     <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-4 flex gap-4 items-end flex-wrap">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">PCAP ID</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">{t('pcapId')}</label>
         <input 
           type="text" 
-          placeholder="uuid..." 
+          placeholder={t('pcapIdPlaceholder')} 
           className="border border-gray-300 rounded px-3 py-2 text-sm w-44 focus:ring-blue-500 focus:border-blue-500 font-mono text-xs"
           onChange={(e) => updateFilter('pcap_id', e.target.value)}
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Source IP</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">{t('srcIp')}</label>
         <input 
           type="text" 
-          placeholder="192.168.1.1" 
+          placeholder={t('srcIpPlaceholder')} 
           className="border border-gray-300 rounded px-3 py-2 text-sm w-40 focus:ring-blue-500 focus:border-blue-500"
           onChange={(e) => updateFilter('src_ip', e.target.value)}
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Dest IP</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">{t('dstIp')}</label>
         <input 
           type="text" 
-          placeholder="10.0.0.1" 
+          placeholder={t('dstIpPlaceholder')} 
           className="border border-gray-300 rounded px-3 py-2 text-sm w-40"
           onChange={(e) => updateFilter('dst_ip', e.target.value)}
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Protocol</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">{t('protocol')}</label>
         <select 
           className="border border-gray-300 rounded px-3 py-2 text-sm w-32 bg-white"
           onChange={(e) => updateFilter('proto', e.target.value)}
         >
-          <option value="">All</option>
+          <option value="">{t('all')}</option>
           <option value="TCP">TCP</option>
           <option value="UDP">UDP</option>
           <option value="ICMP">ICMP</option>
         </select>
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Min Score</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">{t('minScore')}</label>
         <input 
           type="number" 
           min="0"
@@ -80,7 +82,7 @@ export default function FlowFilterBar({ onFilterChange }: FlowFilterBarProps) {
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">{t('startTime')}</label>
         <input 
           type="datetime-local" 
           className="border border-gray-300 rounded px-3 py-2 text-sm w-48"
@@ -88,7 +90,7 @@ export default function FlowFilterBar({ onFilterChange }: FlowFilterBarProps) {
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">{t('endTime')}</label>
         <input 
           type="datetime-local" 
           className="border border-gray-300 rounded px-3 py-2 text-sm w-48"
