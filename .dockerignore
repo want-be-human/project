@@ -1,0 +1,23 @@
+# Git and editor
+.git
+.gitignore
+.vscode
+
+# Python caches and local environments
+**/__pycache__
+**/.pytest_cache
+**/.mypy_cache
+**/.venv
+**/venv
+
+# Frontend build artifacts
+frontend/node_modules
+frontend/.next
+
+# Backend data and artifacts
+backend/data
+backend/.pytest_cache
+
+# Common OS files
+**/.DS_Store
+**/Thumbs.db

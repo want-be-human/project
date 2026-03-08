@@ -98,4 +98,4 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000
 
 Docker 启动
 # 项目根目录
-docker-compose up --build
+cd infra && docker-compose up --build
