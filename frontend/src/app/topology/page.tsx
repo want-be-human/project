@@ -28,13 +28,15 @@ function TopologyInner() {
   const searchParams = useSearchParams();
   const highlightAlertId = searchParams.get('highlightAlertId');
   const dryRunId = searchParams.get('dryRunId');
+  const urlStart = searchParams.get('start');
+  const urlEnd = searchParams.get('end');
 
   const [graph, setGraph] = useState<GraphResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<'ip' | 'subnet'>('ip');
   const [currentTime, setCurrentTime] = useState(0);
-  const [filterStart, setFilterStart] = useState('');
-  const [filterEnd, setFilterEnd] = useState('');
+  const [filterStart, setFilterStart] = useState(urlStart || '');
+  const [filterEnd, setFilterEnd] = useState(urlEnd || '');
 
   // Dry-run state
   const [dryRunResult, setDryRunResult] = useState<DryRunResult | null>(null);

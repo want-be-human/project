@@ -171,8 +171,7 @@
     "confidence": "Confidence:",
     "recommendPrompt": "Get actionable mitigation steps.",
     "loadRecommendations": "Load Recommendations",
-    "typeLabel": "Type:",
-    "targetLabel": "Target:",
+    "priorityLabel": "Priority:",
     "riskLabel": "Risk:"
   },
   "twin": {
@@ -289,6 +288,16 @@
     "policyChecks": "Policy Checks",
     "checkStatus": "Status",
     "checkName": "Check Name",
-    "checkDetails": "Details"
+    "checkDetails": "Details",
+    "createBtn": "Create Scenario",
+    "creatingBtn": "Creating...",
+    "createTitle": "Create Scenario",
+    "nameLabel": "Scenario Name",
+    "descLabel": "Description",
+    "pcapLabel": "Select PCAP (processed)",
+    "noPcaps": "No processed PCAPs available",
+    "dryRunRequired": "Dry-Run Required",
+    "tagsLabel": "Tags (comma separated)",
+    "cancel": "Cancel"
   }
 }

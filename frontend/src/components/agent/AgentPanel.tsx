@@ -37,7 +37,7 @@ export default function AgentPanel({ alertId, onRecommendationLoaded }: AgentPan
   const handleInvestigate = async () => {
     setLoading(true);
     try {
-      const res = await api.investigate(alertId);
+      const res = await api.investigate(alertId, { language: locale });
       setInvestigation(res);
     } catch (e) {
       console.error(e);
@@ -49,7 +49,7 @@ export default function AgentPanel({ alertId, onRecommendationLoaded }: AgentPan
   const handleRecommend = async () => {
     setLoading(true);
     try {
-      const res = await api.recommend(alertId);
+      const res = await api.recommend(alertId, { language: locale });
       setRecommendation(res);
       if (onRecommendationLoaded) {
         onRecommendationLoaded(res);
@@ -179,9 +179,15 @@ export default function AgentPanel({ alertId, onRecommendationLoaded }: AgentPan
                     <div>
                       <h4 className="text-sm font-bold text-gray-900">{action.title}</h4>
                       <p className="text-xs text-gray-500 mt-1">
-                        {t('typeLabel')} <span className="font-mono">{action.type}</span> • 
-                        {t('targetLabel')} <span className="font-mono">{JSON.stringify(action.target)}</span>
+                        {t('priorityLabel')} <span className="font-mono">{action.priority}</span>
                       </p>
+                      {action.steps.length > 0 && (
+                        <ul className="mt-1 text-xs text-gray-600 list-disc list-inside">
+                          {action.steps.map((step: string, j: number) => (
+                            <li key={j}>{step}</li>
+                          ))}
+                        </ul>
+                      )}
                       <div className="mt-2 flex gap-2">
                         <span className="text-[10px] px-1.5 py-0.5 bg-red-100 text-red-700 rounded">{t('riskLabel')} {action.risk}</span>
                       </div>

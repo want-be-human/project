@@ -157,14 +157,13 @@ export interface Recommendation {
     version: string;
     id: string;
     created_at: string;
-    alert_id: string; // Add missing fields
+    alert_id: string;
     actions: Array<{
         title: string;
-        type: string;
-        target: any; // Can be complex object or string
-        params: any;
+        priority: 'high' | 'medium' | 'low';
+        steps: string[];
+        rollback: string[];
         risk: string;
-        rollback: any;
     }>
 }
 

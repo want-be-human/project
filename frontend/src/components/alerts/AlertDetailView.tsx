@@ -157,7 +157,12 @@ export default function AlertDetailView({ alert, evidenceChain, onAlertUpdate }:
             <span>{t('evidenceChain')}</span>
           </h2>
           <button 
-            onClick={() => router.push(`/topology?highlightAlertId=${alert.id}`)}
+            onClick={() => {
+              const params = new URLSearchParams({ highlightAlertId: alert.id });
+              if (alert.time_window?.start) params.set('start', alert.time_window.start);
+              if (alert.time_window?.end) params.set('end', alert.time_window.end);
+              router.push(`/topology?${params.toString()}`);
+            }}
             className="text-sm text-blue-600 hover:text-blue-800 font-medium px-3 py-1 bg-blue-50 rounded-full hover:bg-blue-100 transition-colors"
           >
             {t('viewIn3D')}

@@ -171,8 +171,7 @@
     "confidence": "置信度：",
     "recommendPrompt": "获取可执行的缓解措施。",
     "loadRecommendations": "加载建议",
-    "typeLabel": "类型：",
-    "targetLabel": "目标：",
+    "priorityLabel": "优先级：",
     "riskLabel": "风险："
   },
   "twin": {
@@ -289,6 +288,16 @@
     "policyChecks": "策略检查",
     "checkStatus": "状态",
     "checkName": "检查项",
-    "checkDetails": "详情"
+    "checkDetails": "详情",
+    "createBtn": "创建场景",
+    "creatingBtn": "创建中...",
+    "createTitle": "创建场景",
+    "nameLabel": "场景名称",
+    "descLabel": "描述",
+    "pcapLabel": "选择 PCAP（已处理）",
+    "noPcaps": "无已处理的 PCAP",
+    "dryRunRequired": "需要推演",
+    "tagsLabel": "标签（逗号分隔）",
+    "cancel": "取消"
   }
 }

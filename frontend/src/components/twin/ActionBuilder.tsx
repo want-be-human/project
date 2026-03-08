@@ -20,16 +20,41 @@ export default function ActionBuilder({ alertId, initialRecommendation, onPlanCr
   const [newActionType, setNewActionType] = useState('block_ip');
   const [newActionTarget, setNewActionTarget] = useState('');
 
+  const allowedActionTypes = new Set([
+    'block_ip',
+    'isolate_host',
+    'segment_subnet',
+    'rate_limit_service',
+  ]);
+
   // Hydrate from recommendation
   useEffect(() => {
     if (initialRecommendation && initialRecommendation.actions.length > 0) {
-      setActions(initialRecommendation.actions.map(a => ({
-        type: a.type,
-        target: a.target,
-        params: a.params,
-        rollback: a.rollback
-      })));
-      setSource('agent');
+      const inferActionType = (title: string): string => {
+        const t = title.toLowerCase();
+        if (/isolat|隔离/.test(t)) return 'isolate_host';
+        if (/segment|分段/.test(t)) return 'segment_subnet';
+        if (/rate|限流|限速/.test(t)) return 'rate_limit_service';
+        return 'block_ip';
+      };
+
+      const normalized = initialRecommendation.actions.map((a: any) => {
+        // Recommendation actions have {title, priority, steps, rollback, risk}
+        // We infer action_type from title and leave target for user to fill
+        const type = a?.action_type || a?.type || inferActionType(a?.title || '');
+        const target = a?.target || '';
+        return {
+          type,
+          target,
+          params: a?.params || {},
+          rollback: null,
+        };
+      });
+
+      if (normalized.length > 0) {
+        setActions(normalized);
+        setSource('agent');
+      }
     }
   }, [initialRecommendation]);
 
@@ -107,7 +132,8 @@ export default function ActionBuilder({ alertId, initialRecommendation, onPlanCr
         >
           <option value="block_ip">block_ip</option>
           <option value="isolate_host">isolate_host</option>
-          <option value="disable_user">disable_user</option>
+          <option value="segment_subnet">segment_subnet</option>
+          <option value="rate_limit_service">rate_limit_service</option>
         </select>
         <input 
           type="text" 

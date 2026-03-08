@@ -70,3 +70,8 @@ class TriageRequest(BaseModel):
 class TriageResponse(BaseModel):
     """Response for POST /alerts/{id}/triage - DOC C C6.5."""
     triage_summary: str = Field(..., description="Triage summary text")
+
+
+class LanguageRequest(BaseModel):
+    """Optional language request body for investigate/recommend."""
+    language: Literal["zh", "en"] = Field(default="en", description="Output language")

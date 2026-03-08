@@ -56,6 +56,7 @@ def get_connection_manager() -> ConnectionManager:
 
 
 @router.websocket("/stream")
+@router.websocket("/ws")
 async def websocket_stream(websocket: WebSocket):
     """
     WebSocket endpoint for real-time events.

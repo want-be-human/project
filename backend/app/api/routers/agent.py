@@ -17,6 +17,7 @@ from app.schemas.agent import (
     TriageResponse,
     InvestigationSchema,
     RecommendationSchema,
+    LanguageRequest,
 )
 from app.services.agent.service import AgentService
 
@@ -56,11 +57,12 @@ async def triage_alert(
 )
 async def investigate_alert(
     alert_id: str = Path(..., description="Alert ID"),
+    request: LanguageRequest = LanguageRequest(),
     db: Session = Depends(get_db),
 ) -> ApiResponse[InvestigationSchema]:
     alert = _get_alert_or_404(alert_id, db)
     service = AgentService(db)
-    investigation = service.investigate(alert)
+    investigation = service.investigate(alert, language=request.language)
     return ApiResponse.success(investigation)
 
 
@@ -72,9 +74,10 @@ async def investigate_alert(
 )
 async def recommend_actions(
     alert_id: str = Path(..., description="Alert ID"),
+    request: LanguageRequest = LanguageRequest(),
     db: Session = Depends(get_db),
 ) -> ApiResponse[RecommendationSchema]:
     alert = _get_alert_or_404(alert_id, db)
     service = AgentService(db)
-    recommendation = service.recommend(alert)
+    recommendation = service.recommend(alert, language=request.language)
     return ApiResponse.success(recommendation)

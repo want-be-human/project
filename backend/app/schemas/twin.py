@@ -4,7 +4,7 @@ Strictly follows DOC C C2.1 and C2.2 schemas.
 """
 
 from typing import Any, Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, AliasChoices, model_validator
 
 
 # Action target - DOC C C2.1
@@ -25,11 +25,57 @@ class RollbackAction(BaseModel):
 class PlanAction(BaseModel):
     """Single action in ActionPlan - DOC C C2.1."""
     action_type: Literal["block_ip", "isolate_host", "segment_subnet", "rate_limit_service"] = Field(
-        ..., description="Action type"
+        ...,
+        description="Action type",
+        validation_alias=AliasChoices("action_type", "type"),
     )
     target: ActionTarget = Field(..., description="Action target")
     params: dict[str, Any] = Field(default_factory=dict, description="Action parameters")
     rollback: RollbackAction | None = Field(default=None, description="Rollback action")
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_legacy_payload(cls, data: Any) -> Any:
+        """Normalize legacy frontend payloads to current schema."""
+        if not isinstance(data, dict):
+            return data
+
+        action_type = data.get("action_type") or data.get("type")
+        if action_type == "disable_user":
+            # Legacy UI option; closest supported behavior in twin context.
+            data["action_type"] = "isolate_host"
+        elif action_type in {"block_ip", "isolate_host", "segment_subnet", "rate_limit_service"}:
+            data["action_type"] = action_type
+        elif not action_type:
+            # Recommendation-style actions have no type; infer from title/steps.
+            title = str(data.get("title", "")).lower()
+            if "isolat" in title or "隔离" in title:
+                data["action_type"] = "isolate_host"
+            elif "segment" in title or "分段" in title:
+                data["action_type"] = "segment_subnet"
+            elif "rate" in title or "限流" in title or "限速" in title:
+                data["action_type"] = "rate_limit_service"
+            else:
+                data["action_type"] = "block_ip"
+
+        target = data.get("target")
+        if isinstance(target, str):
+            data["target"] = {"type": "ip", "value": target}
+        elif not isinstance(target, dict):
+            data["target"] = {"type": "ip", "value": "0.0.0.0"}
+        else:
+            target_type = target.get("type")
+            target_value = target.get("value")
+            if target_type not in {"ip", "subnet", "service"}:
+                target["type"] = "ip"
+            if not isinstance(target_value, str) or not target_value:
+                target["value"] = "0.0.0.0"
+
+        # Legacy recommendation rollback can be list[str]; ignore in plan schema.
+        if isinstance(data.get("rollback"), list):
+            data["rollback"] = None
+
+        return data
 
 
 # ActionPlan schema - DOC C C2.1

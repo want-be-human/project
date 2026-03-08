@@ -15,7 +15,19 @@ interface Envelope<T> {
 async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${endpoint}`, options);
   if (!res.ok) {
-    throw new Error(`API Error: ${res.status} ${res.statusText}`);
+        let detail = '';
+        try {
+            const payload = await res.json();
+            if (Array.isArray(payload?.detail) && payload.detail.length > 0) {
+                const first = payload.detail[0];
+                detail = first?.msg ? ` - ${first.msg}` : '';
+            } else if (payload?.error?.message) {
+                detail = ` - ${payload.error.message}`;
+            }
+        } catch {
+            // ignore parsing failures and keep status text fallback
+        }
+        throw new Error(`API Error: ${res.status} ${res.statusText}${detail}`);
   }
   const envelope: Envelope<T> = await res.json();
   if (!envelope.ok || envelope.data === null || envelope.data === undefined) {
@@ -83,14 +95,18 @@ export const realApi = {
             body: JSON.stringify(body)
         });
     },
-    investigate: async (id: string): Promise<Investigation> => {
+    investigate: async (id: string, body?: any): Promise<Investigation> => {
          return fetchJson<Investigation>(`/api/v1/alerts/${id}/investigate`, {
-            method: 'POST'
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body ?? {})
         });
     },
-    recommend: async (id: string): Promise<Recommendation> => {
+    recommend: async (id: string, body?: any): Promise<Recommendation> => {
          return fetchJson<Recommendation>(`/api/v1/alerts/${id}/recommend`, {
-            method: 'POST'
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body ?? {})
         });
     },
 
@@ -99,10 +115,53 @@ export const realApi = {
     },
 
     createPlan: async (body: any): Promise<ActionPlan> => {
+         // Transform frontend action shape to backend PlanAction schema
+         const allowedActionTypes = new Set([
+            'block_ip',
+            'isolate_host',
+            'segment_subnet',
+            'rate_limit_service',
+         ]);
+         const normalizeTarget = (target: any) => {
+            if (typeof target === 'string') {
+                return { type: 'ip', value: target || '0.0.0.0' };
+            }
+            const allowedTargetTypes = new Set(['ip', 'subnet', 'service']);
+            const type = allowedTargetTypes.has(target?.type) ? target.type : 'ip';
+            const value = typeof target?.value === 'string' && target.value.trim()
+                ? target.value
+                : '0.0.0.0';
+            return { type, value };
+         };
+         const normalizeRollback = (rollback: any) => {
+            // Backend expects rollback as object {action_type, params} or null
+            if (!rollback || typeof rollback !== 'object' || Array.isArray(rollback)) {
+                return null;
+            }
+            if (typeof rollback.action_type !== 'string' || !rollback.action_type) {
+                return null;
+            }
+            return {
+                action_type: rollback.action_type,
+                params: rollback.params && typeof rollback.params === 'object' ? rollback.params : {},
+            };
+         };
+         const transformed = {
+            ...body,
+            actions: (body.actions || []).map((a: any) => ({
+                action_type: allowedActionTypes.has(a.action_type || a.type)
+                    ? (a.action_type || a.type)
+                    : 'block_ip',
+                target: normalizeTarget(a.target),
+                params: a.params || {},
+                rollback: normalizeRollback(a.rollback),
+            })),
+         };
+         console.log('[createPlan] transformed payload:', JSON.stringify(transformed, null, 2));
          return fetchJson<ActionPlan>(`/api/v1/twin/plans`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(body)
+            body: JSON.stringify(transformed)
         });
     },
     dryRunPlan: async (planId: string, body?: any): Promise<DryRunResult> => {
