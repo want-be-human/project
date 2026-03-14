@@ -39,10 +39,18 @@ async def lifespan(app: FastAPI):
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     init_db()
     logger.info("Database initialized")
-    
+
+    # Initialise internal event bus & register WebSocket consumer
+    from app.core.events import get_event_bus
+    from app.api.routers.stream import ws_consumer
+    get_event_bus()  # ensure singleton is created
+    await ws_consumer.register()
+    logger.info("EventBus initialised, WebSocket consumer registered")
+
     yield
-    
+
     # Shutdown
+    await ws_consumer.unregister()
     logger.info("Shutting down")
 
 

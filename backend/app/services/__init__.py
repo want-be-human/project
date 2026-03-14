@@ -22,6 +22,7 @@ from app.services.stream import (
     broadcast_alert_updated,
     broadcast_dryrun_created,
     broadcast_scenario_done,
+    get_event_bus,
 )
 
 __all__ = [
@@ -47,7 +48,7 @@ __all__ = [
     "PlanCompilerService",
     # B4.10 Scenarios
     "ScenariosService",
-    # B4.11 Stream
+    # B4.11 Stream & EventBus
     "get_connection_manager",
     "broadcast_pcap_progress",
     "broadcast_pcap_done",
@@ -55,4 +56,5 @@ __all__ = [
     "broadcast_alert_updated",
     "broadcast_dryrun_created",
     "broadcast_scenario_done",
+    "get_event_bus",
 ]

@@ -211,19 +211,11 @@ async def update_alert(
     db.commit()
     db.refresh(alert)
 
-    # WS broadcast alert.updated (fire-and-forget)
+    # WS broadcast alert.updated (fire-and-forget via EventBus)
     try:
-        from app.api.routers.stream import manager
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            asyncio.run_coroutine_threadsafe(
-                manager.broadcast("alert.updated", {
-                    "alert_id": alert.id,
-                    "status": alert.status,
-                }),
-                loop,
-            )
-    except RuntimeError:
+        from app.api.routers.stream import broadcast_alert_updated
+        asyncio.create_task(broadcast_alert_updated(alert.id, alert.status))
+    except Exception:
         pass
 
     return ApiResponse.success(_alert_to_schema(alert))
