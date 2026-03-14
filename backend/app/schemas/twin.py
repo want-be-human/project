@@ -33,6 +33,11 @@ class PlanAction(BaseModel):
     params: dict[str, Any] = Field(default_factory=dict, description="Action parameters")
     rollback: RollbackAction | None = Field(default=None, description="Rollback action")
 
+    # Optional fields populated by PlanCompiler (ignored during dry-run simulation)
+    confidence: float | None = Field(default=None, ge=0.0, le=1.0, description="Compiler confidence score")
+    derived_from_evidence: list[str] | None = Field(default=None, description="Evidence node IDs this action traces to")
+    reasoning_summary: str | None = Field(default=None, description="Human-readable compilation reasoning")
+
     @model_validator(mode="before")
     @classmethod
     def normalize_legacy_payload(cls, data: Any) -> Any:
@@ -61,6 +66,8 @@ class PlanAction(BaseModel):
         target = data.get("target")
         if isinstance(target, str):
             data["target"] = {"type": "ip", "value": target}
+        elif isinstance(target, BaseModel):
+            pass  # Already a validated Pydantic model, keep as-is
         elif not isinstance(target, dict):
             data["target"] = {"type": "ip", "value": "0.0.0.0"}
         else:
@@ -164,3 +171,24 @@ class DryRunQueryParams(BaseModel):
     """Query parameters for GET /twin/dry-runs."""
     alert_id: str | None = Field(default=None, description="Filter by alert ID")
     limit: int = Field(default=20, ge=1, le=100, description="Max results")
+
+
+# PlanCompiler request/response schemas
+class CompilePlanRequest(BaseModel):
+    """Request for POST /alerts/{id}/compile-plan."""
+    recommendation_id: str | None = Field(default=None, description="Specific recommendation ID (uses latest if omitted)")
+    language: Literal["zh", "en"] = Field(default="en", description="Output language")
+
+
+class CompilationMetadata(BaseModel):
+    """Metadata about the compilation process."""
+    recommendation_id: str = Field(..., description="Source recommendation ID")
+    rules_matched: int = Field(default=0, description="Number of rules matched")
+    actions_skipped: int = Field(default=0, description="Number of non-compilable actions skipped")
+    compiler_version: str = Field(default="1.0", description="Compiler version")
+
+
+class CompilePlanResponse(BaseModel):
+    """Response for POST /alerts/{id}/compile-plan."""
+    plan: ActionPlanSchema = Field(..., description="Created action plan")
+    compilation: CompilationMetadata = Field(..., description="Compilation metadata")

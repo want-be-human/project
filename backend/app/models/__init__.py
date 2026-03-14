@@ -12,6 +12,7 @@ from app.models.recommendation import Recommendation
 from app.models.twin import TwinPlan, DryRun
 from app.models.scenario import Scenario, ScenarioRun
 from app.models.evidence import EvidenceChain
+from app.workflows.models import WorkflowExecution
 
 __all__ = [
     "Base",
@@ -27,4 +28,5 @@ __all__ = [
     "Scenario",
     "ScenarioRun",
     "EvidenceChain",
+    "WorkflowExecution",
 ]

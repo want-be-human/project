@@ -1,0 +1,57 @@
+{
+  "plan": {
+    "version": "1.1",
+    "id": "f7a8b9c0-d1e2-3456-f789-012345678901",
+    "created_at": "2026-01-31T10:55:00Z",
+    "alert_id": "b2c3d4e5-f6a7-8901-bcde-f23456789012",
+    "source": "agent",
+    "actions": [
+      {
+        "action_type": "block_ip",
+        "target": { "type": "ip", "value": "192.0.2.10" },
+        "params": {
+          "duration_minutes": 60,
+          "ip": "192.0.2.10"
+        },
+        "rollback": {
+          "action_type": "unblock_ip",
+          "params": { "ip": "192.0.2.10" }
+        },
+        "confidence": 0.85,
+        "derived_from_evidence": [
+          "alert:b2c3d4e5-f6a7-8901-bcde-f23456789012",
+          "flow:a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+          "feat:syn_count"
+        ],
+        "reasoning_summary": "Compiled from recommendation \"Temporary block source IP 192.0.2.10\" (priority: high) for high bruteforce alert. Action: block_ip. Confidence: 0.85."
+      },
+      {
+        "action_type": "rate_limit_service",
+        "target": { "type": "service", "value": "TCP/22" },
+        "params": {
+          "max_connections_per_minute": 10,
+          "proto": "TCP",
+          "port": 22
+        },
+        "rollback": {
+          "action_type": "remove_rate_limit",
+          "params": { "proto": "TCP", "port": 22 }
+        },
+        "confidence": 0.8,
+        "derived_from_evidence": [
+          "alert:b2c3d4e5-f6a7-8901-bcde-f23456789012",
+          "flow:a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+          "feat:syn_count"
+        ],
+        "reasoning_summary": "Compiled from recommendation \"Rate limit SSH service\" (priority: medium) for high bruteforce alert. Action: rate_limit_service. Confidence: 0.8."
+      }
+    ],
+    "notes": "Auto-compiled from recommendation d4e5f6a7-b8c9-0123-def0-456789012345. 2 actions compiled, 1 skipped."
+  },
+  "compilation": {
+    "recommendation_id": "d4e5f6a7-b8c9-0123-def0-456789012345",
+    "rules_matched": 2,
+    "actions_skipped": 1,
+    "compiler_version": "1.0"
+  }
+}

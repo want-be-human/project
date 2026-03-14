@@ -12,6 +12,7 @@ from app.services.topology.service import TopologyService
 from app.services.agent.service import AgentService
 from app.services.evidence.service import EvidenceService
 from app.services.twin.service import TwinService
+from app.services.plan_compiler.service import PlanCompilerService
 from app.services.scenarios.service import ScenariosService
 from app.services.stream import (
     get_connection_manager,
@@ -42,6 +43,8 @@ __all__ = [
     "EvidenceService",
     # B4.9 Twin
     "TwinService",
+    # B4.9b Plan Compiler
+    "PlanCompilerService",
     # B4.10 Scenarios
     "ScenariosService",
     # B4.11 Stream
