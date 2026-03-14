@@ -253,7 +253,22 @@
     "resetToStart": "Reset to start",
     "pause": "Pause",
     "play": "Play",
-    "skipToEnd": "Skip to end"
+    "skipToEnd": "Skip to end",
+    "layoutCircle": "Circle",
+    "layoutForce": "Force",
+    "layoutDag": "DAG",
+    "layoutCluster": "Clustered Subnet",
+    "toggleLabels": "Toggle labels",
+    "toggleArrows": "Toggle direction arrows",
+    "toggleHeat": "Toggle risk heat map",
+    "cameraTop": "Top",
+    "cameraFront": "Front",
+    "cameraSide": "Side",
+    "cameraFit": "Fit all",
+    "riskHeatLegend": "Risk Heat",
+    "arrowLegend": "Direction arrow (src → dst)",
+    "altPathEdge": "Alt path (dry-run)",
+    "locateNode": "Focus camera on node"
   },
   "scenarios": {
     "title": "Security Scenarios",

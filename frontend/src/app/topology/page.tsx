@@ -12,6 +12,8 @@ import TimeSlider from '@/components/topology/TimeSlider';
 import SideInspector from '@/components/topology/SideInspector';
 import TopologyLegend from '@/components/topology/TopologyLegend';
 import DryRunOverlay from '@/components/topology/DryRunOverlay';
+import type { LayoutMode } from '@/components/topology/layouts/types';
+import type { CameraPreset } from '@/components/topology/CameraController';
 
 // Dynamic import for 3D canvas (SSR-incompatible)
 const Topology3D = dynamic(() => import('@/components/topology/Topology3D'), {
@@ -45,6 +47,17 @@ function TopologyInner() {
   // Selection state for SideInspector
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<GraphEdge | null>(null);
+
+  // ── Layout & visual enhancement state ──
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>('circle');
+  const [showLabels, setShowLabels] = useState(true);
+  const [showArrows, setShowArrows] = useState(false);
+  const [riskHeatEnabled, setRiskHeatEnabled] = useState(false);
+  const [cameraPreset, setCameraPreset] = useState<CameraPreset>(null);
+  const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
+
+  // Auto-enable arrows in DAG mode
+  const effectiveShowArrows = layoutMode === 'dag' ? true : showArrows;
 
   // Fetch DryRunResult when dryRunId is present
   useEffect(() => {
@@ -164,6 +177,9 @@ function TopologyInner() {
     setSelectedEdge(null);
   }, []);
 
+  // Alternative paths from dry-run for rendering in the 3D scene
+  const altPaths = dryRunResult?.alternative_paths;
+
   return (
     <div className="h-[calc(100vh-64px)] flex flex-col">
       {/* Toolbar */}
@@ -177,6 +193,15 @@ function TopologyInner() {
         endTime={filterEnd}
         onStartTimeChange={setFilterStart}
         onEndTimeChange={setFilterEnd}
+        layoutMode={layoutMode}
+        onLayoutModeChange={setLayoutMode}
+        showLabels={showLabels}
+        onShowLabelsChange={setShowLabels}
+        showArrows={effectiveShowArrows}
+        onShowArrowsChange={setShowArrows}
+        riskHeatEnabled={riskHeatEnabled}
+        onRiskHeatChange={setRiskHeatEnabled}
+        onCameraPreset={setCameraPreset}
       />
 
       {/* Main body: 3D view + Side inspector */}
@@ -199,6 +224,15 @@ function TopologyInner() {
                 highlightAlertId={highlightAlertId}
                 impactedNodeIds={impactedNodeIds}
                 impactedEdgeIds={impactedEdgeIds}
+                layoutMode={layoutMode}
+                showLabels={showLabels}
+                showArrows={effectiveShowArrows}
+                riskHeatEnabled={riskHeatEnabled}
+                cameraPreset={cameraPreset}
+                onCameraPresetDone={() => setCameraPreset(null)}
+                focusNodeId={focusNodeId}
+                onFocusDone={() => setFocusNodeId(null)}
+                altPaths={altPaths}
                 onSelectNode={(node) => {
                   setSelectedNode(node);
                   if (node !== null) setSelectedEdge(null);
@@ -243,6 +277,7 @@ function TopologyInner() {
           impactedEdgeIds={impactedEdgeIds}
           originalValues={originalValues}
           onClose={handleClearSelection}
+          onLocateNode={(nodeId) => setFocusNodeId(nodeId)}
         />
       </div>
     </div>

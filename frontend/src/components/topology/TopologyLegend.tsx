@@ -19,6 +19,7 @@ const EDGE_COLORS = [
   { color: '#ef4444', labelKey: 'alertEdge' },
   { color: '#f97316', labelKey: 'edgeWithAlerts' },
   { color: '#9ca3af', labelKey: 'normalEdge' },
+  { color: '#22c55e', labelKey: 'altPathEdge', dashed: true },
 ];
 
 export default function TopologyLegend() {
@@ -60,13 +61,28 @@ export default function TopologyLegend() {
               {EDGE_COLORS.map((item) => (
                 <li key={item.labelKey} className="flex items-center gap-1.5">
                   <span
-                    className="inline-block w-5 h-0.5 shrink-0 rounded"
-                    style={{ backgroundColor: item.color }}
+                    className={`inline-block w-5 h-0.5 shrink-0 rounded ${item.dashed ? 'border-t border-dashed' : ''}`}
+                    style={item.dashed ? { borderColor: item.color } : { backgroundColor: item.color }}
                   />
                   <span className="text-gray-600">{t(item.labelKey)}</span>
                 </li>
               ))}
             </ul>
+          </div>
+
+          {/* Risk heat gradient */}
+          <div>
+            <div className="text-[10px] uppercase tracking-wide text-gray-400 mb-1">{t('riskHeatLegend')}</div>
+            <div className="flex items-center gap-1.5">
+              <div className="h-2 flex-grow rounded-full" style={{ background: 'linear-gradient(to right, #22c55e, #eab308, #ef4444)' }} />
+              <span className="text-[10px] text-gray-500">0 → 1</span>
+            </div>
+          </div>
+
+          {/* Arrow legend */}
+          <div className="flex items-center gap-1.5 text-gray-500">
+            <span className="text-[10px]">▸</span>
+            <span>{t('arrowLegend')}</span>
           </div>
         </div>
       )}

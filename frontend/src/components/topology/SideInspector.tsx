@@ -1,7 +1,7 @@
 'use client';
 
 import { GraphNode, GraphEdge, DryRunResult } from '@/lib/api/types';
-import { X, Globe, Router, ArrowRight, ShieldAlert, AlertTriangle } from 'lucide-react';
+import { X, Globe, Router, ArrowRight, ShieldAlert, AlertTriangle, Locate } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 
@@ -14,9 +14,10 @@ interface SideInspectorProps {
   /** Original risk/weight values before dry-run deltas were applied */
   originalValues?: { nodeRisks: Record<string, number>; edgeWeights: Record<string, number> };
   onClose: () => void;
+  onLocateNode?: (nodeId: string) => void;
 }
 
-export default function SideInspector({ selectedNode, selectedEdge, dryRunResult, impactedNodeIds, impactedEdgeIds, originalValues, onClose }: SideInspectorProps) {
+export default function SideInspector({ selectedNode, selectedEdge, dryRunResult, impactedNodeIds, impactedEdgeIds, originalValues, onClose, onLocateNode }: SideInspectorProps) {
   const t = useTranslations('topology');
   const hasSelection = selectedNode || selectedEdge;
   const nodeIsImpacted = selectedNode && impactedNodeIds?.has(selectedNode.id);
@@ -51,6 +52,15 @@ export default function SideInspector({ selectedNode, selectedEdge, dryRunResult
                 <Globe className="w-5 h-5 text-blue-600" />
               )}
               <h3 className="font-bold text-gray-900">{selectedNode.label}</h3>
+              {onLocateNode && (
+                <button
+                  onClick={() => onLocateNode(selectedNode.id)}
+                  className="ml-auto p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                  title={t('locateNode')}
+                >
+                  <Locate className="w-4 h-4" />
+                </button>
+              )}
             </div>
 
             <div className="space-y-2">

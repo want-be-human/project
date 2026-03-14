@@ -253,7 +253,22 @@
     "resetToStart": "回到起点",
     "pause": "暂停",
     "play": "播放",
-    "skipToEnd": "跳到终点"
+    "skipToEnd": "跳到终点",
+    "layoutCircle": "圆形",
+    "layoutForce": "力导向",
+    "layoutDag": "DAG",
+    "layoutCluster": "子网聚类",
+    "toggleLabels": "切换标签显示",
+    "toggleArrows": "切换方向箭头",
+    "toggleHeat": "切换风险热力图",
+    "cameraTop": "俯视",
+    "cameraFront": "正面",
+    "cameraSide": "侧面",
+    "cameraFit": "自适应",
+    "riskHeatLegend": "风险热力",
+    "arrowLegend": "方向箭头 (源 → 目标)",
+    "altPathEdge": "替代路径 (推演)",
+    "locateNode": "聚焦到节点"
   },
   "scenarios": {
     "title": "安全场景",
