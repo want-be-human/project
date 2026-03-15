@@ -1,58 +1,31 @@
-# Contract Directory
-
-This directory contains the API contract definition and sample data files for NetTwin-SOC.
-
-## Version
-
-**Contract Version: v1.1**
-
-## Purpose
-
-- **samples/**: Sample JSON files matching DOC C schemas (used by frontend mock and backend tests)
-- **schemas/**: (Optional) JSON Schema or OpenAPI definitions
-
-## Usage
-
-### Frontend Mock Mode
-
-Frontend can load samples from `samples/*.json` to mock API responses during development.
-
-### Backend Testing
-
-Backend tests validate that API outputs match the structure in `samples/*.json`.
-
-### Seed Data
-
-`backend/scripts/seed_samples.py` can regenerate samples from actual database records.
-
-## Schema Change Process
-
-1. Update DOC C first (authoritative source)
-2. Update `samples/*.json` to match new schema
-3. Update backend Pydantic schemas
-4. Update frontend TypeScript types
-5. Run contract compliance tests
-
-## Sample Files
-
-| File | Description | DOC C Reference |
-|------|-------------|-----------------|
-| `flow.sample.json` | FlowRecord example | C1.2 |
-| `alert.sample.json` | Alert example | C1.3 |
-| `graph.sample.json` | Topology GraphResponse | C5.1 |
-| `investigation.sample.json` | Agent Investigation | C1.4 |
-| `recommendation.sample.json` | Agent Recommendation | C1.5 |
-| `actionplan.sample.json` | Twin ActionPlan | C2.1 |
-| `dryrun.sample.json` | Twin DryRunResult | C2.2 |
-| `evidencechain.sample.json` | EvidenceChain | C3.1 |
-| `scenario.sample.json` | Scenario definition | C4.1 |
-| `scenario_run_result.sample.json` | ScenarioRunResult | C4.2 |
-
-## Validation Rules
-
-All sample files must:
-
-1. Have field names exactly matching DOC C (case-sensitive)
-2. Use valid UUID format for `id` fields
-3. Use ISO8601 UTC format for timestamps (`2026-01-31T12:00:00Z`)
-4. Have internally consistent references (e.g., `alert.evidence.flow_ids` should reference valid flow IDs)
+# 合同目录
+此目录包含了 NetTwin-SOC 的 API 合同定义以及示例数据文件。
+## 版本
+**合同版本：1.1 版**
+## 目的
+- **samples/**：与 DOC C 模式相匹配的示例 JSON 文件（用于前端模拟和后端测试）
+- **schemas/**：（可选）JSON 模式或 OpenAPI 定义
+## 使用方法
+### 前端模拟模式
+前端可以在开发过程中从“samples/*.json”文件夹中加载样本数据，以模拟 API 响应。
+### 后端测试
+后端测试确保 API 的输出与“samples/*.json”文件中的结构相匹配。
+### 基础数据
+`backend/scripts/seed_samples.py` 能够根据实际的数据库记录重新生成样本。
+## 模式变更流程
+1. 先更新文档 C（权威来源）2. 更新“samples/*.json”文件以符合新的格式规范3. 更新后端的 Pydantic 模型定义4. 更新前端的 TypeScript 类型定义5. 执行合同合规性测试
+## 示例文件
+| 文件 | 描述 | DOC C 参考文献 ||------|-------------|-----------------|
+| `flow.sample.json` | 流程记录示例 | C1.2 |
+| `alert.sample.json` | 警报示例 | C1.3 |
+| `graph.sample.json` | 拓扑图响应 | C5.1 |
+| `investigation.sample.json` | 代理调查 | C1.4 |
+| `recommendation.sample.json` | 代理推荐 | C1.5 |
+| `actionplan.sample.json` | 双重行动计划 | C2.1 |
+| `dryrun.sample.json` | 双重干运行结果 | C2.2 |
+| `evidencechain.sample.json` | 证据链 | C3.1 |
+| `scenario.sample.json` | 场景定义 | C4.1 |
+| `scenario_run_result.sample.json` | 场景运行结果 | C4.2 |
+## 验证规则
+所有样本文件必须：
+1. 要求字段名称与 DOC C 完全一致（区分大小写）2. 对于“id”字段，请使用有效的 UUID 格式。3. 请使用 ISO8601 标准的 UTC 格式来表示时间戳（格式为“2026-01-31T12:00:00Z”）4. 要有内部一致的引用（例如，`alert.evidence.flow_ids` 应引用有效的流 ID）

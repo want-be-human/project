@@ -73,7 +73,7 @@ class TestContractSamples:
     def test_sample_has_id(self, filename: str):
         """Each sample should have id field (except GraphResponse)."""
         if filename in SAMPLES_WITHOUT_ID_CREATED_AT:
-            pytest.skip(f"GraphResponse doesn't have id field per DOC C C5.1")
+            pytest.skip("GraphResponse doesn't have id field per DOC C C5.1")
         
         file_path = SAMPLES_DIR / filename
         if not file_path.exists():
@@ -88,7 +88,7 @@ class TestContractSamples:
     def test_sample_has_created_at(self, filename: str):
         """Each sample should have created_at field in ISO8601 format (except GraphResponse)."""
         if filename in SAMPLES_WITHOUT_ID_CREATED_AT:
-            pytest.skip(f"GraphResponse doesn't have created_at field per DOC C C5.1")
+            pytest.skip("GraphResponse doesn't have created_at field per DOC C C5.1")
         
         file_path = SAMPLES_DIR / filename
         if not file_path.exists():

@@ -12,16 +12,12 @@ integration and verifies that:
 import json
 import pytest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.models.base import Base
 from app.models.pipeline import PipelineRunModel
-from app.models.pcap import PcapFile
-from app.models.flow import Flow
-from app.models.alert import Alert
 from app.services.pipeline import PipelineTracker, PipelineStage
 from app.services.parsing.service import ParsingService
 from app.services.features.service import FeaturesService
@@ -170,7 +166,7 @@ class TestPipelineE2E:
         assert len(run.stages) == 2
         assert run.stages[0].status == "completed"
         assert run.stages[1].status == "failed"
-        assert "Simulated" in run.stages[1].error_summary
+        assert run.stages[1].error_summary is not None and "Simulated" in run.stages[1].error_summary
 
         # DB persistence
         db_model = db_session.query(PipelineRunModel).first()

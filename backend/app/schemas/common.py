@@ -37,7 +37,7 @@ class ApiResponse(BaseModel, Generic[T]):
     @classmethod
     def failure(cls, code: str, message: str, details: dict[str, Any] | None = None) -> "ApiResponse[None]":
         """Create a failure response."""
-        return cls(
+        return cls(  # type: ignore[return-value]
             ok=False,
             data=None,
             error=ErrorDetail(code=code, message=message, details=details or {}),

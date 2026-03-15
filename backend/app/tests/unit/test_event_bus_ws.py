@@ -13,15 +13,10 @@ from unittest.mock import AsyncMock, patch, MagicMock
 
 from app.core.events import (
     InMemoryEventBus,
-    DomainEvent,
     make_event,
     reset_event_bus,
     PCAP_PROCESS_PROGRESS,
-    PCAP_PROCESS_DONE,
     ALERT_CREATED,
-    ALERT_UPDATED,
-    TWIN_DRYRUN_CREATED,
-    SCENARIO_RUN_DONE,
     WILDCARD,
 )
 from app.api.routers.stream import (

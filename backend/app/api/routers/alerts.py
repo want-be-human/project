@@ -6,7 +6,6 @@ Implements DOC C C6.4.
 
 import asyncio
 import json
-from typing import cast
 
 from fastapi import APIRouter, Depends, Query, Path
 from sqlalchemy import select
@@ -79,9 +78,9 @@ def _alert_to_schema(alert: Alert) -> AlertSchema:
         version=alert.version,
         id=alert.id,
         created_at=datetime_to_iso(alert.created_at),
-        severity=cast(str, alert.severity),
-        status=cast(str, alert.status),
-        type=cast(str, alert.type),
+        severity=alert.severity,  # type: ignore[arg-type]
+        status=alert.status,  # type: ignore[arg-type]
+        type=alert.type,  # type: ignore[arg-type],
         time_window=TimeWindow(
             start=datetime_to_iso(alert.time_window_start),
             end=datetime_to_iso(alert.time_window_end),
@@ -184,7 +183,7 @@ async def get_alert(
 )
 async def update_alert(
     alert_id: str = Path(..., description="Alert ID"),
-    request: AlertUpdateRequest = ...,
+    request: AlertUpdateRequest = Depends(),
     db: Session = Depends(get_db),
 ) -> ApiResponse[AlertSchema]:
     """

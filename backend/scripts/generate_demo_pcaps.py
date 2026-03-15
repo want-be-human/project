@@ -17,7 +17,6 @@ import socket
 import random
 import time
 from pathlib import Path
-from datetime import datetime, timezone
 
 # PCAP file format constants
 PCAP_MAGIC = 0xA1B2C3D4

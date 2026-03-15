@@ -5,8 +5,6 @@ PCAP -> Flow aggregation.
 
 from datetime import datetime
 from pathlib import Path
-from typing import BinaryIO
-import struct
 
 from app.core.logging import get_logger
 from app.core.utils import generate_uuid, utc_now
@@ -93,8 +91,8 @@ class ParsingService:
                 return
             
             ip = eth.data
-            src_ip = self._ip_to_str(ip.src)
-            dst_ip = self._ip_to_str(ip.dst)
+            src_ip = self._ip_to_str(ip.src)  # type: ignore[attr-defined]
+            dst_ip = self._ip_to_str(ip.dst)  # type: ignore[attr-defined]
             
             # Determine protocol and ports
             proto = "OTHER"
@@ -105,14 +103,14 @@ class ParsingService:
             if isinstance(ip.data, dpkt.tcp.TCP):
                 proto = "TCP"
                 tcp = ip.data
-                src_port = tcp.sport
-                dst_port = tcp.dport
+                src_port = tcp.sport  # type: ignore[attr-defined]
+                dst_port = tcp.dport  # type: ignore[attr-defined]
                 tcp_flags = self._extract_tcp_flags(tcp)
             elif isinstance(ip.data, dpkt.udp.UDP):
                 proto = "UDP"
                 udp = ip.data
-                src_port = udp.sport
-                dst_port = udp.dport
+                src_port = udp.sport  # type: ignore[attr-defined]
+                dst_port = udp.dport  # type: ignore[attr-defined]
             elif isinstance(ip.data, dpkt.icmp.ICMP):
                 proto = "ICMP"
             

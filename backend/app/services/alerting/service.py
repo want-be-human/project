@@ -4,11 +4,10 @@ Flow -> Alert generation and aggregation.
 """
 
 import json
-from datetime import datetime, timedelta
-from typing import Any
+from datetime import datetime
 
 from app.core.logging import get_logger
-from app.core.utils import generate_uuid, utc_now, datetime_to_iso
+from app.core.utils import generate_uuid, utc_now
 
 logger = get_logger(__name__)
 
@@ -114,8 +113,8 @@ class AlertingService:
         ts_starts = [f.get("ts_start") for f in flows if f.get("ts_start")]
         ts_ends = [f.get("ts_end") for f in flows if f.get("ts_end")]
         
-        window_start = min(ts_starts) if ts_starts else now
-        window_end = max(ts_ends) if ts_ends else now
+        window_start = min(t for t in ts_starts if t is not None) if ts_starts else now
+        window_end = max(t for t in ts_ends if t is not None) if ts_ends else now
         
         # Get primary entities from most anomalous flow
         flows_sorted = sorted(flows, key=lambda x: x.get("anomaly_score", 0), reverse=True)

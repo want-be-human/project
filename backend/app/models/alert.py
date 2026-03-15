@@ -4,7 +4,7 @@ Follows 附录F Section 3 & 4 - alerts and alert_flows tables.
 """
 
 from datetime import datetime
-from typing import Optional
+
 from sqlalchemy import String, Integer, Text, ForeignKey, Index, Table, Column
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 

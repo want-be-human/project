@@ -16,7 +16,6 @@ from app.models.recommendation import Recommendation
 from app.schemas.agent import InvestigationSchema, RecommendationSchema
 from app.schemas.evidence import EvidenceChainSchema
 from app.schemas.twin import (
-    ActionPlanSchema,
     CompilePlanResponse,
     CompilationMetadata,
 )

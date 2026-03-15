@@ -55,10 +55,10 @@ async def get_topology_graph(
         from app.schemas.topology import GraphMeta
         empty = GraphResponseSchema(
             version="1.1", nodes=[], edges=[],
-            meta=GraphMeta(start="", end="", mode=mode),
+            meta=GraphMeta(start="", end="", mode=mode),  # type: ignore[arg-type]
         )
         return ApiResponse.success(empty)
 
     svc = TopologyService(db)
-    graph = svc.build_graph(start=dt_start, end=dt_end, mode=mode)
+    graph = svc.build_graph(start=dt_start, end=dt_end, mode=mode)  # type: ignore[arg-type]
     return ApiResponse.success(graph)

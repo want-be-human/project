@@ -4,16 +4,12 @@ Validates MITRE ATT&CK mapping, port/protocol enrichment,
 feature-based confidence boosting, and graceful degradation.
 """
 
-import json
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 from app.services.threat_enrichment.service import (
     ThreatEnrichmentService,
-    _KNOWLEDGE_DIR,
-    _get_mitre_mapping,
 )
 
 

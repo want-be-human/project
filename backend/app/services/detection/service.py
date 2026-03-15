@@ -3,9 +3,6 @@ Detection service.
 Baseline anomaly detection using IsolationForest.
 """
 
-import json
-from typing import Any
-
 import numpy as np
 
 from app.core.logging import get_logger

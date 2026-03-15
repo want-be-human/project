@@ -18,7 +18,6 @@ from app.schemas.agent import RecommendationSchema
 from app.schemas.twin import (
     ActionPlanSchema,
     DryRunResultSchema,
-    PlanAction,
 )
 from app.schemas.topology import (
     GraphResponseSchema,
@@ -229,7 +228,7 @@ class TestCompileDryRunE2E:
         assert len(compiled_actions) >= 1
         # Reasoning summaries should be in Chinese
         for action in compiled_actions:
-            assert "编译为" in action.reasoning_summary or "置信度" in action.reasoning_summary
+            assert action.reasoning_summary is not None and ("编译为" in action.reasoning_summary or "置信度" in action.reasoning_summary)
 
     def test_dos_alert_chain(self):
         """DoS alert → rate_limit recommendation → compiled plan."""

@@ -4,7 +4,7 @@ Follows DOC C C0.3 error codes.
 """
 
 from typing import Any
-from fastapi import HTTPException, status
+from fastapi import status
 
 
 # DOC C C0.3 Error Codes

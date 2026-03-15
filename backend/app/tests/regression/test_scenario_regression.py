@@ -7,12 +7,9 @@ produces stable, verifiable results.
 """
 
 import json
-import pytest
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import MagicMock
-
-from app.services.scenarios.service import ScenariosService
 from app.services.parsing.service import ParsingService
 from app.services.features.service import FeaturesService
 from app.services.detection.service import DetectionService

@@ -2,8 +2,7 @@
 SQLAlchemy Base and common mixins.
 """
 
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import datetime
 from sqlalchemy import String, DateTime
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 

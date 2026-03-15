@@ -221,7 +221,7 @@ class AgentService:
     def _build_hypothesis(self, alert: Alert, language: str = "en", threat_context: ThreatContext | None = None) -> str:
         """Build investigation hypothesis."""
         if language == "zh":
-            type_zh = self._type_to_zh(alert.type)
+            self._type_to_zh(alert.type)
             hypotheses = {
                 "scan": f"来自 {alert.primary_src_ip} 的疑似端口扫描或网络侦察行为",
                 "bruteforce": f"针对 {alert.primary_proto}/{alert.primary_dst_port} 的疑似暴力破解攻击",

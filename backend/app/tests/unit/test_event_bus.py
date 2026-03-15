@@ -8,13 +8,11 @@ Covers:
 - DomainEvent model serialisation & immutability
 """
 
-import asyncio
 import pytest
 from unittest.mock import AsyncMock
 
 from app.core.events import (
     InMemoryEventBus,
-    DomainEvent,
     make_event,
     get_event_bus,
     reset_event_bus,

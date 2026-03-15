@@ -10,10 +10,10 @@ Covers DOC B B4.6 & DOC F Week-5/6 DoD:
 import json
 import pytest
 from datetime import datetime, timezone, timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from app.services.topology.service import TopologyService
-from app.schemas.topology import GraphResponseSchema, GraphNode, GraphEdge, GraphMeta
+from app.schemas.topology import GraphResponseSchema, GraphNode, GraphMeta
 
 
 # ── helpers ──────────────────────────────────────────────────────

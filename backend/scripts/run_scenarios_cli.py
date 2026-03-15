@@ -129,6 +129,10 @@ def cmd_run_all(args):
         failed = 0
         for s in scenarios:
             model = svc.get_scenario(s.id)
+            if model is None:
+                print(f"\n--- {s.name} ({s.id}) --- SKIPPED (not found)")
+                failed += 1
+                continue
             print(f"\n--- {s.name} ({s.id}) ---")
             result = svc.run_scenario(model)
             _print_run_result(result)

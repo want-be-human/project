@@ -10,13 +10,11 @@ Covers:
   - evidence traceability
 """
 
-import json
 import pytest
 from unittest.mock import MagicMock
 
 from app.schemas.agent import RecommendedAction, RecommendationSchema, InvestigationSchema, InvestigationImpact
 from app.schemas.evidence import EvidenceChainSchema, EvidenceNode, EvidenceEdge
-from app.schemas.twin import PlanAction
 from app.services.plan_compiler.compiler import PlanCompiler
 from app.services.plan_compiler.rules import match_action_type, compute_confidence
 
@@ -280,7 +278,7 @@ class TestPlanCompiler:
             language="zh",
         )
         for action in compiled:
-            assert "编译为" in action.reasoning_summary or "置信度" in action.reasoning_summary
+            assert action.reasoning_summary is not None and ("编译为" in action.reasoning_summary or "置信度" in action.reasoning_summary)
 
     def test_compile_without_investigation(self):
         """Investigation is optional, should still compile."""

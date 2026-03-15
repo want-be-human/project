@@ -14,12 +14,12 @@ class StageExecutionLog(BaseModel):
     status: Literal["pending", "running", "completed", "failed", "skipped"] = Field(
         ..., description="Stage execution status"
     )
-    started_at: str | None = Field(None, description="ISO8601 start time")
-    completed_at: str | None = Field(None, description="ISO8601 end time")
-    latency_ms: float | None = Field(None, description="Execution duration in ms")
+    started_at: str | None = Field(default=None, description="ISO8601 start time")
+    completed_at: str | None = Field(default=None, description="ISO8601 end time")
+    latency_ms: float | None = Field(default=None, description="Execution duration in ms")
     input_snapshot: dict[str, Any] = Field(default_factory=dict, description="Compact input summary")
     output_snapshot: dict[str, Any] = Field(default_factory=dict, description="Compact output summary")
-    error: str | None = Field(None, description="Error message if failed")
+    error: str | None = Field(default=None, description="Error message if failed")
 
 
 class WorkflowExecutionSchema(BaseModel):

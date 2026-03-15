@@ -4,7 +4,6 @@ Covers DOC B B4.5 & DOC B B6 requirements:
   - generate_alerts:合成 flows → alerts 数量与 evidence 正确
 """
 
-import pytest
 from datetime import datetime, timezone, timedelta
 
 from app.services.alerting.service import AlertingService

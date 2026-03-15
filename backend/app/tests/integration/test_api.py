@@ -4,12 +4,10 @@ API integration tests for health and pcaps endpoints.
 
 import pytest
 from fastapi.testclient import TestClient
-from pathlib import Path
-import tempfile
 import struct
 
 from app.main import app
-from app.api.deps import get_db, init_db, engine
+from app.api.deps import engine
 from app.models.base import Base
 
 

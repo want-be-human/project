@@ -47,11 +47,11 @@ class StageRecord(BaseModel):
 
     stage_name: str = Field(..., description="Stage identifier (PipelineStage value)")
     status: StageStatus = Field("pending", description="Execution status")
-    started_at: str | None = Field(None, description="ISO8601 start time")
-    completed_at: str | None = Field(None, description="ISO8601 end time")
-    latency_ms: float | None = Field(None, description="Execution duration in ms")
+    started_at: str | None = Field(default=None, description="ISO8601 start time")
+    completed_at: str | None = Field(default=None, description="ISO8601 end time")
+    latency_ms: float | None = Field(default=None, description="Execution duration in ms")
     key_metrics: dict[str, Any] = Field(default_factory=dict, description="Stage-specific metrics")
-    error_summary: str | None = Field(None, description="Error message if failed")
+    error_summary: str | None = Field(default=None, description="Error message if failed")
     input_summary: dict[str, Any] = Field(default_factory=dict, description="Compact input description")
     output_summary: dict[str, Any] = Field(default_factory=dict, description="Compact output description")
 

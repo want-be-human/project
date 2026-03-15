@@ -8,9 +8,8 @@ Covers DOC B B4.10 & DOC F Week-8 DoD:
 """
 
 import json
-import pytest
 from datetime import datetime, timezone, timedelta
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock
 
 from app.services.scenarios.service import ScenariosService
 from app.schemas.scenario import (
@@ -18,7 +17,6 @@ from app.schemas.scenario import (
     ScenarioRunResultSchema,
     ScenarioExpectations,
     MustHaveExpectation,
-    ScenarioCheck,
     ScenarioMetrics,
 )
 
@@ -321,7 +319,7 @@ class TestRunScenario:
         a3 = _make_alert(id="a3", severity="low", dry_run_id=None)
 
         dr1 = _make_dry_run_model(id="dr-1", risk=0.6)
-        dr2 = _make_dry_run_model(id="dr-2", risk=0.8)
+        _make_dry_run_model(id="dr-2", risk=0.8)
 
         dryrun_query = self._setup_db_with_alerts(db, [a1, a2, a3])
 

@@ -117,7 +117,7 @@ class PlanCompiler:
         )
 
         return PlanAction(
-            action_type=action_type,
+            action_type=action_type,  # type: ignore[arg-type]
             target=target,
             params=params,
             rollback=rollback,

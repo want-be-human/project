@@ -7,10 +7,10 @@ original AgentService while adding execution trace recording.
 import json
 import pytest
 from datetime import datetime, timezone, timedelta
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock
 
 from app.workflows.engine import WorkflowEngine
-from app.workflows.stages.base import BaseStage, StageContext, StageResult
+from app.workflows.stages.base import StageContext, StageResult
 from app.workflows.stages.triage import TriageStage
 from app.workflows.stages.investigation import InvestigationStage
 from app.workflows.stages.recommendation import RecommendationStage

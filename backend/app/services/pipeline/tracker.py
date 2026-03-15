@@ -15,7 +15,6 @@ from typing import Any, Generator
 
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
 from app.core.logging import LoggerMixin, get_logger
 from app.core.utils import generate_uuid, utc_now, datetime_to_iso
 from app.services.pipeline.models import (

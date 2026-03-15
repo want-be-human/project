@@ -7,12 +7,10 @@ Covers DOC B B4.8 & DOC F Week-5 DoD:
 """
 
 import json
-import pytest
 from datetime import datetime, timezone, timedelta
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock
 
 from app.services.evidence.service import EvidenceService
-from app.schemas.evidence import EvidenceChainSchema, EvidenceNode, EvidenceEdge
 
 
 # ── helpers ──────────────────────────────────────────────────────

@@ -24,6 +24,7 @@ from app.services.features.service import FeaturesService
 from app.services.detection.service import DetectionService
 from app.services.alerting.service import AlertingService
 from app.models.alert import Alert, alert_flows
+from app.services.pipeline import PipelineTracker, PipelineStage
 
 logger = get_logger(__name__)
 
@@ -38,6 +39,7 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
     Runs inside FastAPI BackgroundTasks (thread-pool).
     """
     db = SessionLocal()
+    tracker = None
     try:
         pcap = db.query(PcapFile).filter(PcapFile.id == pcap_id).first()
         if not pcap:
@@ -60,7 +62,6 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
         # --- pipeline tracker (observability) ---
         tracker = None
         if settings.PIPELINE_OBSERVABILITY_ENABLED:
-            from app.services.pipeline import PipelineTracker, PipelineStage
             tracker = PipelineTracker(pcap_id, db)
 
         # Step 1: update → processing 10 %

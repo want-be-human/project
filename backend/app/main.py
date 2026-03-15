@@ -96,7 +96,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     logger.warning(f"Validation error on {request.method} {request.url.path}: {errors}")
     messages = []
     for err in errors:
-        loc = " -> ".join(str(l) for l in err.get("loc", []))
+        loc = " -> ".join(str(part) for part in err.get("loc", []))
         messages.append(f"{loc}: {err.get('msg', 'invalid')}")
     response = ApiResponse.failure(
         code="VALIDATION_ERROR",

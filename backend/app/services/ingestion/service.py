@@ -3,7 +3,6 @@ Ingestion service.
 Handles PCAP file upload, storage, and management.
 """
 
-from pathlib import Path
 from typing import BinaryIO
 
 from sqlalchemy.orm import Session
@@ -202,7 +201,7 @@ class IngestionService:
             created_at=datetime_to_iso(pcap.created_at),
             filename=pcap.filename,
             size_bytes=pcap.size_bytes,
-            status=pcap.status,
+            status=pcap.status,  # type: ignore[arg-type]
             progress=pcap.progress,
             flow_count=pcap.flow_count,
             alert_count=pcap.alert_count,

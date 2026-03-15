@@ -9,7 +9,6 @@ Covers DOC B B4.7 / B4.9 / B6 / DOC F Week-7 DoD:
 """
 
 import json
-import pytest
 from datetime import datetime, timezone, timedelta
 from unittest.mock import MagicMock, patch
 
@@ -18,7 +17,6 @@ from app.services.twin.service import TwinService
 from app.schemas.agent import (
     InvestigationSchema,
     RecommendationSchema,
-    RecommendedAction,
 )
 from app.schemas.twin import (
     ActionPlanSchema,
@@ -415,7 +413,7 @@ class TestTwinDryRun:
             "params": {},
         }])
 
-        result = svc.dry_run(plan, _ts(0), _ts(300), "ip")
+        svc.dry_run(plan, _ts(0), _ts(300), "ip")
         svc.db.add.assert_called_once()
         svc.db.commit.assert_called()
 

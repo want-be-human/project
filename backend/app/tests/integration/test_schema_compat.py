@@ -11,12 +11,9 @@ import pytest
 from pathlib import Path
 
 from app.schemas.flow import FlowRecordSchema
-from app.schemas.alert import AlertSchema
 from app.schemas.agent import InvestigationSchema, RecommendationSchema
-from app.schemas.twin import ActionPlanSchema, DryRunResultSchema
 from app.schemas.evidence import EvidenceChainSchema
-from app.schemas.scenario import ScenarioSchema, ScenarioRunResultSchema
-from app.schemas.topology import GraphResponseSchema
+from app.schemas.scenario import ScenarioSchema
 from app.schemas.pipeline import PipelineRunSchema
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent.parent
