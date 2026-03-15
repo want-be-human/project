@@ -3,16 +3,20 @@ Agent router.
 POST /alerts/{alert_id}/triage
 POST /alerts/{alert_id}/investigate
 POST /alerts/{alert_id}/recommend
-POST /alerts/{alert_id}/compile-plan
-"""
+POST /alerts/{alert_id}/compile-planGET  /investigations/{investigation_id}
+GET  /recommendations/{recommendation_id}"""
 
 from fastapi import APIRouter, Depends, Path
 from sqlalchemy.orm import Session
+
+import json
 
 from app.api.deps import get_db
 from app.core.config import settings
 from app.core.errors import NotFoundError
 from app.models.alert import Alert
+from app.models.investigation import Investigation
+from app.models.recommendation import Recommendation as RecommendationModel
 from app.schemas.common import ApiResponse
 from app.schemas.agent import (
     TriageRequest,
@@ -27,6 +31,7 @@ from app.services.plan_compiler.service import PlanCompilerService
 from app.workflows.engine import WorkflowEngine
 
 router = APIRouter(prefix="/alerts", tags=["agent"])
+lookup_router = APIRouter(tags=["agent"])
 
 
 def _get_alert_or_404(alert_id: str, db: Session) -> Alert:
@@ -128,3 +133,39 @@ async def compile_plan(
             language=request.language,
         )
     return ApiResponse.success(response)
+
+
+# ---------- lookup endpoints ----------
+
+@lookup_router.get(
+    "/investigations/{investigation_id}",
+    response_model=ApiResponse[InvestigationSchema],
+    summary="Get Investigation by ID",
+    description="Retrieve a previously generated investigation result by its ID.",
+)
+async def get_investigation(
+    investigation_id: str = Path(..., description="Investigation ID"),
+    db: Session = Depends(get_db),
+) -> ApiResponse[InvestigationSchema]:
+    inv = db.query(Investigation).filter(Investigation.id == investigation_id).first()
+    if not inv:
+        raise NotFoundError(message=f"Investigation {investigation_id} not found")
+    payload = json.loads(inv.payload)
+    return ApiResponse.success(InvestigationSchema(**payload))
+
+
+@lookup_router.get(
+    "/recommendations/{recommendation_id}",
+    response_model=ApiResponse[RecommendationSchema],
+    summary="Get Recommendation by ID",
+    description="Retrieve a previously generated recommendation result by its ID.",
+)
+async def get_recommendation(
+    recommendation_id: str = Path(..., description="Recommendation ID"),
+    db: Session = Depends(get_db),
+) -> ApiResponse[RecommendationSchema]:
+    rec = db.query(RecommendationModel).filter(RecommendationModel.id == recommendation_id).first()
+    if not rec:
+        raise NotFoundError(message=f"Recommendation {recommendation_id} not found")
+    payload = json.loads(rec.payload)
+    return ApiResponse.success(RecommendationSchema(**payload))

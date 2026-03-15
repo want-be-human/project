@@ -340,16 +340,29 @@ export const mockApi = {
     triage: async (id: string, body: any): Promise<{triage_summary: string}> => {
         const idx = store.alerts.findIndex(a => a.id === id);
         const v = ALERT_VARIATIONS[idx >= 0 ? idx : 0];
-        return { triage_summary: v.triageSummary };
+        const summary = v.triageSummary;
+        // Persist to store so getAlert returns it on next call
+        if (idx >= 0) {
+            const prev = store.alerts[idx].agent;
+            store.alerts[idx] = {
+                ...store.alerts[idx],
+                agent: {
+                    triage_summary: summary,
+                    investigation_id: prev?.investigation_id ?? null,
+                    recommendation_id: prev?.recommendation_id ?? null,
+                },
+            };
+        }
+        return { triage_summary: summary };
     },
     investigate: async (id: string): Promise<Investigation> => {
         const base = investigationSample as any;
         const idx = store.alerts.findIndex(a => a.id === id);
         const v = ALERT_VARIATIONS[idx >= 0 ? idx : 0];
-        const alert = store.alerts[idx >= 0 ? idx : 0];
-        return {
+        const invId = `inv-${id}`;
+        const result = {
             ...base,
-            id: `inv-${id}`,
+            id: invId,
             alert_id: id,
             hypothesis: v.hypothesis,
             why: v.whyReasons,
@@ -364,15 +377,87 @@ export const mockApi = {
                 `Consider implementing rate limiting`,
             ],
         } as unknown as Investigation;
+        // Persist to store
+        if (idx >= 0) {
+            const prev = store.alerts[idx].agent;
+            store.alerts[idx] = {
+                ...store.alerts[idx],
+                agent: {
+                    triage_summary: prev?.triage_summary ?? null,
+                    investigation_id: invId,
+                    recommendation_id: prev?.recommendation_id ?? null,
+                },
+            };
+        }
+        return result;
     },
     recommend: async (id: string): Promise<Recommendation> => {
         const base = recommendationSample as any;
         const idx = store.alerts.findIndex(a => a.id === id);
         const v = ALERT_VARIATIONS[idx >= 0 ? idx : 0];
+        const recId = `rec-${id}`;
+        const result = {
+            ...base,
+            id: recId,
+            alert_id: id,
+            actions: [
+                {
+                    ...base.actions[0],
+                    title: v.actionTitle,
+                    steps: [`Apply ${v.actionType} on ${v.srcIp}`, 'Verify action is active'],
+                    risk: `May affect legitimate traffic from ${v.srcIp}`,
+                },
+                ...(base.actions.slice(1) || []),
+            ],
+        } as unknown as Recommendation;
+        // Persist to store
+        if (idx >= 0) {
+            const prev = store.alerts[idx].agent;
+            store.alerts[idx] = {
+                ...store.alerts[idx],
+                agent: {
+                    triage_summary: prev?.triage_summary ?? null,
+                    investigation_id: prev?.investigation_id ?? null,
+                    recommendation_id: recId,
+                },
+            };
+        }
+        return result;
+    },
+
+    getInvestigation: async (id: string): Promise<Investigation> => {
+        // Re-use the investigate mock logic keyed by alert id embedded in inv id
+        const alertId = id.startsWith('inv-') ? id.slice(4) : id;
+        const base = investigationSample as any;
+        const idx = store.alerts.findIndex(a => a.id === alertId);
+        const v = ALERT_VARIATIONS[idx >= 0 ? idx : 0];
         return {
             ...base,
-            id: `rec-${id}`,
-            alert_id: id,
+            id,
+            alert_id: alertId,
+            hypothesis: v.hypothesis,
+            why: v.whyReasons,
+            impact: {
+                scope: [`dst_ip:${v.dstIp}`, `service:${v.service.proto.toLowerCase()}/${v.service.dst_port}`],
+                confidence: 0.65 + (idx >= 0 ? idx : 0) * 0.05,
+            },
+            next_steps: [
+                `Verify logs on ${v.dstIp} for ${v.type} indicators`,
+                `Check threat intelligence for ${v.srcIp}`,
+                `Review firewall rules for ${v.service.proto}/${v.service.dst_port}`,
+                `Consider implementing rate limiting`,
+            ],
+        } as unknown as Investigation;
+    },
+    getRecommendation: async (id: string): Promise<Recommendation> => {
+        const alertId = id.startsWith('rec-') ? id.slice(4) : id;
+        const base = recommendationSample as any;
+        const idx = store.alerts.findIndex(a => a.id === alertId);
+        const v = ALERT_VARIATIONS[idx >= 0 ? idx : 0];
+        return {
+            ...base,
+            id,
+            alert_id: alertId,
             actions: [
                 {
                     ...base.actions[0],

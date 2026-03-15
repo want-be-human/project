@@ -4,29 +4,49 @@ import { useState } from 'react';
 import { api } from '@/lib/api';
 import { Investigation, Recommendation } from '@/lib/api/types';
 import { useTranslations, useLocale } from 'next-intl';
-import { Play, Search, Shield, Lightbulb, Loader2 } from 'lucide-react';
+import { Search, Shield, Lightbulb, Loader2, History, RefreshCw } from 'lucide-react';
 
 interface AgentPanelProps {
   alertId: string;
+  initialTriageSummary?: string | null;
+  initialInvestigation?: Investigation | null;
+  initialRecommendation?: Recommendation | null;
   onRecommendationLoaded?: (rec: Recommendation) => void;
 }
 
-export default function AgentPanel({ alertId, onRecommendationLoaded }: AgentPanelProps) {
+export default function AgentPanel({
+  alertId,
+  initialTriageSummary = null,
+  initialInvestigation = null,
+  initialRecommendation = null,
+  onRecommendationLoaded,
+}: AgentPanelProps) {
   const t = useTranslations('agent');
   const locale = useLocale();
   const [activeTab, setActiveTab] = useState<'triage' | 'investigate' | 'recommend'>('triage');
-  
-  const [triageSummary, setTriageSummary] = useState<string | null>(null);
-  const [investigation, setInvestigation] = useState<Investigation | null>(null);
-  const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
-  
+
+  // "fresh" state: results from user-triggered runs during this session
+  const [freshTriage, setFreshTriage] = useState<string | null>(null);
+  const [freshInvestigation, setFreshInvestigation] = useState<Investigation | null>(null);
+  const [freshRecommendation, setFreshRecommendation] = useState<Recommendation | null>(null);
+
   const [loading, setLoading] = useState(false);
+
+  // Derived display values: prefer fresh results, fall back to initial (backfilled) props
+  const triageSummary = freshTriage ?? initialTriageSummary;
+  const investigation = freshInvestigation ?? initialInvestigation;
+  const recommendation = freshRecommendation ?? initialRecommendation;
+
+  // Derived history flags
+  const triageFromHistory = !freshTriage && !!initialTriageSummary;
+  const investigationFromHistory = !freshInvestigation && !!initialInvestigation;
+  const recommendationFromHistory = !freshRecommendation && !!initialRecommendation;
 
   const handleTriage = async () => {
     setLoading(true);
     try {
       const res = await api.triage(alertId, { language: locale });
-      setTriageSummary(res.triage_summary);
+      setFreshTriage(res.triage_summary);
     } catch (e) {
       console.error(e);
     } finally {
@@ -38,7 +58,7 @@ export default function AgentPanel({ alertId, onRecommendationLoaded }: AgentPan
     setLoading(true);
     try {
       const res = await api.investigate(alertId, { language: locale });
-      setInvestigation(res);
+      setFreshInvestigation(res);
     } catch (e) {
       console.error(e);
     } finally {
@@ -50,7 +70,7 @@ export default function AgentPanel({ alertId, onRecommendationLoaded }: AgentPan
     setLoading(true);
     try {
       const res = await api.recommend(alertId, { language: locale });
-      setRecommendation(res);
+      setFreshRecommendation(res);
       if (onRecommendationLoaded) {
         onRecommendationLoaded(res);
       }
@@ -60,6 +80,28 @@ export default function AgentPanel({ alertId, onRecommendationLoaded }: AgentPan
       setLoading(false);
     }
   };
+
+  /** Small badge indicating the result is from a previous run */
+  const HistoryBadge = ({ createdAt }: { createdAt?: string }) => (
+    <div className="flex items-center gap-1.5 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2.5 py-1 mb-3 w-fit">
+      <History className="w-3 h-3" />
+      <span>
+        {t('existingResult')}
+        {createdAt && ` · ${new Date(createdAt).toLocaleString()}`}
+      </span>
+    </div>
+  );
+
+  /** Re-run button shown below existing results */
+  const RerunButton = ({ label, onClick }: { label: string; onClick: () => void }) => (
+    <button
+      onClick={onClick}
+      className="mt-3 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+    >
+      <RefreshCw className="w-3 h-3" />
+      {label}
+    </button>
+  );
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
@@ -71,6 +113,7 @@ export default function AgentPanel({ alertId, onRecommendationLoaded }: AgentPan
           }`}
         >
           <Shield className="w-4 h-4" /> {t('triage')}
+          {triageSummary && <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />}
         </button>
         <button
           onClick={() => setActiveTab('investigate')}
@@ -79,6 +122,7 @@ export default function AgentPanel({ alertId, onRecommendationLoaded }: AgentPan
           }`}
         >
           <Search className="w-4 h-4" /> {t('investigate')}
+          {investigation && <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />}
         </button>
         <button
           onClick={() => setActiveTab('recommend')}
@@ -87,6 +131,7 @@ export default function AgentPanel({ alertId, onRecommendationLoaded }: AgentPan
           }`}
         >
           <Lightbulb className="w-4 h-4" /> {t('recommend')}
+          {recommendation && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />}
         </button>
       </div>
 
@@ -97,6 +142,7 @@ export default function AgentPanel({ alertId, onRecommendationLoaded }: AgentPan
           </div>
         )}
 
+        {/* ─── Triage Tab ─── */}
         {!loading && activeTab === 'triage' && (
           <div>
             {!triageSummary ? (
@@ -110,13 +156,18 @@ export default function AgentPanel({ alertId, onRecommendationLoaded }: AgentPan
                 </button>
               </div>
             ) : (
-              <div className="prose prose-sm max-w-none text-gray-700 bg-gray-50 p-4 rounded-md">
-                {triageSummary}
+              <div>
+                {triageFromHistory && <HistoryBadge />}
+                <div className="prose prose-sm max-w-none text-gray-700 bg-gray-50 p-4 rounded-md">
+                  {triageSummary}
+                </div>
+                <RerunButton label={t('rerunTriage')} onClick={handleTriage} />
               </div>
             )}
           </div>
         )}
 
+        {/* ─── Investigate Tab ─── */}
         {!loading && activeTab === 'investigate' && (
           <div>
             {!investigation ? (
@@ -130,33 +181,38 @@ export default function AgentPanel({ alertId, onRecommendationLoaded }: AgentPan
                 </button>
               </div>
             ) : (
-              <div className="space-y-4">
-                <div>
-                  <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{t('hypothesis')}</h4>
-                  <p className="text-sm font-medium text-gray-900">{investigation.hypothesis}</p>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
+              <div>
+                {investigationFromHistory && <HistoryBadge createdAt={investigation.created_at} />}
+                <div className="space-y-4">
                   <div>
-                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{t('why')}</h4>
-                    <ul className="list-disc pl-4 text-sm text-gray-600">
-                      {investigation.why.map((r, i) => <li key={i}>{r}</li>)}
-                    </ul>
+                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{t('hypothesis')}</h4>
+                    <p className="text-sm font-medium text-gray-900">{investigation.hypothesis}</p>
                   </div>
-                  <div>
-                     <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{t('nextSteps')}</h4>
-                     <ul className="list-disc pl-4 text-sm text-gray-600">
-                      {investigation.next_steps.map((s, i) => <li key={i}>{s}</li>)}
-                    </ul>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{t('why')}</h4>
+                      <ul className="list-disc pl-4 text-sm text-gray-600">
+                        {investigation.why.map((r, i) => <li key={i}>{r}</li>)}
+                      </ul>
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{t('nextSteps')}</h4>
+                      <ul className="list-disc pl-4 text-sm text-gray-600">
+                        {investigation.next_steps.map((s, i) => <li key={i}>{s}</li>)}
+                      </ul>
+                    </div>
+                  </div>
+                  <div className="bg-yellow-50 text-yellow-800 text-xs p-2 rounded border border-yellow-200">
+                    {t('confidence')} {(investigation.impact?.confidence ?? 0) * 100}%
                   </div>
                 </div>
-                <div className="bg-yellow-50 text-yellow-800 text-xs p-2 rounded border border-yellow-200">
-                  {t('confidence')} {(investigation.impact?.confidence ?? 0) * 100}%
-                </div>
+                <RerunButton label={t('rerunInvestigation')} onClick={handleInvestigate} />
               </div>
             )}
           </div>
         )}
 
+        {/* ─── Recommend Tab ─── */}
         {!loading && activeTab === 'recommend' && (
           <div>
             {!recommendation ? (
@@ -170,30 +226,34 @@ export default function AgentPanel({ alertId, onRecommendationLoaded }: AgentPan
                 </button>
               </div>
             ) : (
-              <div className="space-y-3">
-                {recommendation.actions.map((action, i) => (
-                  <div key={i} className="flex items-start gap-3 p-3 border border-gray-100 rounded-md bg-gray-50">
-                    <div className="bg-white p-2 rounded shadow-sm">
-                      <Lightbulb className="w-4 h-4 text-amber-500" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-gray-900">{action.title}</h4>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {t('priorityLabel')} <span className="font-mono">{action.priority}</span>
-                      </p>
-                      {action.steps.length > 0 && (
-                        <ul className="mt-1 text-xs text-gray-600 list-disc list-inside">
-                          {action.steps.map((step: string, j: number) => (
-                            <li key={j}>{step}</li>
-                          ))}
-                        </ul>
-                      )}
-                      <div className="mt-2 flex gap-2">
-                        <span className="text-[10px] px-1.5 py-0.5 bg-red-100 text-red-700 rounded">{t('riskLabel')} {action.risk}</span>
+              <div>
+                {recommendationFromHistory && <HistoryBadge createdAt={recommendation.created_at} />}
+                <div className="space-y-3">
+                  {recommendation.actions.map((action, i) => (
+                    <div key={i} className="flex items-start gap-3 p-3 border border-gray-100 rounded-md bg-gray-50">
+                      <div className="bg-white p-2 rounded shadow-sm">
+                        <Lightbulb className="w-4 h-4 text-amber-500" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-gray-900">{action.title}</h4>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {t('priorityLabel')} <span className="font-mono">{action.priority}</span>
+                        </p>
+                        {action.steps.length > 0 && (
+                          <ul className="mt-1 text-xs text-gray-600 list-disc list-inside">
+                            {action.steps.map((step: string, j: number) => (
+                              <li key={j}>{step}</li>
+                            ))}
+                          </ul>
+                        )}
+                        <div className="mt-2 flex gap-2">
+                          <span className="text-[10px] px-1.5 py-0.5 bg-red-100 text-red-700 rounded">{t('riskLabel')} {action.risk}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
+                <RerunButton label={t('rerunRecommendation')} onClick={handleRecommend} />
               </div>
             )}
           </div>

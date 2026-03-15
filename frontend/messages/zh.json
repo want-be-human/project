@@ -171,6 +171,10 @@
     "confidence": "置信度：",
     "recommendPrompt": "获取可执行的缓解措施。",
     "loadRecommendations": "加载建议",
+    "rerunTriage": "重新分诊",
+    "rerunInvestigation": "重新研判",
+    "rerunRecommendation": "重新生成建议",
+    "existingResult": "已有分析结果",
     "priorityLabel": "优先级：",
     "riskLabel": "风险："
   },

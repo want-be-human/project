@@ -171,6 +171,10 @@
     "confidence": "Confidence:",
     "recommendPrompt": "Get actionable mitigation steps.",
     "loadRecommendations": "Load Recommendations",
+    "rerunTriage": "Re-run Triage",
+    "rerunInvestigation": "Re-run Investigation",
+    "rerunRecommendation": "Re-run Recommendation",
+    "existingResult": "Existing result",
     "priorityLabel": "Priority:",
     "riskLabel": "Risk:"
   },

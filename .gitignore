@@ -1,4 +1,51 @@
-/.venv
+# ── Virtual environments ──────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+
+# ── Python build artifacts ────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+.coverage.*
+
+# ── Database & runtime data ───────────────────────────────────────────────────
+backend/data/nettwin.db
+backend/data/pcaps/
+data/pcaps/
+*.db
+*.db-shm
+*.db-wal
+
+# ── Docker internal cache ─────────────────────────────────────────────────────
+.docker-config/
+.docker/
+
+# ── Environment / secrets ─────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+infra/.env
+
+# ── Editor & OS ───────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/settings.json
+*.swp
+*.swo
+
+# ── Docs (internal, not for repo) ─────────────────────────────────────────────
 /DOC A.md
 /DOC B.md
 /DOC C.md

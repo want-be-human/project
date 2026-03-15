@@ -114,6 +114,13 @@ export const realApi = {
         return fetchJson<EvidenceChain>(`/api/v1/alerts/${id}/evidence-chain`);
     },
 
+    getInvestigation: async (id: string): Promise<Investigation> => {
+        return fetchJson<Investigation>(`/api/v1/investigations/${id}`);
+    },
+    getRecommendation: async (id: string): Promise<Recommendation> => {
+        return fetchJson<Recommendation>(`/api/v1/recommendations/${id}`);
+    },
+
     createPlan: async (body: any): Promise<ActionPlan> => {
          // Transform frontend action shape to backend PlanAction schema
          const allowedActionTypes = new Set([

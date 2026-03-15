@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
-import { Alert, EvidenceChain, Recommendation, ActionPlan } from '@/lib/api/types';
+import { Alert, EvidenceChain, Investigation, Recommendation, ActionPlan } from '@/lib/api/types';
 import AlertEvidenceSection from '@/components/alerts/AlertEvidenceSection';
 import EvidenceChainView from '@/components/evidence/EvidenceChainView';
 import AgentPanel from '@/components/agent/AgentPanel';
@@ -26,6 +26,50 @@ export default function AlertDetailView({ alert, evidenceChain, onAlertUpdate }:
   const router = useRouter();
   const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
   const [actionPlan, setActionPlan] = useState<ActionPlan | null>(null);
+
+  // Backfill state for existing agent results
+  const [initialTriage, setInitialTriage] = useState<string | null>(null);
+  const [initialInvestigation, setInitialInvestigation] = useState<Investigation | null>(null);
+  const [initialRecommendation, setInitialRecommendation] = useState<Recommendation | null>(null);
+
+  // Fetch existing agent results on mount
+  useEffect(() => {
+    const agentInfo = alert.agent;
+    if (!agentInfo) return;
+
+    // Triage summary is inline in the alert — no extra request needed
+    if (agentInfo.triage_summary) {
+      setInitialTriage(agentInfo.triage_summary);
+    }
+
+    // Investigation & Recommendation need separate fetches by ID
+    const fetchAgentResults = async () => {
+      const promises: Promise<void>[] = [];
+
+      if (agentInfo.investigation_id) {
+        promises.push(
+          api.getInvestigation(agentInfo.investigation_id)
+            .then((inv) => setInitialInvestigation(inv))
+            .catch((e) => console.error('Failed to fetch investigation:', e))
+        );
+      }
+
+      if (agentInfo.recommendation_id) {
+        promises.push(
+          api.getRecommendation(agentInfo.recommendation_id)
+            .then((rec) => {
+              setInitialRecommendation(rec);
+              setRecommendation(rec); // Also feed ActionBuilder
+            })
+            .catch((e) => console.error('Failed to fetch recommendation:', e))
+        );
+      }
+
+      await Promise.all(promises);
+    };
+
+    fetchAgentResults();
+  }, [alert.id]);
 
   const handleStatusChange = async (newStatus: string) => {
     const previousAlert = { ...alert };
@@ -185,7 +229,13 @@ export default function AlertDetailView({ alert, evidenceChain, onAlertUpdate }:
             <ShieldAlert className="w-5 h-5 text-purple-600" />
             <span>{t('aiAnalyst')}</span>
           </h2>
-          <AgentPanel alertId={alert.id} onRecommendationLoaded={setRecommendation} />
+          <AgentPanel
+            alertId={alert.id}
+            initialTriageSummary={initialTriage}
+            initialInvestigation={initialInvestigation}
+            initialRecommendation={initialRecommendation}
+            onRecommendationLoaded={setRecommendation}
+          />
         </div>
 
         <div className="space-y-6">
