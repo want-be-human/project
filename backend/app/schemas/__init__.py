@@ -61,6 +61,10 @@ from app.schemas.scenario import (
     CreateScenarioRequest,
     ScenarioQueryParams,
 )
+from app.schemas.pipeline import (
+    PipelineRunSchema,
+    StageRecordSchema,
+)
 
 __all__ = [
     # Common
@@ -112,4 +116,7 @@ __all__ = [
     "ScenarioRunResultSchema",
     "CreateScenarioRequest",
     "ScenarioQueryParams",
+    # Pipeline
+    "PipelineRunSchema",
+    "StageRecordSchema",
 ]

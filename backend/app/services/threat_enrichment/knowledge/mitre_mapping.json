@@ -1,0 +1,231 @@
+{
+  "scan": {
+    "techniques": [
+      {
+        "technique_id": "T1595",
+        "technique_name": "Active Scanning",
+        "tactic_id": "TA0043",
+        "tactic_name": "Reconnaissance",
+        "description": "Adversaries may scan victim IP blocks to gather information for targeting. Includes vulnerability scanning and active host enumeration.",
+        "intel_refs": ["https://attack.mitre.org/techniques/T1595/"],
+        "severity_hint": "medium",
+        "base_confidence": 0.80
+      },
+      {
+        "technique_id": "T1595.001",
+        "technique_name": "Scanning IP Blocks",
+        "tactic_id": "TA0043",
+        "tactic_name": "Reconnaissance",
+        "description": "Adversaries may scan victim IP blocks to identify potential targets for further operations.",
+        "intel_refs": ["https://attack.mitre.org/techniques/T1595/001/"],
+        "severity_hint": "medium",
+        "base_confidence": 0.75
+      },
+      {
+        "technique_id": "T1046",
+        "technique_name": "Network Service Discovery",
+        "tactic_id": "TA0007",
+        "tactic_name": "Discovery",
+        "description": "Adversaries may attempt to get a listing of services running on remote hosts and local network infrastructure devices.",
+        "intel_refs": ["https://attack.mitre.org/techniques/T1046/"],
+        "severity_hint": "medium",
+        "base_confidence": 0.75
+      },
+      {
+        "technique_id": "T1018",
+        "technique_name": "Remote System Discovery",
+        "tactic_id": "TA0007",
+        "tactic_name": "Discovery",
+        "description": "Adversaries may attempt to get a listing of other systems by IP address, hostname, or other identifiers on a network.",
+        "intel_refs": ["https://attack.mitre.org/techniques/T1018/"],
+        "severity_hint": "low",
+        "base_confidence": 0.60
+      }
+    ]
+  },
+
+  "bruteforce": {
+    "techniques": [
+      {
+        "technique_id": "T1110",
+        "technique_name": "Brute Force",
+        "tactic_id": "TA0006",
+        "tactic_name": "Credential Access",
+        "description": "Adversaries may use brute force techniques to gain access to accounts when passwords are unknown or password hashes are obtained.",
+        "intel_refs": ["https://attack.mitre.org/techniques/T1110/"],
+        "severity_hint": "high",
+        "base_confidence": 0.85
+      },
+      {
+        "technique_id": "T1110.001",
+        "technique_name": "Password Guessing",
+        "tactic_id": "TA0006",
+        "tactic_name": "Credential Access",
+        "description": "Adversaries may guess passwords to attempt access to accounts. Without knowledge of the password, they may systematically guess.",
+        "intel_refs": ["https://attack.mitre.org/techniques/T1110/001/"],
+        "severity_hint": "high",
+        "base_confidence": 0.75
+      },
+      {
+        "technique_id": "T1110.003",
+        "technique_name": "Password Spraying",
+        "tactic_id": "TA0006",
+        "tactic_name": "Credential Access",
+        "description": "Adversaries may use a single or small list of commonly used passwords against many different accounts to attempt to acquire valid credentials.",
+        "intel_refs": ["https://attack.mitre.org/techniques/T1110/003/"],
+        "severity_hint": "high",
+        "base_confidence": 0.70
+      },
+      {
+        "technique_id": "T1078",
+        "technique_name": "Valid Accounts",
+        "tactic_id": "TA0001",
+        "tactic_name": "Initial Access",
+        "description": "Adversaries may obtain and abuse credentials of existing accounts as a means of gaining Initial Access.",
+        "intel_refs": ["https://attack.mitre.org/techniques/T1078/"],
+        "severity_hint": "high",
+        "base_confidence": 0.55
+      }
+    ]
+  },
+
+  "dos": {
+    "techniques": [
+      {
+        "technique_id": "T1498",
+        "technique_name": "Network Denial of Service",
+        "tactic_id": "TA0040",
+        "tactic_name": "Impact",
+        "description": "Adversaries may perform Network Denial of Service (DoS) attacks to degrade or block the availability of targeted resources.",
+        "intel_refs": ["https://attack.mitre.org/techniques/T1498/"],
+        "severity_hint": "critical",
+        "base_confidence": 0.85
+      },
+      {
+        "technique_id": "T1498.001",
+        "technique_name": "Direct Network Flood",
+        "tactic_id": "TA0040",
+        "tactic_name": "Impact",
+        "description": "Adversaries may attempt to cause a DoS by directly sending a high-volume of network traffic to a target.",
+        "intel_refs": ["https://attack.mitre.org/techniques/T1498/001/"],
+        "severity_hint": "critical",
+        "base_confidence": 0.80
+      },
+      {
+        "technique_id": "T1499",
+        "technique_name": "Endpoint Denial of Service",
+        "tactic_id": "TA0040",
+        "tactic_name": "Impact",
+        "description": "Adversaries may perform Endpoint Denial of Service (DoS) attacks to degrade or block the availability of services to users.",
+        "intel_refs": ["https://attack.mitre.org/techniques/T1499/"],
+        "severity_hint": "high",
+        "base_confidence": 0.75
+      },
+      {
+        "technique_id": "T1499.001",
+        "technique_name": "OS Exhaustion Flood",
+        "tactic_id": "TA0040",
+        "tactic_name": "Impact",
+        "description": "Adversaries may launch a DoS attack targeting an endpoint's operating system to exhaust system resources.",
+        "intel_refs": ["https://attack.mitre.org/techniques/T1499/001/"],
+        "severity_hint": "high",
+        "base_confidence": 0.65
+      }
+    ]
+  },
+
+  "exfil": {
+    "techniques": [
+      {
+        "technique_id": "T1041",
+        "technique_name": "Exfiltration Over C2 Channel",
+        "tactic_id": "TA0010",
+        "tactic_name": "Exfiltration",
+        "description": "Adversaries may steal data by exfiltrating it over an existing command and control channel.",
+        "intel_refs": ["https://attack.mitre.org/techniques/T1041/"],
+        "severity_hint": "critical",
+        "base_confidence": 0.80
+      },
+      {
+        "technique_id": "T1048",
+        "technique_name": "Exfiltration Over Alternative Protocol",
+        "tactic_id": "TA0010",
+        "tactic_name": "Exfiltration",
+        "description": "Adversaries may steal data by exfiltrating it over a different protocol than the existing command and control channel.",
+        "intel_refs": ["https://attack.mitre.org/techniques/T1048/"],
+        "severity_hint": "critical",
+        "base_confidence": 0.70
+      },
+      {
+        "technique_id": "T1071",
+        "technique_name": "Application Layer Protocol",
+        "tactic_id": "TA0011",
+        "tactic_name": "Command and Control",
+        "description": "Adversaries may communicate using application layer protocols to avoid detection by blending in with existing traffic.",
+        "intel_refs": ["https://attack.mitre.org/techniques/T1071/"],
+        "severity_hint": "high",
+        "base_confidence": 0.60
+      },
+      {
+        "technique_id": "T1567",
+        "technique_name": "Exfiltration Over Web Service",
+        "tactic_id": "TA0010",
+        "tactic_name": "Exfiltration",
+        "description": "Adversaries may use an existing, legitimate external web service to exfiltrate data.",
+        "intel_refs": ["https://attack.mitre.org/techniques/T1567/"],
+        "severity_hint": "high",
+        "base_confidence": 0.55
+      }
+    ]
+  },
+
+  "anomaly": {
+    "techniques": [
+      {
+        "technique_id": "T1071",
+        "technique_name": "Application Layer Protocol",
+        "tactic_id": "TA0011",
+        "tactic_name": "Command and Control",
+        "description": "Adversaries may communicate using application layer protocols to avoid detection by blending in with existing traffic.",
+        "intel_refs": ["https://attack.mitre.org/techniques/T1071/"],
+        "severity_hint": "medium",
+        "base_confidence": 0.50
+      },
+      {
+        "technique_id": "T1571",
+        "technique_name": "Non-Standard Port",
+        "tactic_id": "TA0011",
+        "tactic_name": "Command and Control",
+        "description": "Adversaries may communicate using a protocol and port pairing that are typically not associated.",
+        "intel_refs": ["https://attack.mitre.org/techniques/T1571/"],
+        "severity_hint": "medium",
+        "base_confidence": 0.45
+      },
+      {
+        "technique_id": "T1572",
+        "technique_name": "Protocol Tunneling",
+        "tactic_id": "TA0011",
+        "tactic_name": "Command and Control",
+        "description": "Adversaries may tunnel network communications to and from a victim system within a separate protocol to avoid detection.",
+        "intel_refs": ["https://attack.mitre.org/techniques/T1572/"],
+        "severity_hint": "medium",
+        "base_confidence": 0.40
+      }
+    ]
+  },
+
+  "unknown": {
+    "techniques": [
+      {
+        "technique_id": "T1071",
+        "technique_name": "Application Layer Protocol",
+        "tactic_id": "TA0011",
+        "tactic_name": "Command and Control",
+        "description": "Adversaries may communicate using application layer protocols to avoid detection by blending in with existing traffic.",
+        "intel_refs": ["https://attack.mitre.org/techniques/T1071/"],
+        "severity_hint": "low",
+        "base_confidence": 0.30
+      }
+    ]
+  }
+}

@@ -13,6 +13,7 @@ from app.models.twin import TwinPlan, DryRun
 from app.models.scenario import Scenario, ScenarioRun
 from app.models.evidence import EvidenceChain
 from app.workflows.models import WorkflowExecution
+from app.models.pipeline import PipelineRunModel
 
 __all__ = [
     "Base",
@@ -29,4 +30,5 @@ __all__ = [
     "ScenarioRun",
     "EvidenceChain",
     "WorkflowExecution",
+    "PipelineRunModel",
 ]

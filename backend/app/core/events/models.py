@@ -23,6 +23,12 @@ ALERT_UPDATED = "alert.updated"
 TWIN_DRYRUN_CREATED = "twin.dryrun.created"
 SCENARIO_RUN_DONE = "scenario.run.done"
 
+# Pipeline observability events
+PIPELINE_RUN_STARTED = "pipeline.run.started"
+PIPELINE_STAGE_COMPLETED = "pipeline.stage.completed"
+PIPELINE_STAGE_FAILED = "pipeline.stage.failed"
+PIPELINE_RUN_DONE = "pipeline.run.done"
+
 ALL_EVENT_TYPES = [
     PCAP_PROCESS_PROGRESS,
     PCAP_PROCESS_DONE,
@@ -30,6 +36,10 @@ ALL_EVENT_TYPES = [
     ALERT_UPDATED,
     TWIN_DRYRUN_CREATED,
     SCENARIO_RUN_DONE,
+    PIPELINE_RUN_STARTED,
+    PIPELINE_STAGE_COMPLETED,
+    PIPELINE_STAGE_FAILED,
+    PIPELINE_RUN_DONE,
 ]
 
 

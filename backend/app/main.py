@@ -25,6 +25,7 @@ from app.api.routers import (
     twin,
     scenarios,
     stream,
+    pipeline,
 )
 from app.schemas.common import ApiResponse
 
@@ -134,6 +135,7 @@ app.include_router(evidence.router, prefix=settings.API_V1_PREFIX)
 app.include_router(twin.router, prefix=settings.API_V1_PREFIX)
 app.include_router(scenarios.router, prefix=settings.API_V1_PREFIX)
 app.include_router(stream.router, prefix=settings.API_V1_PREFIX)
+app.include_router(pipeline.router, prefix=settings.API_V1_PREFIX)
 
 
 # Root redirect

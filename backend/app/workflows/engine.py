@@ -9,6 +9,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.logging import get_logger
 from app.core.utils import generate_uuid, utc_now, datetime_to_iso
 from app.models.alert import Alert
@@ -105,6 +106,10 @@ class WorkflowEngine:
                 alert.id,
                 elapsed_ms,
             )
+
+            # Bridge to pipeline observability
+            self._bridge_to_pipeline(alert, stage_log)
+
             return result.output
 
         except Exception:
@@ -229,3 +234,96 @@ class WorkflowEngine:
         if hasattr(output, "id"):
             return {"id": output.id}
         return {}
+
+    # ------------------------------------------------------------------
+    # Pipeline observability bridge
+    # ------------------------------------------------------------------
+
+    # Map workflow stage names → PipelineStage enum values
+    _STAGE_TO_PIPELINE = {
+        "triage": "investigate",       # triage is part of the investigate phase
+        "investigate": "investigate",
+        "recommend": "recommend",
+        "compile_plan": "compile_plan",
+    }
+
+    def _bridge_to_pipeline(self, alert: Alert, stage_log: StageExecutionLog) -> None:
+        """
+        If pipeline observability is enabled, append the stage record
+        to the corresponding PipelineRun (looked up by alert's pcap_id).
+        """
+        if not settings.PIPELINE_OBSERVABILITY_ENABLED:
+            return
+        try:
+            from app.models.pipeline import PipelineRunModel
+            from app.services.pipeline.models import StageRecord
+
+            pipeline_stage = self._STAGE_TO_PIPELINE.get(stage_log.stage_name)
+            if not pipeline_stage:
+                return
+
+            # Find the PCAP id via alert's flows
+            from app.models.flow import Flow
+            flow = (
+                self.db.query(Flow.pcap_id)
+                .join(
+                    Alert.__table__.metadata.tables.get("alert_flows", None)
+                    or self.db.execute(
+                        __import__("sqlalchemy").text("SELECT 1")
+                    ),  # fallback — shouldn't happen
+                )
+                .filter(Flow.pcap_id.isnot(None))
+                .first()
+            )
+            # Simpler: look up alert_flows → flow → pcap_id
+            from app.models.alert import alert_flows as af_table
+            row = (
+                self.db.query(Flow.pcap_id)
+                .join(af_table, af_table.c.flow_id == Flow.id)
+                .filter(af_table.c.alert_id == alert.id)
+                .first()
+            )
+            if not row:
+                return
+            pcap_id = row[0]
+
+            # Find existing pipeline run for this pcap
+            pipeline_run = (
+                self.db.query(PipelineRunModel)
+                .filter(PipelineRunModel.pcap_id == pcap_id)
+                .order_by(PipelineRunModel.created_at.desc())
+                .first()
+            )
+            if not pipeline_run:
+                return
+
+            import json as _json
+            existing_stages = _json.loads(pipeline_run.stages_log or "[]")
+
+            record = StageRecord(
+                stage_name=pipeline_stage,
+                status=stage_log.status,
+                started_at=stage_log.started_at,
+                completed_at=stage_log.completed_at,
+                latency_ms=stage_log.latency_ms,
+                key_metrics=stage_log.output_snapshot,
+                input_summary=stage_log.input_snapshot,
+                output_summary=stage_log.output_snapshot,
+                error_summary=stage_log.error,
+            )
+
+            # Replace existing stage or append
+            replaced = False
+            for i, s in enumerate(existing_stages):
+                if s.get("stage_name") == pipeline_stage:
+                    existing_stages[i] = record.model_dump()
+                    replaced = True
+                    break
+            if not replaced:
+                existing_stages.append(record.model_dump())
+
+            pipeline_run.stages_log = _json.dumps(existing_stages, ensure_ascii=False)
+            self.db.flush()
+
+        except Exception:
+            logger.debug("Failed to bridge workflow stage to pipeline", exc_info=True)

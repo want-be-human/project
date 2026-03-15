@@ -35,6 +35,9 @@ class Settings(BaseSettings):
 
     # Feature flags
     WORKFLOW_ENGINE_ENABLED: bool = True
+    THREAT_ENRICHMENT_ENABLED: bool = True
+    PIPELINE_OBSERVABILITY_ENABLED: bool = True
+    STRUCTURED_LOG_ENABLED: bool = False
 
     # CORS (for development)
     CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]

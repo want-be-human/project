@@ -69,7 +69,7 @@ class TestDomainEvent:
         assert SCENARIO_RUN_DONE == "scenario.run.done"
 
     def test_all_event_types_list(self):
-        assert len(ALL_EVENT_TYPES) == 6
+        assert len(ALL_EVENT_TYPES) == 10
 
 
 # ── InMemoryEventBus core tests ─────────────────────────────────

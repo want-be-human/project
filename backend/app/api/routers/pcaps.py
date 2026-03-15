@@ -11,6 +11,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, UploadFile, File, Query
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, SessionLocal
+from app.core.config import settings
 from app.core.errors import ConflictError, NotFoundError
 from app.core.logging import get_logger
 from app.models.flow import Flow
@@ -56,6 +57,12 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
             except RuntimeError:
                 pass  # no event loop available (e.g. unit test)
 
+        # --- pipeline tracker (observability) ---
+        tracker = None
+        if settings.PIPELINE_OBSERVABILITY_ENABLED:
+            from app.services.pipeline import PipelineTracker, PipelineStage
+            tracker = PipelineTracker(pcap_id, db)
+
         # Step 1: update → processing 10 %
         pcap.status = "processing"
         pcap.progress = 10
@@ -63,26 +70,57 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
         _broadcast("pcap.process.progress", {"pcap_id": pcap_id, "percent": 10})
 
         # Step 2: parse PCAP → flows
-        parser = ParsingService()
-        flow_dicts = parser.parse_to_flows(Path(pcap.storage_path), window_sec=window_sec)
+        if tracker:
+            with tracker.stage(PipelineStage.PARSE) as stg:
+                parser = ParsingService()
+                stg.record_input({"pcap_path": pcap.storage_path, "window_sec": window_sec})
+                flow_dicts = parser.parse_to_flows(Path(pcap.storage_path), window_sec=window_sec)
+                stg.record_metrics({"flow_count": len(flow_dicts)})
+                stg.record_output({"flow_count": len(flow_dicts)})
+        else:
+            parser = ParsingService()
+            flow_dicts = parser.parse_to_flows(Path(pcap.storage_path), window_sec=window_sec)
         pcap.progress = 40
         db.commit()
         _broadcast("pcap.process.progress", {"pcap_id": pcap_id, "percent": 40})
 
         # Step 3: extract features for every flow
-        feat_svc = FeaturesService()
-        flow_dicts = feat_svc.extract_features_batch(flow_dicts)
+        if tracker:
+            with tracker.stage(PipelineStage.FEATURE_EXTRACT) as stg:
+                feat_svc = FeaturesService()
+                stg.record_input({"flow_count": len(flow_dicts)})
+                flow_dicts = feat_svc.extract_features_batch(flow_dicts)
+                stg.record_metrics({"flow_count": len(flow_dicts)})
+                stg.record_output({"flow_count": len(flow_dicts)})
+        else:
+            feat_svc = FeaturesService()
+            flow_dicts = feat_svc.extract_features_batch(flow_dicts)
         pcap.progress = 55
         db.commit()
         _broadcast("pcap.process.progress", {"pcap_id": pcap_id, "percent": 55})
 
         # Step 4: anomaly scoring (only when mode == flows_and_detect)
         if mode == "flows_and_detect":
-            det_svc = DetectionService()
-            flow_dicts = det_svc.score_flows(flow_dicts)
+            if tracker:
+                with tracker.stage(PipelineStage.DETECT) as stg:
+                    det_svc = DetectionService()
+                    stg.record_input({"flow_count": len(flow_dicts)})
+                    flow_dicts = det_svc.score_flows(flow_dicts)
+                    scored = [f for f in flow_dicts if f.get("anomaly_score") is not None]
+                    stg.record_metrics({
+                        "scored_count": len(scored),
+                        "max_score": max((f["anomaly_score"] for f in scored), default=0),
+                    })
+                    stg.record_output({"scored_flow_count": len(scored)})
+            else:
+                det_svc = DetectionService()
+                flow_dicts = det_svc.score_flows(flow_dicts)
             pcap.progress = 70
             db.commit()
             _broadcast("pcap.process.progress", {"pcap_id": pcap_id, "percent": 70})
+        elif tracker:
+            with tracker.stage(PipelineStage.DETECT) as stg:
+                stg.skip("mode != flows_and_detect")
 
         # Step 5: insert flows into DB
         for fd in flow_dicts:
@@ -117,8 +155,16 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
         # Step 6: generate alerts (only when mode == flows_and_detect)
         alert_count = 0
         if mode == "flows_and_detect":
-            alert_svc = AlertingService(score_threshold=0.7, window_sec=window_sec)
-            alert_dicts = alert_svc.generate_alerts(flow_dicts, pcap_id)
+            if tracker:
+                with tracker.stage(PipelineStage.AGGREGATE) as stg:
+                    alert_svc = AlertingService(score_threshold=0.7, window_sec=window_sec)
+                    stg.record_input({"flow_count": len(flow_dicts)})
+                    alert_dicts = alert_svc.generate_alerts(flow_dicts, pcap_id)
+                    stg.record_metrics({"alert_count": len(alert_dicts)})
+                    stg.record_output({"alert_count": len(alert_dicts)})
+            else:
+                alert_svc = AlertingService(score_threshold=0.7, window_sec=window_sec)
+                alert_dicts = alert_svc.generate_alerts(flow_dicts, pcap_id)
             for ad in alert_dicts:
                 flow_ids_for_alert = ad.pop("_flow_ids", [])
                 alert_obj = Alert(
@@ -162,6 +208,9 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
             pcap.progress = 95
             db.commit()
             _broadcast("pcap.process.progress", {"pcap_id": pcap_id, "percent": 95})
+        elif tracker:
+            with tracker.stage(PipelineStage.AGGREGATE) as stg:
+                stg.skip("mode != flows_and_detect")
 
         # Step 7: finalize
         flow_count = len(flow_dicts)
@@ -178,8 +227,19 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
             "alert_count": alert_count,
         })
 
+        # Finish pipeline tracking
+        if tracker:
+            tracker.finish()
+            db.commit()
+
     except Exception as exc:
         logger.exception(f"Processing failed for PCAP {pcap_id}")
+        if tracker:
+            try:
+                tracker.fail(str(exc)[:500])
+                db.commit()
+            except Exception:
+                pass
         try:
             pcap = db.query(PcapFile).filter(PcapFile.id == pcap_id).first()
             if pcap:

@@ -1,0 +1,26 @@
+{
+  "regression_ssh_bruteforce": {
+    "description": "SSH brute-force: many SYN from 192.0.2.10 to 198.51.100.20:22",
+    "flow_count": 80,
+    "anomalous_flow_count_min": 20,
+    "alert_count_min": 1,
+    "expected_alert_types": ["bruteforce"],
+    "expected_severities": ["critical"]
+  },
+  "regression_port_scan": {
+    "description": "Port scan: 192.0.2.50 scans 198.51.100.30 on ports 20-79",
+    "flow_count": 60,
+    "anomalous_flow_count_min": 0,
+    "alert_count_min": 0,
+    "expected_alert_types": [],
+    "expected_severities": []
+  },
+  "regression_normal_traffic": {
+    "description": "Normal balanced HTTP-like traffic between 10.0.0.5 and 10.0.0.6",
+    "flow_count": 2,
+    "anomalous_flow_count_min": 0,
+    "alert_count_min": 0,
+    "expected_alert_types": [],
+    "expected_severities": []
+  }
+}

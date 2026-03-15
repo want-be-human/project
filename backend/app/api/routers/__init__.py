@@ -13,6 +13,7 @@ from app.api.routers import evidence
 from app.api.routers import twin
 from app.api.routers import scenarios
 from app.api.routers import stream
+from app.api.routers import pipeline
 
 __all__ = [
     "health",
@@ -25,4 +26,5 @@ __all__ = [
     "twin",
     "scenarios",
     "stream",
+    "pipeline",
 ]

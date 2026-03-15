@@ -1,0 +1,228 @@
+{
+  "port_rules": [
+    {
+      "ports": [22],
+      "protocols": ["tcp"],
+      "context": "SSH service",
+      "techniques": [
+        {
+          "technique_id": "T1021.004",
+          "technique_name": "Remote Services: SSH",
+          "tactic_id": "TA0008",
+          "tactic_name": "Lateral Movement",
+          "description": "Adversaries may use SSH to login to remote machines and execute commands.",
+          "intel_refs": ["https://attack.mitre.org/techniques/T1021/004/"],
+          "severity_hint": "high",
+          "base_confidence": 0.70
+        }
+      ]
+    },
+    {
+      "ports": [23],
+      "protocols": ["tcp"],
+      "context": "Telnet service",
+      "techniques": [
+        {
+          "technique_id": "T1021",
+          "technique_name": "Remote Services",
+          "tactic_id": "TA0008",
+          "tactic_name": "Lateral Movement",
+          "description": "Adversaries may use remote services such as Telnet to connect to other machines.",
+          "intel_refs": ["https://attack.mitre.org/techniques/T1021/"],
+          "severity_hint": "high",
+          "base_confidence": 0.70
+        }
+      ]
+    },
+    {
+      "ports": [3389],
+      "protocols": ["tcp"],
+      "context": "RDP service",
+      "techniques": [
+        {
+          "technique_id": "T1021.001",
+          "technique_name": "Remote Services: Remote Desktop Protocol",
+          "tactic_id": "TA0008",
+          "tactic_name": "Lateral Movement",
+          "description": "Adversaries may use RDP to remotely connect to and control a system.",
+          "intel_refs": ["https://attack.mitre.org/techniques/T1021/001/"],
+          "severity_hint": "high",
+          "base_confidence": 0.75
+        }
+      ]
+    },
+    {
+      "ports": [21],
+      "protocols": ["tcp"],
+      "context": "FTP service",
+      "techniques": [
+        {
+          "technique_id": "T1048.003",
+          "technique_name": "Exfiltration Over Unencrypted Non-C2 Protocol",
+          "tactic_id": "TA0010",
+          "tactic_name": "Exfiltration",
+          "description": "Adversaries may steal data by exfiltrating it over an un-encrypted network protocol other than C2.",
+          "intel_refs": ["https://attack.mitre.org/techniques/T1048/003/"],
+          "severity_hint": "medium",
+          "base_confidence": 0.55
+        }
+      ]
+    },
+    {
+      "ports": [53],
+      "protocols": ["tcp", "udp"],
+      "context": "DNS service",
+      "techniques": [
+        {
+          "technique_id": "T1071.004",
+          "technique_name": "Application Layer Protocol: DNS",
+          "tactic_id": "TA0011",
+          "tactic_name": "Command and Control",
+          "description": "Adversaries may communicate using the DNS protocol to avoid detection by blending in with DNS traffic.",
+          "intel_refs": ["https://attack.mitre.org/techniques/T1071/004/"],
+          "severity_hint": "high",
+          "base_confidence": 0.65
+        },
+        {
+          "technique_id": "T1568",
+          "technique_name": "Dynamic Resolution",
+          "tactic_id": "TA0011",
+          "tactic_name": "Command and Control",
+          "description": "Adversaries may dynamically establish connections to C2 infrastructure to evade detections.",
+          "intel_refs": ["https://attack.mitre.org/techniques/T1568/"],
+          "severity_hint": "medium",
+          "base_confidence": 0.50
+        }
+      ]
+    },
+    {
+      "ports": [80, 8080, 8000, 8888],
+      "protocols": ["tcp"],
+      "context": "HTTP service",
+      "techniques": [
+        {
+          "technique_id": "T1071.001",
+          "technique_name": "Application Layer Protocol: Web Protocols",
+          "tactic_id": "TA0011",
+          "tactic_name": "Command and Control",
+          "description": "Adversaries may communicate using web protocols (HTTP/HTTPS) to avoid detection.",
+          "intel_refs": ["https://attack.mitre.org/techniques/T1071/001/"],
+          "severity_hint": "medium",
+          "base_confidence": 0.50
+        }
+      ]
+    },
+    {
+      "ports": [443, 8443],
+      "protocols": ["tcp"],
+      "context": "HTTPS service",
+      "techniques": [
+        {
+          "technique_id": "T1071.001",
+          "technique_name": "Application Layer Protocol: Web Protocols",
+          "tactic_id": "TA0011",
+          "tactic_name": "Command and Control",
+          "description": "Adversaries may communicate using web protocols (HTTP/HTTPS) to avoid detection.",
+          "intel_refs": ["https://attack.mitre.org/techniques/T1071/001/"],
+          "severity_hint": "medium",
+          "base_confidence": 0.50
+        },
+        {
+          "technique_id": "T1573.002",
+          "technique_name": "Encrypted Channel: Asymmetric Cryptography",
+          "tactic_id": "TA0011",
+          "tactic_name": "Command and Control",
+          "description": "Adversaries may employ asymmetric encryption to conceal C2 traffic.",
+          "intel_refs": ["https://attack.mitre.org/techniques/T1573/002/"],
+          "severity_hint": "medium",
+          "base_confidence": 0.40
+        }
+      ]
+    },
+    {
+      "ports": [445],
+      "protocols": ["tcp"],
+      "context": "SMB service",
+      "techniques": [
+        {
+          "technique_id": "T1021.002",
+          "technique_name": "Remote Services: SMB/Windows Admin Shares",
+          "tactic_id": "TA0008",
+          "tactic_name": "Lateral Movement",
+          "description": "Adversaries may use SMB to interact with network shared resources for lateral movement.",
+          "intel_refs": ["https://attack.mitre.org/techniques/T1021/002/"],
+          "severity_hint": "high",
+          "base_confidence": 0.65
+        }
+      ]
+    }
+  ],
+
+  "protocol_rules": [
+    {
+      "protocols": ["icmp"],
+      "context": "ICMP traffic",
+      "techniques": [
+        {
+          "technique_id": "T1095",
+          "technique_name": "Non-Application Layer Protocol",
+          "tactic_id": "TA0011",
+          "tactic_name": "Command and Control",
+          "description": "Adversaries may use non-application layer protocols for communication to avoid detection.",
+          "intel_refs": ["https://attack.mitre.org/techniques/T1095/"],
+          "severity_hint": "medium",
+          "base_confidence": 0.55
+        },
+        {
+          "technique_id": "T1018",
+          "technique_name": "Remote System Discovery",
+          "tactic_id": "TA0007",
+          "tactic_name": "Discovery",
+          "description": "Adversaries may use ICMP for remote system discovery (ping sweep).",
+          "intel_refs": ["https://attack.mitre.org/techniques/T1018/"],
+          "severity_hint": "low",
+          "base_confidence": 0.50
+        }
+      ]
+    }
+  ],
+
+  "feature_boost_rules": {
+    "syn_ratio": {
+      "threshold_high": 0.7,
+      "boost_techniques": ["T1595", "T1595.001", "T1046"],
+      "confidence_boost": 0.10,
+      "description": "High SYN ratio indicates scanning behavior"
+    },
+    "rst_ratio": {
+      "threshold_high": 0.5,
+      "boost_techniques": ["T1595", "T1046", "T1110"],
+      "confidence_boost": 0.08,
+      "description": "High RST ratio indicates connection rejection, consistent with scanning or brute-force"
+    },
+    "syn_count": {
+      "threshold_high": 100,
+      "boost_techniques": ["T1498", "T1498.001", "T1499"],
+      "confidence_boost": 0.08,
+      "description": "High SYN count may indicate SYN flood attack"
+    },
+    "total_bytes": {
+      "threshold_high": 1000000,
+      "boost_techniques": ["T1041", "T1048", "T1567"],
+      "confidence_boost": 0.10,
+      "description": "High total bytes may indicate data exfiltration or DoS"
+    },
+    "bytes_per_packet": {
+      "threshold_low": 60,
+      "boost_techniques": ["T1595", "T1046"],
+      "confidence_boost": 0.05,
+      "description": "Small packets typical of scanning probes"
+    },
+    "flow_duration_ms": {
+      "threshold_low": 100,
+      "boost_techniques": ["T1595", "T1595.001"],
+      "confidence_boost": 0.05,
+      "description": "Very short flows typical of port scanning"
+    }
+  }
+}

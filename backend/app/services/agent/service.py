@@ -7,6 +7,7 @@ import json
 
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.logging import get_logger
 from app.core.utils import generate_uuid, utc_now, datetime_to_iso
 from app.models.alert import Alert
@@ -17,7 +18,9 @@ from app.schemas.agent import (
     InvestigationImpact,
     RecommendationSchema,
     RecommendedAction,
+    ThreatContext,
 )
+from app.services.threat_enrichment.service import ThreatEnrichmentService
 
 logger = get_logger(__name__)
 
@@ -86,11 +89,14 @@ class AgentService:
         evidence = json.loads(alert.evidence) if isinstance(alert.evidence, str) else alert.evidence
         aggregation = json.loads(alert.aggregation) if isinstance(alert.aggregation, str) else alert.aggregation
         
+        # Threat enrichment (Module E)
+        threat_context = self._run_enrichment(alert, evidence)
+
         # Build hypothesis based on alert type
-        hypothesis = self._build_hypothesis(alert, language)
+        hypothesis = self._build_hypothesis(alert, language, threat_context)
         
         # Build reasoning
-        why = self._build_why(alert, evidence, aggregation, language)
+        why = self._build_why(alert, evidence, aggregation, language, threat_context)
         
         # Assess impact
         impact = self._assess_impact(alert, evidence)
@@ -115,6 +121,7 @@ class AgentService:
             ),
             next_steps=next_steps,
             safety_note="仅供参考，未执行任何操作。" if language == "zh" else "Advisory only; no actions executed.",
+            threat_context=threat_context,
         )
         
         # Save to database
@@ -147,8 +154,13 @@ class AgentService:
         Returns:
             Recommendation schema
         """
+        evidence = json.loads(alert.evidence) if isinstance(alert.evidence, str) else alert.evidence
+
+        # Threat enrichment (Module E)
+        threat_context = self._run_enrichment(alert, evidence)
+
         # Build actions based on alert type and severity
-        actions = self._build_actions(alert, language)
+        actions = self._build_actions(alert, language, threat_context)
         
         # Create recommendation record
         rec_id = generate_uuid()
@@ -160,6 +172,7 @@ class AgentService:
             created_at=datetime_to_iso(now),
             alert_id=alert.id,
             actions=actions,
+            threat_context=threat_context,
         )
         
         # Save to database
@@ -193,7 +206,19 @@ class AgentService:
         }
         return mapping.get(alert_type, alert_type)
 
-    def _build_hypothesis(self, alert: Alert, language: str = "en") -> str:
+    def _run_enrichment(self, alert: Alert, evidence: dict) -> ThreatContext | None:
+        """Run threat enrichment if enabled. Returns None on failure or when disabled."""
+        if not settings.THREAT_ENRICHMENT_ENABLED:
+            return None
+        top_features = evidence.get("top_features", [])
+        return ThreatEnrichmentService().enrich(
+            alert_type=alert.type,
+            protocol=alert.primary_proto,
+            port=alert.primary_dst_port,
+            top_features=top_features,
+        )
+
+    def _build_hypothesis(self, alert: Alert, language: str = "en", threat_context: ThreatContext | None = None) -> str:
         """Build investigation hypothesis."""
         if language == "zh":
             type_zh = self._type_to_zh(alert.type)
@@ -212,9 +237,26 @@ class AgentService:
                 "exfil": f"Possible data exfiltration from {alert.primary_src_ip}",
                 "anomaly": f"Anomalous network behavior detected from {alert.primary_src_ip}",
             }
-        return hypotheses.get(alert.type, hypotheses["anomaly"])
+        base = hypotheses.get(alert.type, hypotheses["anomaly"])
 
-    def _build_why(self, alert: Alert, evidence: dict, aggregation: dict, language: str = "en") -> list[str]:
+        # Augment with MITRE technique reference
+        if threat_context and threat_context.techniques:
+            top = threat_context.techniques[0]
+            if language == "zh":
+                base += f"（关联 MITRE ATT&CK: {top.technique_id} {top.technique_name}）"
+            else:
+                base += f" (maps to MITRE ATT&CK: {top.technique_id} {top.technique_name})"
+
+        return base
+
+    def _build_why(
+        self,
+        alert: Alert,
+        evidence: dict,
+        aggregation: dict,
+        language: str = "en",
+        threat_context: ThreatContext | None = None,
+    ) -> list[str]:
         """Build reasoning for hypothesis."""
         reasons = []
         
@@ -240,7 +282,21 @@ class AgentService:
             reasons.append(f"基于异常评分，告警严重等级评估为 {alert.severity}")
         else:
             reasons.append(f"Alert severity assessed as {alert.severity} based on anomaly scores")
-        
+
+        # Append MITRE-based reasoning
+        if threat_context and threat_context.techniques:
+            tactics_str = ", ".join(threat_context.tactics)
+            if language == "zh":
+                reasons.append(
+                    f"威胁情报关联：匹配 {len(threat_context.techniques)} 项 MITRE ATT&CK 技术，"
+                    f"涉及战术阶段 {tactics_str}（置信度 {threat_context.enrichment_confidence:.0%}）"
+                )
+            else:
+                reasons.append(
+                    f"Threat intel: matched {len(threat_context.techniques)} MITRE ATT&CK technique(s) "
+                    f"across tactics [{tactics_str}] (confidence {threat_context.enrichment_confidence:.0%})"
+                )
+
         return reasons
 
     def _assess_impact(self, alert: Alert, evidence: dict) -> dict:
@@ -296,7 +352,12 @@ class AgentService:
         
         return steps
 
-    def _build_actions(self, alert: Alert, language: str = "en") -> list[RecommendedAction]:
+    def _build_actions(
+        self,
+        alert: Alert,
+        language: str = "en",
+        threat_context: ThreatContext | None = None,
+    ) -> list[RecommendedAction]:
         """Build recommended actions based on alert."""
         actions = []
         
@@ -364,6 +425,15 @@ class AgentService:
                     risk="May impact legitimate high-volume users",
                 ))
         
+        # Build MITRE risk suffix for contextual referencing
+        mitre_risk_suffix = ""
+        if threat_context and threat_context.techniques:
+            top = threat_context.techniques[0]
+            if language == "zh":
+                mitre_risk_suffix = f"。关联威胁技术: {top.technique_id} ({top.technique_name})"
+            else:
+                mitre_risk_suffix = f". Related threat technique: {top.technique_id} ({top.technique_name})"
+
         if language == "zh":
             actions.append(RecommendedAction(
                 title="加强对相关实体的监控",
@@ -377,7 +447,7 @@ class AgentService:
                     "调查完成后从监控列表中移除",
                     "将日志级别恢复为正常",
                 ],
-                risk="日志存储和处理开销增加",
+                risk="日志存储和处理开销增加" + mitre_risk_suffix,
             ))
         else:
             actions.append(RecommendedAction(
@@ -392,7 +462,7 @@ class AgentService:
                     "Remove from watchlist after investigation",
                     "Reset logging to normal levels",
                 ],
-                risk="Increased log storage and processing",
+                risk="Increased log storage and processing" + mitre_risk_suffix,
             ))
         
         return actions

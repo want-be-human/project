@@ -14,6 +14,7 @@ from app.services.evidence.service import EvidenceService
 from app.services.twin.service import TwinService
 from app.services.plan_compiler.service import PlanCompilerService
 from app.services.scenarios.service import ScenariosService
+from app.services.threat_enrichment.service import ThreatEnrichmentService
 from app.services.stream import (
     get_connection_manager,
     broadcast_pcap_progress,
@@ -48,6 +49,8 @@ __all__ = [
     "PlanCompilerService",
     # B4.10 Scenarios
     "ScenariosService",
+    # B4.12 Threat Enrichment (Module E)
+    "ThreatEnrichmentService",
     # B4.11 Stream & EventBus
     "get_connection_manager",
     "broadcast_pcap_progress",

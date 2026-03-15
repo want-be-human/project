@@ -3,11 +3,35 @@ Agent schemas: Investigation and Recommendation.
 Strictly follows DOC C C1.4 and C1.5 schemas.
 """
 
+from __future__ import annotations
+
 from typing import Literal
 from pydantic import BaseModel, Field
 
 
-# Investigation schemas - DOC C C1.4
+# ---------- Threat enrichment schemas (Module E) ----------
+
+class ThreatTechnique(BaseModel):
+    """Single MITRE ATT&CK technique matched by enrichment."""
+    technique_id: str = Field(..., description="MITRE technique ID, e.g. T1595")
+    technique_name: str = Field(..., description="Technique name")
+    tactic_id: str = Field(..., description="MITRE tactic ID, e.g. TA0043")
+    tactic_name: str = Field(..., description="Tactic name")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="Match confidence")
+    description: str = Field(default="", description="Brief description")
+    intel_refs: list[str] = Field(default_factory=list, description="Reference URLs")
+
+
+class ThreatContext(BaseModel):
+    """Threat intelligence enrichment result."""
+    techniques: list[ThreatTechnique] = Field(default_factory=list, description="Matched MITRE techniques")
+    tactics: list[str] = Field(default_factory=list, description="De-duplicated tactic names")
+    enrichment_confidence: float = Field(default=0.0, ge=0.0, le=1.0, description="Overall enrichment confidence")
+    enrichment_source: str = Field(default="local_mitre_v1", description="Enrichment data source identifier")
+
+
+# ---------- Investigation schemas - DOC C C1.4 ----------
+
 class InvestigationImpact(BaseModel):
     """Impact assessment in Investigation."""
     scope: list[str] = Field(default_factory=list, description="Affected scope")
@@ -30,6 +54,10 @@ class InvestigationSchema(BaseModel):
     safety_note: str = Field(
         default="Advisory only; no actions executed.",
         description="Safety disclaimer"
+    )
+    threat_context: ThreatContext | None = Field(
+        default=None,
+        description="Optional MITRE ATT&CK threat enrichment context",
     )
 
     class Config:
@@ -56,6 +84,10 @@ class RecommendationSchema(BaseModel):
     created_at: str = Field(..., description="ISO8601 UTC timestamp")
     alert_id: str = Field(..., description="Related alert ID")
     actions: list[RecommendedAction] = Field(default_factory=list, description="Recommended actions")
+    threat_context: ThreatContext | None = Field(
+        default=None,
+        description="Optional MITRE ATT&CK threat enrichment context",
+    )
 
     class Config:
         from_attributes = True
