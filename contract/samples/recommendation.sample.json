@@ -42,5 +42,21 @@
       ],
       "risk": "Requires coordination with system administrators"
     }
-  ]
+  ],
+  "threat_context": {
+    "techniques": [
+      {
+        "technique_id": "T1110",
+        "technique_name": "Brute Force",
+        "tactic_id": "TA0006",
+        "tactic_name": "Credential Access",
+        "confidence": 0.82,
+        "description": "Mitigation targets brute force credential attack vector",
+        "intel_refs": ["https://attack.mitre.org/techniques/T1110/"]
+      }
+    ],
+    "tactics": ["Credential Access"],
+    "enrichment_confidence": 0.82,
+    "enrichment_source": "local_mitre_v1"
+  }
 }

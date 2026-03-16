@@ -176,7 +176,14 @@
     "rerunRecommendation": "Re-run Recommendation",
     "existingResult": "Existing result",
     "priorityLabel": "Priority:",
-    "riskLabel": "Risk:"
+    "riskLabel": "Risk:",
+    "threatContext": "Threat Context",
+    "tactics": "Tactics",
+    "techniques": "Techniques",
+    "enrichmentConfidence": "Enrichment Confidence",
+    "enrichmentSource": "Source:",
+    "references": "References",
+    "description": "Description"
   },
   "twin": {
     "builderTitle": "Action Builder",
@@ -198,7 +205,24 @@
     "warnings": "Warnings",
     "analysis": "Analysis Explanation",
     "altPaths": "Alternative Paths",
-    "path": "PATH:"
+    "path": "PATH:",
+    "compilePlan": "Compile Plan",
+    "compiling": "Compiling...",
+    "compileFailed": "Failed to compile plan",
+    "compiledActions": "Compiled Actions (Backend)",
+    "confidence": "Confidence",
+    "evidence": "Evidence",
+    "reasoning": "Reasoning",
+    "rulesMatched": "Rules Matched",
+    "actionsSkipped": "Actions Skipped",
+    "compilerVersion": "Compiler Version",
+    "useSelected": "Use Selected Actions",
+    "selectAll": "Select All",
+    "rollback": "Rollback",
+    "compiledSource": "Compiled (Backend)",
+    "manualSource": "Manual (Local)",
+    "params": "Params",
+    "compilationMeta": "Compilation Summary"
   },
   "topology": {
     "loading": "Loading topology data...",

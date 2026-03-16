@@ -176,7 +176,14 @@
     "rerunRecommendation": "重新生成建议",
     "existingResult": "已有分析结果",
     "priorityLabel": "优先级：",
-    "riskLabel": "风险："
+    "riskLabel": "风险：",
+    "threatContext": "威胁上下文",
+    "tactics": "战术",
+    "techniques": "技术",
+    "enrichmentConfidence": "增强置信度",
+    "enrichmentSource": "来源：",
+    "references": "参考链接",
+    "description": "描述"
   },
   "twin": {
     "builderTitle": "动作构建器",
@@ -198,7 +205,24 @@
     "warnings": "警告",
     "analysis": "分析说明",
     "altPaths": "替代路径",
-    "path": "路径："
+    "path": "路径：",
+    "compilePlan": "编译计划",
+    "compiling": "编译中...",
+    "compileFailed": "编译计划失败",
+    "compiledActions": "结构化动作（已编译）",
+    "confidence": "置信度",
+    "evidence": "关联证据",
+    "reasoning": "推理说明",
+    "rulesMatched": "匹配规则数",
+    "actionsSkipped": "跳过动作数",
+    "compilerVersion": "编译器版本",
+    "useSelected": "使用选中动作创建计划",
+    "selectAll": "全选",
+    "rollback": "回滚动作",
+    "compiledSource": "已编译（后端）",
+    "manualSource": "手动（本地）",
+    "params": "参数",
+    "compilationMeta": "编译概要"
   },
   "topology": {
     "loading": "正在加载拓扑数据...",

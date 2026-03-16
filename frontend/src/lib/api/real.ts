@@ -1,7 +1,7 @@
 import { 
   PcapFile, FlowRecord, Alert, GraphResponse, Investigation, 
   Recommendation, ActionPlan, DryRunResult, Scenario, ScenarioRunResult,
-  EvidenceChain
+  EvidenceChain, CompilePlanRequest, CompilePlanResponse
 } from './types';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
@@ -119,6 +119,14 @@ export const realApi = {
     },
     getRecommendation: async (id: string): Promise<Recommendation> => {
         return fetchJson<Recommendation>(`/api/v1/recommendations/${id}`);
+    },
+
+    compilePlan: async (alertId: string, body?: CompilePlanRequest): Promise<CompilePlanResponse> => {
+        return fetchJson<CompilePlanResponse>(`/api/v1/alerts/${alertId}/compile-plan`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body ?? {})
+        });
     },
 
     createPlan: async (body: any): Promise<ActionPlan> => {

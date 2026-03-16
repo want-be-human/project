@@ -138,6 +138,23 @@ export interface EvidenceChain {
   edges: EvidenceChainEdge[];
 }
 
+export interface ThreatTechnique {
+    technique_id: string;
+    technique_name: string;
+    tactic_id: string;
+    tactic_name: string;
+    confidence: number;
+    description?: string;
+    intel_refs?: string[];
+}
+
+export interface ThreatContext {
+    techniques: ThreatTechnique[];
+    tactics: string[];
+    enrichment_confidence: number;
+    enrichment_source: string;
+}
+
 export interface Investigation {
     version: string;
     id: string;
@@ -151,6 +168,7 @@ export interface Investigation {
     };
     next_steps: string[];
     safety_note?: string;
+    threat_context?: ThreatContext | null;
 }
 
 export interface Recommendation {
@@ -164,7 +182,8 @@ export interface Recommendation {
         steps: string[];
         rollback: string[];
         risk: string;
-    }>
+    }>;
+    threat_context?: ThreatContext | null;
 }
 
 export interface ActionPlan {
@@ -175,6 +194,31 @@ export interface ActionPlan {
     source: 'agent' | 'manual';
     actions: any[]; 
     notes?: string;
+}
+
+export interface CompiledAction {
+    action_type: 'block_ip' | 'isolate_host' | 'segment_subnet' | 'rate_limit_service';
+    target: { type: 'ip' | 'subnet' | 'service'; value: string };
+    params: Record<string, any>;
+    rollback: { action_type: string; params: Record<string, any> } | null;
+    confidence: number;
+    derived_from_evidence: string[];
+    reasoning_summary: string;
+}
+
+export interface CompilePlanRequest {
+    recommendation_id?: string | null;
+    language?: 'zh' | 'en';
+}
+
+export interface CompilePlanResponse {
+    plan: ActionPlan;
+    compilation: {
+        recommendation_id: string;
+        rules_matched: number;
+        actions_skipped: number;
+        compiler_version: string;
+    };
 }
 
 export interface DryRunResult {

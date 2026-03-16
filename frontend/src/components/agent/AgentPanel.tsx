@@ -5,6 +5,7 @@ import { api } from '@/lib/api';
 import { Investigation, Recommendation } from '@/lib/api/types';
 import { useTranslations, useLocale } from 'next-intl';
 import { Search, Shield, Lightbulb, Loader2, History, RefreshCw } from 'lucide-react';
+import ThreatContextCard from './ThreatContextCard';
 
 interface AgentPanelProps {
   alertId: string;
@@ -205,6 +206,7 @@ export default function AgentPanel({
                   <div className="bg-yellow-50 text-yellow-800 text-xs p-2 rounded border border-yellow-200">
                     {t('confidence')} {(investigation.impact?.confidence ?? 0) * 100}%
                   </div>
+                  <ThreatContextCard threatContext={investigation.threat_context} />
                 </div>
                 <RerunButton label={t('rerunInvestigation')} onClick={handleInvestigate} />
               </div>
@@ -253,6 +255,7 @@ export default function AgentPanel({
                     </div>
                   ))}
                 </div>
+                <ThreatContextCard threatContext={recommendation.threat_context} />
                 <RerunButton label={t('rerunRecommendation')} onClick={handleRecommend} />
               </div>
             )}

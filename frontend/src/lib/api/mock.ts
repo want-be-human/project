@@ -1,7 +1,7 @@
 import { 
   PcapFile, FlowRecord, Alert, GraphResponse, GraphNode, GraphEdge, Investigation, 
   Recommendation, ActionPlan, DryRunResult, Scenario, ScenarioRunResult,
-  EvidenceChain
+  EvidenceChain, CompilePlanRequest, CompilePlanResponse, CompiledAction
 } from './types';
 import { wsClient } from '../ws';
 
@@ -376,6 +376,31 @@ export const mockApi = {
                 `Review firewall rules for ${v.service.proto}/${v.service.dst_port}`,
                 `Consider implementing rate limiting`,
             ],
+            threat_context: {
+                techniques: [
+                    {
+                        technique_id: 'T1595',
+                        technique_name: 'Active Scanning',
+                        tactic_id: 'TA0043',
+                        tactic_name: 'Reconnaissance',
+                        confidence: 0.92,
+                        description: `Network scanning activity detected from ${v.srcIp}`,
+                        intel_refs: ['https://attack.mitre.org/techniques/T1595/'],
+                    },
+                    {
+                        technique_id: 'T1046',
+                        technique_name: 'Network Service Discovery',
+                        tactic_id: 'TA0007',
+                        tactic_name: 'Discovery',
+                        confidence: 0.78,
+                        description: 'Service enumeration behavior observed',
+                        intel_refs: ['https://attack.mitre.org/techniques/T1046/'],
+                    },
+                ],
+                tactics: ['Reconnaissance', 'Discovery'],
+                enrichment_confidence: 0.85,
+                enrichment_source: 'local_mitre_v1',
+            },
         } as unknown as Investigation;
         // Persist to store
         if (idx >= 0) {
@@ -409,6 +434,22 @@ export const mockApi = {
                 },
                 ...(base.actions.slice(1) || []),
             ],
+            threat_context: {
+                techniques: [
+                    {
+                        technique_id: 'T1595',
+                        technique_name: 'Active Scanning',
+                        tactic_id: 'TA0043',
+                        tactic_name: 'Reconnaissance',
+                        confidence: 0.92,
+                        description: `Recommended mitigation for scanning from ${v.srcIp}`,
+                        intel_refs: ['https://attack.mitre.org/techniques/T1595/'],
+                    },
+                ],
+                tactics: ['Reconnaissance'],
+                enrichment_confidence: 0.88,
+                enrichment_source: 'local_mitre_v1',
+            },
         } as unknown as Recommendation;
         // Persist to store
         if (idx >= 0) {
@@ -485,6 +526,57 @@ export const mockApi = {
                        n.label,
             })),
         } as unknown as EvidenceChain;
+    },
+
+    compilePlan: async (alertId: string, body?: CompilePlanRequest): Promise<CompilePlanResponse> => {
+        const idx = store.alerts.findIndex(a => a.id === alertId);
+        const v = ALERT_VARIATIONS[idx >= 0 ? idx : 0];
+        const alert = store.alerts[idx >= 0 ? idx : 0];
+        const planId = `plan-${alertId}-${Date.now()}`;
+        const recId = body?.recommendation_id || `rec-${alertId}`;
+
+        const rollbackMap: Record<string, { action_type: string; params: Record<string, any> }> = {
+            block_ip: { action_type: 'unblock_ip', params: { ip: v.srcIp } },
+            isolate_host: { action_type: 'restore_host', params: { host: v.srcIp } },
+            segment_subnet: { action_type: 'unsegment_subnet', params: { subnet: v.srcIp } },
+            rate_limit_service: { action_type: 'remove_rate_limit', params: { proto: v.service.proto, port: v.service.dst_port } },
+        };
+
+        const compiledAction: CompiledAction = {
+            action_type: v.actionType as CompiledAction['action_type'],
+            target: { type: 'ip', value: v.srcIp },
+            params: { duration_minutes: 60, ip: v.srcIp },
+            rollback: rollbackMap[v.actionType] || null,
+            confidence: 0.80 + (idx >= 0 ? idx : 0) * 0.03,
+            derived_from_evidence: [
+                `alert:${alert.id}`,
+                `flow:${alertId}-flow-0`,
+                `feat:syn_count`,
+            ],
+            reasoning_summary: `Compiled from recommendation "${v.actionTitle}" (priority: high) for ${alert.severity} ${v.type} alert. Action: ${v.actionType}. Confidence: ${(0.80 + (idx >= 0 ? idx : 0) * 0.03).toFixed(2)}.`,
+        };
+
+        const plan: ActionPlan = {
+            version: '1.1',
+            id: planId,
+            created_at: new Date().toISOString(),
+            alert_id: alertId,
+            source: 'agent',
+            actions: [compiledAction],
+            notes: `Auto-compiled from recommendation ${recId}. 1 actions compiled, 1 skipped.`,
+        };
+
+        store.lastPlan = plan as any;
+
+        return {
+            plan,
+            compilation: {
+                recommendation_id: recId,
+                rules_matched: 1,
+                actions_skipped: 1,
+                compiler_version: '1.0',
+            },
+        };
     },
 
     createPlan: async (body: any): Promise<ActionPlan> => {

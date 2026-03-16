@@ -23,5 +23,30 @@
     "Review firewall rules for SSH access restrictions",
     "Consider implementing rate limiting for SSH connections"
   ],
-  "safety_note": "Advisory only; no actions executed."
+  "safety_note": "Advisory only; no actions executed.",
+  "threat_context": {
+    "techniques": [
+      {
+        "technique_id": "T1595",
+        "technique_name": "Active Scanning",
+        "tactic_id": "TA0043",
+        "tactic_name": "Reconnaissance",
+        "confidence": 0.95,
+        "description": "Network scanning activity detected targeting SSH service",
+        "intel_refs": ["https://attack.mitre.org/techniques/T1595/"]
+      },
+      {
+        "technique_id": "T1110",
+        "technique_name": "Brute Force",
+        "tactic_id": "TA0006",
+        "tactic_name": "Credential Access",
+        "confidence": 0.82,
+        "description": "Multiple failed authentication attempts consistent with brute force",
+        "intel_refs": ["https://attack.mitre.org/techniques/T1110/"]
+      }
+    ],
+    "tactics": ["Reconnaissance", "Credential Access"],
+    "enrichment_confidence": 0.89,
+    "enrichment_source": "local_mitre_v1"
+  }
 }
