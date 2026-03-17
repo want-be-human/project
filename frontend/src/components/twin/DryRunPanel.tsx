@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { wsClient } from '@/lib/ws';
 import { DryRunResult } from '@/lib/api/types';
-import { Play, AlertTriangle, ArrowRight, Activity, Map, ExternalLink } from 'lucide-react';
+import { Play, AlertTriangle, ArrowRight, Activity, Map, ExternalLink, RefreshCw } from 'lucide-react';
 import clsx from 'clsx';
 import { useTranslations } from 'next-intl';
 
@@ -14,23 +14,40 @@ interface DryRunPanelProps {
   planId: string;
 }
 
+interface DryRunCreatedEvent {
+  dry_run_id: string;
+  alert_id: string;
+  risk: number;
+}
+
 export default function DryRunPanel({ alertId, planId }: DryRunPanelProps) {
   const t = useTranslations('twin');
   const router = useRouter();
   const [result, setResult] = useState<DryRunResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const processedDryRunIds = useRef<Set<string>>(new Set());
 
   // Subscribe to twin.dryrun.created WS event
+  // Event payload is lightweight: { dry_run_id, alert_id, risk }
+  // We match by alertId, then fetch the full DryRunResult by dry_run_id
   useEffect(() => {
-    const unsub = wsClient.onEvent('twin.dryrun.created', (payload: DryRunResult) => {
-      // Update result if it matches our current plan
-      if (payload.plan_id === planId) {
-        setResult(payload);
-        setLoading(false);
+    const unsub = wsClient.onEvent('twin.dryrun.created', async (payload: DryRunCreatedEvent) => {
+      if (payload.alert_id !== alertId) return;
+      if (processedDryRunIds.current.has(payload.dry_run_id)) return;
+      processedDryRunIds.current.add(payload.dry_run_id);
+      setRefreshing(true);
+      try {
+        const full = await api.getDryRun(payload.dry_run_id);
+        setResult(full);
+      } catch (e) {
+        console.error('Failed to fetch dry-run detail:', e);
+      } finally {
+        setRefreshing(false);
       }
     });
     return unsub;
-  }, [planId]);
+  }, [alertId]);
 
   const handleDryRun = async () => {
     setLoading(true);
@@ -57,9 +74,16 @@ export default function DryRunPanel({ alertId, planId }: DryRunPanelProps) {
         <h3 className="font-semibold text-gray-900 flex items-center gap-2">
           <Activity className="w-5 h-5 text-indigo-600" /> {t('dryRunTitle')}
         </h3>
-        {result && (
-          <span className="text-xs text-gray-500 font-mono">ID: {result.id}</span>
-        )}
+        <div className="flex items-center gap-2">
+          {refreshing && (
+            <span className="flex items-center gap-1 text-xs text-indigo-500">
+              <RefreshCw className="w-3 h-3 animate-spin" /> {t('refreshing')}
+            </span>
+          )}
+          {result && (
+            <span className="text-xs text-gray-500 font-mono">ID: {result.id}</span>
+          )}
+        </div>
       </div>
 
       <div className="p-4">

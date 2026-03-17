@@ -123,3 +123,20 @@ async def list_dry_runs(
         results.append(DryRunResultSchema.model_validate(payload))
 
     return ApiResponse.success(results)
+
+
+@router.get(
+    "/dry-runs/{dry_run_id}",
+    response_model=ApiResponse[DryRunResultSchema],
+    summary="Get Dry Run",
+    description="Fetch a single dry-run result by ID.",
+)
+async def get_dry_run(
+    dry_run_id: str = Path(..., description="Dry Run ID"),
+    db: Session = Depends(get_db),
+) -> ApiResponse[DryRunResultSchema]:
+    run = db.query(DryRun).filter(DryRun.id == dry_run_id).first()
+    if not run:
+        raise NotFoundError(message=f"DryRun {dry_run_id} not found")
+    payload = json.loads(run.payload) if isinstance(run.payload, str) else run.payload
+    return ApiResponse.success(DryRunResultSchema.model_validate(payload))

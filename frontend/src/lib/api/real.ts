@@ -190,6 +190,9 @@ export const realApi = {
          const query = new URLSearchParams(params).toString();
         return fetchJson<DryRunResult[]>(`/api/v1/twin/dry-runs?${query}`);
     },
+    getDryRun: async (id: string): Promise<DryRunResult> => {
+        return fetchJson<DryRunResult>(`/api/v1/twin/dry-runs/${id}`);
+    },
 
     createScenario: async (body: any): Promise<Scenario> => {
          return fetchJson<Scenario>(`/api/v1/scenarios`, {
@@ -206,5 +209,8 @@ export const realApi = {
          return fetchJson<ScenarioRunResult>(`/api/v1/scenarios/${id}/run`, {
             method: 'POST'
         });
-    }
+    },
+    getLatestScenarioRun: async (scenarioId: string): Promise<ScenarioRunResult> => {
+        return fetchJson<ScenarioRunResult>(`/api/v1/scenarios/${scenarioId}/latest-run`);
+    },
 };

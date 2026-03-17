@@ -37,6 +37,7 @@ data/pcaps/
 .env.local
 .env.*.local
 infra/.env
+.kiro/
 
 # ── Editor & OS ───────────────────────────────────────────────────────────────
 .DS_Store

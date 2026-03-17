@@ -621,11 +621,29 @@ export const mockApi = {
         };
         // Store result for topology page retrieval
         store.lastDryRun = result;
+
+        // Simulate lightweight WS event (mirrors real backend twin.dryrun.created event)
+        // Payload is intentionally minimal: { dry_run_id, alert_id, risk }
+        // The DryRunPanel WS handler will fetch the full result by dry_run_id
+        setTimeout(() => {
+            wsClient.simulateEvent('twin.dryrun.created', {
+                dry_run_id: result.id,
+                alert_id: alertId,
+                risk: v.disruptionRisk,
+            });
+        }, 800);
+
         return result as DryRunResult;
     },
     listDryRuns: async (params: any): Promise<DryRunResult[]> => {
         if (store.lastDryRun) return [store.lastDryRun as DryRunResult];
         return [dryRunSample as unknown as DryRunResult];
+    },
+    getDryRun: async (id: string): Promise<DryRunResult> => {
+        if (store.lastDryRun && (store.lastDryRun as any).id === id) {
+            return store.lastDryRun as DryRunResult;
+        }
+        return { ...(dryRunSample as any), id } as unknown as DryRunResult;
     },
 
     createScenario: async (body: any): Promise<Scenario> => {
@@ -668,5 +686,13 @@ export const mockApi = {
                 resolve(result as unknown as ScenarioRunResult);
             }, 1000);
         });
-    }
+    },
+    getLatestScenarioRun: async (scenarioId: string): Promise<ScenarioRunResult> => {
+        return {
+            ...scenarioRunResultSample,
+            id: `run-latest-${scenarioId}`,
+            scenario_id: scenarioId,
+            created_at: new Date().toISOString(),
+        } as unknown as ScenarioRunResult;
+    },
 };

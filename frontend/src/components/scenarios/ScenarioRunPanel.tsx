@@ -12,11 +12,17 @@ interface Props {
   onRunStatusChange: (scenarioId: string | undefined) => void;
 }
 
+interface ScenarioRunDoneEvent {
+  scenario_id: string;
+  status: string;
+}
+
 export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props) {
   const t = useTranslations('scenarios');
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<ScenarioRunResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Clear result when selecting a new scenario
   useEffect(() => {
@@ -24,14 +30,26 @@ export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props)
     setError(null);
   }, [scenario?.id]);
 
+  // Subscribe to scenario.run.done WS event
+  // Event payload is lightweight: { scenario_id, status }
+  // When not actively running (POST in-flight), fetch the full run result by scenario_id
   useEffect(() => {
-    const unsub = wsClient.onEvent('scenario.run.done', (payload) => {
-      // In a real app we might fetch the result here or just use what we get back from the POST request. 
-      // Since it's mockup, the POST request already returns the result. We just use this for potential toast notification
-      // console.log('WS: scenario.run.done', payload);
+    const unsub = wsClient.onEvent('scenario.run.done', async (payload: ScenarioRunDoneEvent) => {
+      if (!scenario || payload.scenario_id !== scenario.id) return;
+      // Skip if we're already handling a POST-initiated run (it will set the result directly)
+      if (running) return;
+      setRefreshing(true);
+      try {
+        const full = await api.getLatestScenarioRun(payload.scenario_id);
+        setResult(full);
+      } catch (e) {
+        console.error('Failed to fetch scenario run detail:', e);
+      } finally {
+        setRefreshing(false);
+      }
     });
     return unsub;
-  }, []);
+  }, [scenario?.id, running]);
 
   const handleRun = async () => {
     if (!scenario) return;
@@ -68,25 +86,32 @@ export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props)
           <h2 className="text-xl font-bold text-gray-900 mb-1">{scenario.name}</h2>
           <p className="text-sm text-gray-500">{scenario.description || t('noDescription')}</p>
         </div>
-        {running ? (
-          <button
-            key="running"
-            disabled
-            className="flex items-center gap-2 px-4 py-2 rounded-md font-medium bg-gray-300 text-gray-500 cursor-not-allowed"
-          >
-            <RefreshCw className="w-4 h-4 animate-spin" />
-            <span>{t('runningBtn')}</span>
-          </button>
-        ) : (
-          <button
-            key="idle"
-            onClick={handleRun}
-            className="flex items-center gap-2 px-4 py-2 rounded-md font-medium bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition-colors"
-          >
-            <Play className="w-4 h-4" />
-            <span>{t('runScenario')}</span>
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          {refreshing && (
+            <span className="flex items-center gap-1 text-xs text-indigo-500">
+              <RefreshCw className="w-3 h-3 animate-spin" /> {t('refreshing')}
+            </span>
+          )}
+          {running ? (
+            <button
+              key="running"
+              disabled
+              className="flex items-center gap-2 px-4 py-2 rounded-md font-medium bg-gray-300 text-gray-500 cursor-not-allowed"
+            >
+              <RefreshCw className="w-4 h-4 animate-spin" />
+              <span>{t('runningBtn')}</span>
+            </button>
+          ) : (
+            <button
+              key="idle"
+              onClick={handleRun}
+              className="flex items-center gap-2 px-4 py-2 rounded-md font-medium bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition-colors"
+            >
+              <Play className="w-4 h-4" />
+              <span>{t('runScenario')}</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Body */}
@@ -143,7 +168,7 @@ export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props)
                   <MetricCard label={t('totalAlerts')} value={result.metrics.alert_count} />
                   <MetricCard label={t('highSeverity')} value={result.metrics.high_severity_count} color="text-red-600" />
                   <MetricCard label={t('avgRisk')} value={result.metrics.avg_dry_run_risk?.toFixed(2)} />
-                  <MetricCard label={t('processingTime')} value={`${result.metrics.processing_time_ms} ms`} />
+                  <MetricCard label={t('processingTime')} value={result.metrics.processing_time_ms != null ? `${result.metrics.processing_time_ms} ms` : '-'} />
                 </div>
               </div>
             )}

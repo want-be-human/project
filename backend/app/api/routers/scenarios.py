@@ -3,9 +3,11 @@ Scenarios router.
 POST /scenarios
 GET /scenarios
 POST /scenarios/{scenario_id}/run
+GET /scenarios/{scenario_id}/latest-run
 """
 
 import asyncio
+import json
 
 from fastapi import APIRouter, Depends, Query, Path
 from sqlalchemy.orm import Session
@@ -13,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_db
 from app.core.errors import NotFoundError
 from app.models.pcap import PcapFile
+from app.models.scenario import ScenarioRun
 from app.schemas.common import ApiResponse
 from app.schemas.scenario import (
     ScenarioSchema,
@@ -116,3 +119,25 @@ async def run_scenario(
     )
 
     return ApiResponse.success(result)
+
+
+@router.get(
+    "/{scenario_id}/latest-run",
+    response_model=ApiResponse[ScenarioRunResultSchema],
+    summary="Get Latest Scenario Run",
+    description="Fetch the most recent run result for a scenario.",
+)
+async def get_latest_scenario_run(
+    scenario_id: str = Path(..., description="Scenario ID"),
+    db: Session = Depends(get_db),
+) -> ApiResponse[ScenarioRunResultSchema]:
+    run = (
+        db.query(ScenarioRun)
+        .filter(ScenarioRun.scenario_id == scenario_id)
+        .order_by(ScenarioRun.created_at.desc())
+        .first()
+    )
+    if not run:
+        raise NotFoundError(message=f"No runs found for Scenario {scenario_id}")
+    payload = json.loads(run.payload) if isinstance(run.payload, str) else run.payload
+    return ApiResponse.success(ScenarioRunResultSchema.model_validate(payload))
