@@ -8,9 +8,10 @@ import { useTranslations } from 'next-intl';
 interface DryRunOverlayProps {
   result: DryRunResult | null;
   loading: boolean;
+  notFound?: boolean;
 }
 
-export default function DryRunOverlay({ result, loading }: DryRunOverlayProps) {
+export default function DryRunOverlay({ result, loading, notFound }: DryRunOverlayProps) {
   const t = useTranslations('topology');
   const [collapsed, setCollapsed] = useState(false);
 
@@ -19,6 +20,16 @@ export default function DryRunOverlay({ result, loading }: DryRunOverlayProps) {
       <div className="absolute top-2 left-2 z-10 bg-white/95 backdrop-blur rounded-lg shadow-lg border border-indigo-200 p-3 w-64">
         <div className="flex items-center gap-2 text-indigo-600 text-sm">
           <Loader2 className="w-4 h-4 animate-spin" /> {t('dryRunLoading')}
+        </div>
+      </div>
+    );
+  }
+
+  if (notFound) {
+    return (
+      <div className="absolute top-2 left-2 z-10 bg-white/95 backdrop-blur rounded-lg shadow-lg border border-red-200 p-3 w-64">
+        <div className="flex items-center gap-2 text-red-600 text-sm">
+          <AlertTriangle className="w-4 h-4" /> {t('dryRunNotFound')}
         </div>
       </div>
     );

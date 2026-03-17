@@ -249,6 +249,7 @@
     "edgeWithAlerts": "Edge with alerts",
     "normalEdge": "Normal edge",
     "dryRunLoading": "Loading Dry-Run...",
+    "dryRunNotFound": "Dry-run not found or expired",
     "dryRunTitle": "Dry-Run Impact",
     "risk": "Risk",
     "drop": "Drop",

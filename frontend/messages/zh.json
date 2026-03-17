@@ -249,6 +249,7 @@
     "edgeWithAlerts": "关联告警的连线",
     "normalEdge": "普通连线",
     "dryRunLoading": "正在加载推演结果...",
+    "dryRunNotFound": "推演结果未找到或已失效",
     "dryRunTitle": "推演影响",
     "risk": "风险",
     "drop": "下降",

@@ -43,6 +43,7 @@ function TopologyInner() {
   // Dry-run state
   const [dryRunResult, setDryRunResult] = useState<DryRunResult | null>(null);
   const [dryRunLoading, setDryRunLoading] = useState(false);
+  const [dryRunNotFound, setDryRunNotFound] = useState(false);
 
   // Selection state for SideInspector
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
@@ -61,14 +62,22 @@ function TopologyInner() {
 
   // Fetch DryRunResult when dryRunId is present
   useEffect(() => {
-    if (!dryRunId) { setDryRunResult(null); return; }
+    if (!dryRunId) {
+      setDryRunResult(null);
+      setDryRunNotFound(false);
+      return;
+    }
     setDryRunLoading(true);
-    api.listDryRuns({ alert_id: '' })
-      .then(results => {
-        const found = results.find(r => r.id === dryRunId);
-        setDryRunResult(found || results[0] || null);
+    setDryRunNotFound(false);
+    api.getDryRun(dryRunId)
+      .then(result => {
+        setDryRunResult(result);
       })
-      .catch(e => console.error('Failed to load dry-run result', e))
+      .catch(e => {
+        console.error('Failed to load dry-run result', e);
+        setDryRunResult(null);
+        setDryRunNotFound(true);
+      })
       .finally(() => setDryRunLoading(false));
   }, [dryRunId]);
 
@@ -253,7 +262,7 @@ function TopologyInner() {
           <TopologyLegend />
 
           {/* Dry-Run impact overlay */}
-          {dryRunId && <DryRunOverlay result={dryRunResult} loading={dryRunLoading} />}
+          {dryRunId && <DryRunOverlay result={dryRunResult} loading={dryRunLoading} notFound={dryRunNotFound} />}
 
           {/* TimeSlider overlay */}
           {graph && startTime > 0 && endTime > 0 && (
