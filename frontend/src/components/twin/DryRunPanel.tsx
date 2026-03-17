@@ -12,6 +12,7 @@ import { useTranslations } from 'next-intl';
 interface DryRunPanelProps {
   alertId: string;
   planId: string;
+  onDryRunCompleted?: () => Promise<void>;
 }
 
 interface DryRunCreatedEvent {
@@ -20,7 +21,7 @@ interface DryRunCreatedEvent {
   risk: number;
 }
 
-export default function DryRunPanel({ alertId, planId }: DryRunPanelProps) {
+export default function DryRunPanel({ alertId, planId, onDryRunCompleted }: DryRunPanelProps) {
   const t = useTranslations('twin');
   const router = useRouter();
   const [result, setResult] = useState<DryRunResult | null>(null);
@@ -40,6 +41,7 @@ export default function DryRunPanel({ alertId, planId }: DryRunPanelProps) {
       try {
         const full = await api.getDryRun(payload.dry_run_id);
         setResult(full);
+        onDryRunCompleted?.();
       } catch (e) {
         console.error('Failed to fetch dry-run detail:', e);
       } finally {
@@ -54,6 +56,7 @@ export default function DryRunPanel({ alertId, planId }: DryRunPanelProps) {
     try {
       const res = await api.dryRunPlan(planId, { mode: 'ip' });
       setResult(res);
+      onDryRunCompleted?.();
     } catch (e) {
       console.error(e);
       alert(t('dryRunFailed'));

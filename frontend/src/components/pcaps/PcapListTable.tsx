@@ -10,9 +10,11 @@ interface PcapListTableProps {
   pcaps: PcapFile[];
   onProcess: (id: string) => void;
   processingId: string | null;
+  onSelect?: (pcap: PcapFile) => void;
+  selectedId?: string | null;
 }
 
-export default function PcapListTable({ pcaps, onProcess, processingId }: PcapListTableProps) {
+export default function PcapListTable({ pcaps, onProcess, processingId, onSelect, selectedId }: PcapListTableProps) {
   const t = useTranslations('pcaps');
 
   const getStatusIcon = (status: string) => {
@@ -47,7 +49,7 @@ export default function PcapListTable({ pcaps, onProcess, processingId }: PcapLi
             </tr>
           ) : (
             pcaps.map((pcap) => (
-              <tr key={pcap.id} className="hover:bg-gray-50 group transition-colors">
+              <tr key={pcap.id} onClick={() => onSelect?.(pcap)} className={`hover:bg-gray-50 group transition-colors cursor-pointer ${selectedId === pcap.id ? 'bg-blue-50 ring-1 ring-inset ring-blue-200' : ''}`}>
                 <td className="px-6 py-3 font-medium text-gray-900">{pcap.filename}</td>
                 <td className="px-6 py-3 text-gray-500">{formatBytes(pcap.size_bytes)}</td>
                 <td className="px-6 py-3 text-gray-500">
@@ -66,7 +68,7 @@ export default function PcapListTable({ pcaps, onProcess, processingId }: PcapLi
                 <td className="px-6 py-3 text-gray-600">{pcap.alert_count || '-'}</td>
                 <td className="px-6 py-3 text-right">
                   <button
-                    onClick={() => onProcess(pcap.id)}
+                    onClick={(e) => { e.stopPropagation(); onProcess(pcap.id); }}
                     disabled={pcap.status === 'processing' || processingId === pcap.id}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 rounded hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >

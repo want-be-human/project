@@ -13,6 +13,7 @@ interface AgentPanelProps {
   initialInvestigation?: Investigation | null;
   initialRecommendation?: Recommendation | null;
   onRecommendationLoaded?: (rec: Recommendation) => void;
+  onOperationCompleted?: () => Promise<void>;
 }
 
 export default function AgentPanel({
@@ -21,6 +22,7 @@ export default function AgentPanel({
   initialInvestigation = null,
   initialRecommendation = null,
   onRecommendationLoaded,
+  onOperationCompleted,
 }: AgentPanelProps) {
   const t = useTranslations('agent');
   const locale = useLocale();
@@ -48,6 +50,7 @@ export default function AgentPanel({
     try {
       const res = await api.triage(alertId, { language: locale });
       setFreshTriage(res.triage_summary);
+      onOperationCompleted?.();
     } catch (e) {
       console.error(e);
     } finally {
@@ -60,6 +63,7 @@ export default function AgentPanel({
     try {
       const res = await api.investigate(alertId, { language: locale });
       setFreshInvestigation(res);
+      onOperationCompleted?.();
     } catch (e) {
       console.error(e);
     } finally {
@@ -75,6 +79,7 @@ export default function AgentPanel({
       if (onRecommendationLoaded) {
         onRecommendationLoaded(res);
       }
+      onOperationCompleted?.();
     } catch (e) {
       console.error(e);
     } finally {

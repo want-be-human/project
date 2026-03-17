@@ -283,3 +283,29 @@ export interface ScenarioRunResult {
         [key: string]: number | undefined;
     };
 }
+
+export type PipelineStageStatus = 'pending' | 'running' | 'success' | 'failed' | 'skipped';
+
+export interface StageRecord {
+    stage_name: string;
+    status: PipelineStageStatus;
+    started_at: string | null;
+    completed_at: string | null;
+    latency_ms: number | null;
+    key_metrics: Record<string, any>;
+    error_summary: string | null;
+    input_summary: Record<string, any>;
+    output_summary: Record<string, any>;
+}
+
+export interface PipelineRun {
+    version?: string;
+    id: string;
+    pcap_id: string;
+    status: string;
+    started_at: string | null;
+    completed_at: string | null;
+    total_latency_ms: number | null;
+    stages: StageRecord[];
+    created_at: string | null;
+}

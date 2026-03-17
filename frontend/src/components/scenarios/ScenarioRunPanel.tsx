@@ -1,11 +1,12 @@
 'use client';
 
-import { Scenario, ScenarioRunResult } from '@/lib/api/types';
+import { Scenario, ScenarioRunResult, PipelineRun } from '@/lib/api/types';
 import { api } from '@/lib/api';
 import { wsClient } from '@/lib/ws';
 import { useState, useEffect } from 'react';
 import { Play, CheckCircle2, XCircle, Clock, Activity, ShieldAlert, BarChart3, RefreshCw } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import PipelineStageTimeline from '@/components/pipeline/PipelineStageTimeline';
 
 interface Props {
   scenario: Scenario | null;
@@ -23,11 +24,14 @@ export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props)
   const [result, setResult] = useState<ScenarioRunResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [pipelineRun, setPipelineRun] = useState<PipelineRun | null>(null);
+  const [pipelineLoading, setPipelineLoading] = useState(false);
 
   // Clear result when selecting a new scenario
   useEffect(() => {
     setResult(null);
     setError(null);
+    setPipelineRun(null);
   }, [scenario?.id]);
 
   // Subscribe to scenario.run.done WS event
@@ -56,11 +60,21 @@ export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props)
     setRunning(true);
     setError(null);
     setResult(null);
+    setPipelineRun(null);
     onRunStatusChange(scenario.id);
 
     try {
       const res = await api.runScenario(scenario.id);
       setResult(res);
+
+      // Fire-and-forget pipeline fetch — errors are silently swallowed (feature flag may be off)
+      if (scenario.pcap_ref?.pcap_id) {
+        setPipelineLoading(true);
+        api.getPipelineRun(scenario.pcap_ref.pcap_id)
+          .then(run => setPipelineRun(run))
+          .catch(() => { /* 404 or feature flag disabled — show graceful empty state */ })
+          .finally(() => setPipelineLoading(false));
+      }
     } catch (e: any) {
       setError(e.message || t('runError'));
     } finally {
@@ -189,8 +203,8 @@ export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props)
                     {result.checks.map((check, idx) => (
                       <div key={idx} className="grid grid-cols-12 p-3 text-sm items-center">
                         <div className="col-span-1 flex justify-center">
-                          {check.pass 
-                            ? <CheckCircle2 className="w-5 h-5 text-green-500" /> 
+                          {check.pass
+                            ? <CheckCircle2 className="w-5 h-5 text-green-500" />
                             : <XCircle className="w-5 h-5 text-red-500" />
                           }
                         </div>
@@ -206,6 +220,18 @@ export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props)
                 </div>
               </div>
             )}
+
+            {/* Pipeline Stage Timeline */}
+            <div>
+              <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <Activity className="w-4 h-4" /> Pipeline Execution
+              </h3>
+              <PipelineStageTimeline
+                pipelineRun={pipelineRun}
+                loading={pipelineLoading}
+                error={null}
+              />
+            </div>
 
           </div>
         )}

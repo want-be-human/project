@@ -1,7 +1,8 @@
-import { 
-  PcapFile, FlowRecord, Alert, GraphResponse, GraphNode, GraphEdge, Investigation, 
+import {
+  PcapFile, FlowRecord, Alert, GraphResponse, GraphNode, GraphEdge, Investigation,
   Recommendation, ActionPlan, DryRunResult, Scenario, ScenarioRunResult,
-  EvidenceChain, CompilePlanRequest, CompilePlanResponse, CompiledAction
+  EvidenceChain, CompilePlanRequest, CompilePlanResponse, CompiledAction,
+  PipelineRun, StageRecord
 } from './types';
 import { wsClient } from '../ws';
 
@@ -694,5 +695,11 @@ export const mockApi = {
             scenario_id: scenarioId,
             created_at: new Date().toISOString(),
         } as unknown as ScenarioRunResult;
+    },
+    getPipelineRun: async (_pcapId: string): Promise<PipelineRun> => {
+        throw new Error('404 Pipeline observability not available in mock mode');
+    },
+    getPipelineStages: async (_pcapId: string): Promise<StageRecord[]> => {
+        throw new Error('404 Pipeline observability not available in mock mode');
     },
 };

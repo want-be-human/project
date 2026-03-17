@@ -9,7 +9,7 @@ import EvidenceChainView from '@/components/evidence/EvidenceChainView';
 import AgentPanel from '@/components/agent/AgentPanel';
 import ActionBuilder from '@/components/twin/ActionBuilder';
 import DryRunPanel from '@/components/twin/DryRunPanel';
-import { ArrowLeft, Tag, Clock, ShieldAlert, Activity } from 'lucide-react';
+import { ArrowLeft, Tag, Clock, ShieldAlert, Activity, RefreshCw } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { format } from 'date-fns';
 import { clsx } from 'clsx';
@@ -18,9 +18,11 @@ interface AlertDetailViewProps {
   alert: Alert;
   evidenceChain: EvidenceChain | null;
   onAlertUpdate: (alert: Alert) => void;
+  onRefresh: () => Promise<void>;
+  refreshing?: boolean;
 }
 
-export default function AlertDetailView({ alert, evidenceChain, onAlertUpdate }: AlertDetailViewProps) {
+export default function AlertDetailView({ alert, evidenceChain, onAlertUpdate, onRefresh, refreshing }: AlertDetailViewProps) {
   const t = useTranslations('alertDetail');
   const ta = useTranslations('alerts');
   const router = useRouter();
@@ -199,6 +201,7 @@ export default function AlertDetailView({ alert, evidenceChain, onAlertUpdate }:
           <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
             <Activity className="w-5 h-5 text-blue-600" />
             <span>{t('evidenceChain')}</span>
+            {refreshing && <RefreshCw className="w-4 h-4 animate-spin text-blue-400" />}
           </h2>
           <button 
             onClick={() => {
@@ -235,6 +238,7 @@ export default function AlertDetailView({ alert, evidenceChain, onAlertUpdate }:
             initialInvestigation={initialInvestigation}
             initialRecommendation={initialRecommendation}
             onRecommendationLoaded={setRecommendation}
+            onOperationCompleted={onRefresh}
           />
         </div>
 
@@ -251,7 +255,7 @@ export default function AlertDetailView({ alert, evidenceChain, onAlertUpdate }:
           />
           
           {actionPlan && (
-            <DryRunPanel alertId={alert.id} planId={actionPlan.id} />
+            <DryRunPanel alertId={alert.id} planId={actionPlan.id} onDryRunCompleted={onRefresh} />
           )}
         </div>
       </div>

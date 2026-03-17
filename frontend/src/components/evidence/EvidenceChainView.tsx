@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { EvidenceChain } from '@/lib/api/types';
 import { 
@@ -119,6 +119,12 @@ export default function EvidenceChainView({ chain }: EvidenceChainViewProps) {
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+
+  // Sync ReactFlow internal state when chain prop changes (e.g. after auto-refresh)
+  useEffect(() => {
+    setNodes(initialNodes);
+    setEdges(initialEdges);
+  }, [initialNodes, initialEdges, setNodes, setEdges]);
 
   const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
     const rawId = node.id;

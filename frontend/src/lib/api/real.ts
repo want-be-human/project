@@ -1,7 +1,8 @@
-import { 
-  PcapFile, FlowRecord, Alert, GraphResponse, Investigation, 
+import {
+  PcapFile, FlowRecord, Alert, GraphResponse, Investigation,
   Recommendation, ActionPlan, DryRunResult, Scenario, ScenarioRunResult,
-  EvidenceChain, CompilePlanRequest, CompilePlanResponse
+  EvidenceChain, CompilePlanRequest, CompilePlanResponse,
+  PipelineRun, StageRecord
 } from './types';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
@@ -212,5 +213,12 @@ export const realApi = {
     },
     getLatestScenarioRun: async (scenarioId: string): Promise<ScenarioRunResult> => {
         return fetchJson<ScenarioRunResult>(`/api/v1/scenarios/${scenarioId}/latest-run`);
+    },
+
+    getPipelineRun: async (pcapId: string): Promise<PipelineRun> => {
+        return fetchJson<PipelineRun>(`/api/v1/pipeline/${pcapId}`);
+    },
+    getPipelineStages: async (pcapId: string): Promise<StageRecord[]> => {
+        return fetchJson<StageRecord[]>(`/api/v1/pipeline/${pcapId}/stages`);
     },
 };
