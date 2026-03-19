@@ -19,7 +19,7 @@ NetTwin-SOC is an intelligent network security operations center platform that c
 
 ### One-Line Start
 ```bash
-cd infra && docker-compose up -d
+docker compose -f infra/docker-compose.yml up -d --build
 ```
 
 ### Access
@@ -98,4 +98,4 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000
 
 Docker 启动
 # 项目根目录
-cd infra && docker-compose up --build
+docker compose -f infra/docker-compose.yml up --build

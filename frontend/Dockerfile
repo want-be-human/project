@@ -2,9 +2,22 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY frontend/package.json frontend/package-lock.json* ./
-RUN npm ci --frozen-lockfile
+RUN npm ci
 
-# Stage 2: Build
+# Stage 2: Development
+FROM node:20-alpine AS dev
+WORKDIR /app
+
+ENV NEXT_TELEMETRY_DISABLED=1
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY frontend/package.json frontend/package-lock.json* ./
+
+EXPOSE 3000
+
+CMD ["npm", "run", "dev", "--", "--hostname", "0.0.0.0", "--port", "3000", "--webpack"]
+
+# Stage 3: Build
 FROM node:20-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
@@ -25,7 +38,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN npm run build
 
-# Stage 3: Production
+# Stage 4: Production
 FROM node:20-alpine AS runner
 WORKDIR /app
 
