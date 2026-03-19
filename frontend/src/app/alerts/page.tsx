@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { api } from '@/lib/api';
+import { api, isMock } from '@/lib/api';
 import { Alert } from '@/lib/api/types';
 import { useTranslations } from 'next-intl';
 import AlertFilterBar from '@/components/alerts/AlertFilterBar';
@@ -89,12 +89,14 @@ export default function AlertsPage() {
             {t('description')}
           </p>
         </div>
-        <button 
-          onClick={() => wsClient.simulateEvent('alert.created', { alert_id: 'test', severity: 'high' })}
-          className="text-xs bg-gray-200 hover:bg-gray-300 px-3 py-1 rounded text-gray-700"
-        >
-          {t('simulateWs')}
-        </button>
+        {isMock() && (
+          <button 
+            onClick={() => wsClient.simulateEvent('alert.created', { alert_id: 'test', severity: 'high' })}
+            className="text-xs bg-gray-200 hover:bg-gray-300 px-3 py-1 rounded text-gray-700"
+          >
+            {t('simulateWs')}
+          </button>
+        )}
       </div>
 
       <div className="shrink-0">
