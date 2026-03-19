@@ -21,29 +21,40 @@ interface EvidenceChainViewProps {
   chain: EvidenceChain;
 }
 
-// Custom node styles based on type
-const getNodeStyle = (type: string) => {
+// 根据节点类型返回对应的 CSS 样式
+export const getNodeStyle = (type: string) => {
   switch (type) {
     case 'alert': return { background: '#fee2e2', border: '1px solid #ef4444', color: '#991b1b' };
     case 'flow': return { background: '#e0f2fe', border: '1px solid #3b82f6', color: '#1e40af' };
     case 'feature': return { background: '#f3e8ff', border: '1px solid #a855f7', color: '#6b21a8' };
-    case 'investigation': return { background: '#fef9c3', border: '1px solid #d946ef', color: '#86198f' };
+    case 'hypothesis': return { background: '#fef9c3', border: '1px solid #d946ef', color: '#86198f' };
     case 'action': return { background: '#ffedd5', border: '1px solid #eab308', color: '#a16207' };
     case 'dryrun': return { background: '#dcfce7', border: '1px solid #22c55e', color: '#166534' };
     default: return { background: '#f3f4f6', border: '1px solid #9ca3af', color: '#374151' };
   }
 };
 
-const getNodeIcon = (type: string) => {
+// 根据节点类型返回对应的图标组件
+export const getNodeIcon = (type: string) => {
   switch (type) {
     case 'alert': return <ShieldAlert className="w-4 h-4" />;
     case 'flow': return <Activity className="w-4 h-4" />;
     case 'feature': return <Zap className="w-4 h-4" />;
-    case 'investigation': return <Search className="w-4 h-4" />;
+    case 'hypothesis': return <Search className="w-4 h-4" />;
     case 'action': return <FileText className="w-4 h-4" />;
     case 'dryrun': return <PlayCircle className="w-4 h-4" />;
     default: return null;
   }
+};
+
+// 节点类型到 X 坐标列位置的映射
+export const typeColumns: Record<string, number> = {
+  'feature': 0,
+  'flow': 250,
+  'alert': 500,
+  'hypothesis': 750,
+  'action': 1000,
+  'dryrun': 1250
 };
 
 export default function EvidenceChainView({ chain }: EvidenceChainViewProps) {
@@ -54,17 +65,7 @@ export default function EvidenceChainView({ chain }: EvidenceChainViewProps) {
     const nodes: Node[] = [];
     const edges: Edge[] = [];
     
-    // Group nodes by type to assign X coordinates (columns)
-    const typeColumns: Record<string, number> = {
-      'feature': 0,
-      'flow': 250,
-      'alert': 500,
-      'investigation': 750,
-      'action': 1000,
-      'dryrun': 1250
-    };
-
-    // Track Y positions per column
+    // 追踪每列的 Y 坐标位置
     const colY: Record<number, number> = {};
 
     chain.nodes.forEach((n) => {
