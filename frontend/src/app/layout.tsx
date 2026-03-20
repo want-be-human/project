@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getMessages } from 'next-intl/server';
+import SideNav from '@/components/layout/SideNav';
+import TopBar from '@/components/layout/TopBar';
 import WSProvider from '@/components/providers/WSProvider';
 
 export const metadata: Metadata = {
@@ -9,10 +11,6 @@ export const metadata: Metadata = {
   description: 'Network Digital Twin SOC Interface',
 };
 
-/**
- * 根布局：仅提供全局 Provider（i18n、WebSocket）
- * 不包含 SideNav / TopBar，由子布局按需添加
- */
 export default async function RootLayout({
   children,
 }: {
@@ -23,10 +21,16 @@ export default async function RootLayout({
 
   return (
     <html lang={locale} suppressHydrationWarning>
-      <body className="h-screen overflow-hidden bg-gray-950 text-gray-900" suppressHydrationWarning>
+      <body className="flex h-screen overflow-hidden bg-gray-50 text-gray-900" suppressHydrationWarning>
         <NextIntlClientProvider messages={messages}>
           <WSProvider>
-            {children}
+            <SideNav />
+            <div className="flex-1 flex flex-col overflow-hidden">
+              <TopBar />
+              <main className="flex-1 overflow-auto p-6">
+                {children}
+              </main>
+            </div>
           </WSProvider>
         </NextIntlClientProvider>
       </body>
