@@ -360,6 +360,12 @@ export interface DashboardOverview {
   scenario_pass_rate: number;
   /** 最后一次流水线运行快照 */
   pipeline_last_run: PipelineSnapshot | null;
+  /** 最近 7 天每日 PCAP 上传数量 */
+  pcap_trend: number[];
+  /** 最近 7 天每日 Flow 新增数量 */
+  flow_trend: number[];
+  /** 最近 7 天每日开放告警数量 */
+  alert_open_trend: number[];
 }
 
 /** 最后一次流水线运行快照 */

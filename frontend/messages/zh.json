@@ -20,14 +20,6 @@
   },
   "dashboard": {
     "title": "仪表盘",
-    "pcapsTitle": "抓包文件",
-    "pcapsDesc": "上传并处理 PCAP 文件",
-    "alertsTitle": "安全告警",
-    "alertsDesc": "查看和分诊告警",
-    "topologyTitle": "网络拓扑",
-    "topologyDesc": "3D 网络数字孪生",
-    "scenariosTitle": "场景测试",
-    "scenariosDesc": "运行安全场景回归测试",
 
     "heroProjectName": "NetTwin SOC",
     "heroRunningStatus": "运行状态",
@@ -112,7 +104,17 @@
     "loading": "正在加载仪表盘数据...",
     "error": "加载仪表盘数据失败",
     "noData": "暂无数据",
-    "retry": "重试"
+    "retry": "重试",
+
+    "activitySummaryPcapUpload": "PCAP 上传: {filename}",
+    "activitySummaryPipelineRun": "流水线运行: {status}",
+    "activitySummaryAlertCreated": "{type} 告警 - {severity}",
+    "activitySummaryDryrunExecuted": "Dry-Run 执行: {plan_id}",
+    "activitySummaryScenarioRun": "场景运行: {status}",
+    "emptyAlertTrend": "暂无告警趋势数据",
+    "emptyAlertDistribution": "暂无告警分布数据",
+    "emptyTopology": "暂无拓扑风险数据",
+    "emptyPipeline": "暂无流水线运行数据"
   },
   "pcaps": {
     "title": "PCAP 管理",

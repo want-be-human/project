@@ -9,6 +9,22 @@ interface MetricCardsProps {
 }
 
 /**
+ * 计算趋势变化方向
+ * 比较数组最后两个元素，返回 'up' | 'down' | 'flat'
+ * 数据点不足 2 个时返回 'flat'
+ *
+ * 导出以便属性测试使用
+ */
+export function calcChange(trend: number[]): 'up' | 'down' | 'flat' {
+  if (trend.length < 2) return 'flat';
+  const last = trend[trend.length - 1];
+  const prev = trend[trend.length - 2];
+  if (last > prev) return 'up';
+  if (last < prev) return 'down';
+  return 'flat';
+}
+
+/**
  * 六张指标卡片容器组件
  * 展示 PCAP、Flow、Alert、开放告警、场景通过率、Dry-Run 六类核心指标
  */
@@ -40,6 +56,8 @@ export default function MetricCards({ overview }: MetricCardsProps) {
         title={t('metricPcapTitle')}
         value={overview.pcap_total}
         subtitle={`${t('metricPcap24h')}: ${overview.pcap_24h_count}`}
+        sparkData={overview.pcap_trend}
+        change={calcChange(overview.pcap_trend)}
         tooltip={t('metricPcapTooltip')}
       />
 
@@ -48,6 +66,8 @@ export default function MetricCards({ overview }: MetricCardsProps) {
         title={t('metricFlowTitle')}
         value={overview.flow_total}
         subtitle={`${t('metricFlow24h')}: ${overview.flow_24h_count}`}
+        sparkData={overview.flow_trend}
+        change={calcChange(overview.flow_trend)}
         tooltip={t('metricFlowTooltip')}
       />
 
@@ -63,6 +83,8 @@ export default function MetricCards({ overview }: MetricCardsProps) {
       <MetricCard
         title={t('metricOpenAlertTitle')}
         value={overview.alert_open_count}
+        sparkData={overview.alert_open_trend}
+        change={calcChange(overview.alert_open_trend)}
         tooltip={t('metricOpenAlertTooltip')}
       />
 

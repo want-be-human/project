@@ -158,7 +158,8 @@ function initFlowStore(): FlowRecord[] {
         ...base,
         id: `${base.id}-${i}`,
         src_port: base.src_port + i,
-        anomaly_score: parseFloat((Math.random()).toFixed(2)),
+        // 使用固定异常分数，避免随机值导致数据不一致
+        anomaly_score: [0.12, 0.45, 0.78, 0.23, 0.56, 0.89, 0.34, 0.67, 0.91, 0.15][i],
         ts_start: new Date(new Date(base.ts_start).getTime() + i * 1000).toISOString(),
     }));
 }
@@ -186,25 +187,24 @@ const mockPcap: PcapFile = {
     alert_count: 5
 };
 
+// 固定趋势数据，确保每次调用返回完全相同的结果
+const FIXED_TREND_DAYS = [
+  { date: '2024-01-09', low: 2, medium: 1, high: 1, critical: 0 },
+  { date: '2024-01-10', low: 3, medium: 2, high: 0, critical: 1 },
+  { date: '2024-01-11', low: 1, medium: 1, high: 2, critical: 0 },
+  { date: '2024-01-12', low: 4, medium: 0, high: 1, critical: 1 },
+  { date: '2024-01-13', low: 2, medium: 3, high: 1, critical: 0 },
+  { date: '2024-01-14', low: 1, medium: 2, high: 0, critical: 0 },
+  { date: '2024-01-15', low: 3, medium: 1, high: 2, critical: 1 },
+];
+
 /**
  * 生成仪表盘聚合模拟数据
  * 包含 overview、trends、distributions、topology_snapshot、recent_activity 五个顶层字段
+ * 所有数据均为固定值，确保幂等性
  */
-function generateMockDashboardSummary(): DashboardSummary {
+export function generateMockDashboardSummary(): DashboardSummary {
     const now = new Date();
-
-    // 生成最近 7 天的趋势数据
-    const trendDays = Array.from({ length: 7 }).map((_, i) => {
-        const date = new Date(now);
-        date.setDate(date.getDate() - (6 - i));
-        return {
-            date: date.toISOString().slice(0, 10),
-            low: Math.floor(Math.random() * 5),
-            medium: Math.floor(Math.random() * 4),
-            high: Math.floor(Math.random() * 3),
-            critical: Math.floor(Math.random() * 2),
-        };
-    });
 
     return {
         overview: {
@@ -241,9 +241,13 @@ function generateMockDashboardSummary(): DashboardSummary {
                 total_latency_ms: 5400,
                 failed_stages: [],
             },
+            // 固定趋势数组，用于 MetricCard Sparkline
+            pcap_trend: [1, 2, 1, 3, 2, 1, 2],
+            flow_trend: [50, 80, 60, 120, 90, 70, 100],
+            alert_open_trend: [3, 2, 4, 3, 5, 2, 3],
         },
         trends: {
-            days: trendDays,
+            days: FIXED_TREND_DAYS,
         },
         distributions: {
             items: [

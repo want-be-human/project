@@ -2,8 +2,6 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getMessages } from 'next-intl/server';
-import SideNav from '@/components/layout/SideNav';
-import TopBar from '@/components/layout/TopBar';
 import WSProvider from '@/components/providers/WSProvider';
 
 export const metadata: Metadata = {
@@ -11,6 +9,7 @@ export const metadata: Metadata = {
   description: 'Network Digital Twin SOC Interface',
 };
 
+// 根布局仅保留全局 Provider，SideNav 和 TopBar 已移至 (main) route group 的 layout 中
 export default async function RootLayout({
   children,
 }: {
@@ -21,16 +20,10 @@ export default async function RootLayout({
 
   return (
     <html lang={locale} suppressHydrationWarning>
-      <body className="flex h-screen overflow-hidden bg-gray-50 text-gray-900" suppressHydrationWarning>
+      <body suppressHydrationWarning>
         <NextIntlClientProvider messages={messages}>
           <WSProvider>
-            <SideNav />
-            <div className="flex-1 flex flex-col overflow-hidden">
-              <TopBar />
-              <main className="flex-1 overflow-auto p-6">
-                {children}
-              </main>
-            </div>
+            {children}
           </WSProvider>
         </NextIntlClientProvider>
       </body>

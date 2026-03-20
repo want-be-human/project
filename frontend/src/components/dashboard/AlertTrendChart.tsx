@@ -18,6 +18,19 @@ export default function AlertTrendChart({ trends }: AlertTrendChartProps) {
   const t = useTranslations('dashboard');
   const [range, setRange] = useState<'24h' | '7d'>('7d');
 
+  // 空数据判断：无数据或所有天的告警总数为 0
+  const isEmpty =
+    trends.days.length === 0 ||
+    trends.days.every((d) => d.low + d.medium + d.high + d.critical === 0);
+
+  if (isEmpty) {
+    return (
+      <div className="bg-gray-900/80 border border-gray-700/50 rounded-xl p-8 flex items-center justify-center">
+        <p className="text-sm text-gray-500">{t('emptyAlertTrend')}</p>
+      </div>
+    );
+  }
+
   // 根据时间范围过滤数据：24h 只取最后一天，7d 取全部
   const days = useMemo(() => {
     if (range === '24h' && trends.days.length > 0) {
@@ -51,9 +64,20 @@ export default function AlertTrendChart({ trends }: AlertTrendChartProps) {
     backgroundColor: 'transparent',
     tooltip: {
       trigger: 'axis' as const,
+      axisPointer: { type: 'cross' as const, label: { backgroundColor: '#374151' } },
       backgroundColor: '#1f2937',
       borderColor: '#374151',
       textStyle: { color: '#e5e7eb', fontSize: 12 },
+      formatter: (params: any) => {
+        if (!Array.isArray(params) || params.length === 0) return '';
+        const date = params[0].axisValue;
+        let total = 0;
+        const lines = params.map((p: any) => {
+          total += p.value ?? 0;
+          return `${p.marker} ${p.seriesName}: <b>${p.value}</b>`;
+        });
+        return `<b>${date}</b><br/>${lines.join('<br/>')}<br/>─────<br/>${t('metricAlertTotal')}: <b>${total}</b>`;
+      },
     },
     legend: {
       data: [

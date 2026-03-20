@@ -17,6 +17,20 @@ const EVENT_ICONS: Record<ActivityEvent['type'], string> = {
 
 // ==================== 事件导航 URL 生成 ====================
 
+// ==================== summary 标识符到 i18n 键映射 ====================
+
+/**
+ * 将后端返回的 summary 标识符映射到 i18n 翻译键
+ * 导出以便属性测试使用
+ */
+export const SUMMARY_I18N_MAP: Record<string, string> = {
+  pcap_upload: 'activitySummaryPcapUpload',
+  pipeline_run: 'activitySummaryPipelineRun',
+  alert_created: 'activitySummaryAlertCreated',
+  dryrun_executed: 'activitySummaryDryrunExecuted',
+  scenario_run: 'activitySummaryScenarioRun',
+};
+
 /**
  * 根据事件类型和 ID 生成导航 URL
  * 导出以便属性测试使用
@@ -224,7 +238,12 @@ export default function ActivityFeed({ initialEvents }: ActivityFeedProps) {
               <span className="text-xs text-cyan-400 font-medium">
                 {getTypeLabel(ev.type)}
               </span>
-              <p className="text-xs text-gray-300 truncate">{ev.summary}</p>
+              <p className="text-xs text-gray-300 truncate">
+                {(() => {
+                  const i18nKey = SUMMARY_I18N_MAP[ev.summary];
+                  return i18nKey ? t(i18nKey, ev.detail ?? {}) : ev.summary;
+                })()}
+              </p>
             </div>
 
             {/* 时间 */}

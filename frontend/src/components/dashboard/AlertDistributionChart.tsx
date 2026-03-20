@@ -36,6 +36,19 @@ const TYPE_I18N_KEYS: Record<string, string> = {
 export default function AlertDistributionChart({ distributions }: AlertDistributionChartProps) {
   const t = useTranslations('dashboard');
 
+  // 空数据判断：无分布数据或所有 count 为 0
+  const isEmpty =
+    distributions.items.length === 0 ||
+    distributions.items.every((i) => i.count === 0);
+
+  if (isEmpty) {
+    return (
+      <div className="bg-gray-900/80 border border-gray-700/50 rounded-xl p-8 flex items-center justify-center">
+        <p className="text-sm text-gray-500">{t('emptyAlertDistribution')}</p>
+      </div>
+    );
+  }
+
   // 构建饼图数据，翻译类型名称并映射颜色
   const { data, colors } = useMemo(() => {
     const d = distributions.items.map((item) => ({
@@ -55,6 +68,12 @@ export default function AlertDistributionChart({ distributions }: AlertDistribut
       backgroundColor: '#1f2937',
       borderColor: '#374151',
       textStyle: { color: '#e5e7eb', fontSize: 12 },
+      formatter: (params: any) => {
+        const name = params.name;
+        const value = params.value;
+        const percent = params.percent;
+        return `${params.marker} ${name}: <b>${value}</b> (${percent}%)`;
+      },
     },
     legend: {
       orient: 'vertical' as const,

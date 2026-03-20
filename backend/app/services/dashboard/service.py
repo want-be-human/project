@@ -232,6 +232,11 @@ class DashboardService:
         # ---- Pipeline 指标 ----
         pipeline_last_run = self._build_pipeline_snapshot()
 
+        # ---- 趋势数据（最近 7 天每日计数）----
+        pcap_trend = self._query_daily_counts(PcapFile, PcapFile.created_at)
+        flow_trend = self._query_daily_counts(Flow, Flow.created_at)
+        alert_open_trend = self._query_open_alert_trend()
+
         return OverviewSchema(
             pcap_total=pcap_total,
             pcap_processing=pcap_processing,
@@ -251,6 +256,9 @@ class DashboardService:
             scenario_last_status=scenario_last_status,
             scenario_pass_rate=scenario_pass_rate,
             pipeline_last_run=pipeline_last_run,
+            pcap_trend=pcap_trend,
+            flow_trend=flow_trend,
+            alert_open_trend=alert_open_trend,
         )
 
     def _build_trends(self) -> TrendsSchema:
@@ -383,8 +391,12 @@ class DashboardService:
                 ActivityEventSchema(
                     id=p.id,
                     type="pcap",
-                    summary=f"PCAP 上传: {p.filename}",
-                    detail={"status": p.status, "size_bytes": p.size_bytes},
+                    summary="pcap_upload",
+                    detail={
+                        "filename": str(p.filename),
+                        "status": str(p.status),
+                        "size_bytes": str(p.size_bytes),
+                    },
                     created_at=datetime_to_iso(p.created_at),
                 )
             )
@@ -401,8 +413,11 @@ class DashboardService:
                 ActivityEventSchema(
                     id=pr.id,
                     type="pipeline",
-                    summary=f"流水线运行: {pr.status}",
-                    detail={"pcap_id": pr.pcap_id, "status": pr.status},
+                    summary="pipeline_run",
+                    detail={
+                        "pcap_id": str(pr.pcap_id),
+                        "status": str(pr.status),
+                    },
                     created_at=datetime_to_iso(pr.created_at),
                 )
             )
@@ -419,8 +434,12 @@ class DashboardService:
                 ActivityEventSchema(
                     id=a.id,
                     type="alert",
-                    summary=f"{a.type} - {a.severity}",
-                    detail={"severity": a.severity, "status": a.status},
+                    summary="alert_created",
+                    detail={
+                        "type": str(a.type),
+                        "severity": str(a.severity),
+                        "status": str(a.status),
+                    },
                     created_at=datetime_to_iso(a.created_at),
                 )
             )
@@ -437,8 +456,11 @@ class DashboardService:
                 ActivityEventSchema(
                     id=dr.id,
                     type="dryrun",
-                    summary=f"Dry-Run 执行: {dr.plan_id[:8]}...",
-                    detail={"alert_id": dr.alert_id, "plan_id": dr.plan_id},
+                    summary="dryrun_executed",
+                    detail={
+                        "alert_id": str(dr.alert_id),
+                        "plan_id": str(dr.plan_id),
+                    },
                     created_at=datetime_to_iso(dr.created_at),
                 )
             )
@@ -455,10 +477,10 @@ class DashboardService:
                 ActivityEventSchema(
                     id=sr.id,
                     type="scenario",
-                    summary=f"场景运行: {sr.status}",
+                    summary="scenario_run",
                     detail={
-                        "scenario_id": sr.scenario_id,
-                        "status": sr.status,
+                        "scenario_id": str(sr.scenario_id),
+                        "status": str(sr.status),
                     },
                     created_at=datetime_to_iso(sr.created_at),
                 )
@@ -471,6 +493,41 @@ class DashboardService:
     # ------------------------------------------------------------------
     # 辅助方法
     # ------------------------------------------------------------------
+
+    def _query_daily_counts(self, model, date_col, days=7):
+        """通用：查询最近 N 天每日记录数，返回长度为 days 的 int 数组，缺失日期补 0"""
+        now_naive = utc_now().replace(tzinfo=None)
+        start = now_naive - timedelta(days=days)
+        rows = (
+            self.db.query(func.date(date_col), func.count())
+            .filter(date_col >= start)
+            .group_by(func.date(date_col))
+            .all()
+        )
+        counts_map = {r[0]: r[1] for r in rows}
+        result = []
+        for i in range(days):
+            day = (start + timedelta(days=i + 1)).strftime("%Y-%m-%d")
+            result.append(counts_map.get(day, 0))
+        return result
+
+    def _query_open_alert_trend(self, days=7):
+        """查询最近 N 天每日开放状态告警数，过滤 _OPEN_STATUSES，返回长度为 days 的 int 数组"""
+        now_naive = utc_now().replace(tzinfo=None)
+        start = now_naive - timedelta(days=days)
+        rows = (
+            self.db.query(func.date(Alert.created_at), func.count())
+            .filter(Alert.created_at >= start)
+            .filter(Alert.status.in_(list(_OPEN_STATUSES)))
+            .group_by(func.date(Alert.created_at))
+            .all()
+        )
+        counts_map = {r[0]: r[1] for r in rows}
+        result = []
+        for i in range(days):
+            day = (start + timedelta(days=i + 1)).strftime("%Y-%m-%d")
+            result.append(counts_map.get(day, 0))
+        return result
 
     def _build_pipeline_snapshot(self) -> PipelineSnapshotSchema | None:
         """构建最后一次流水线运行快照。"""
@@ -549,6 +606,9 @@ class DashboardService:
             scenario_last_status=None,
             scenario_pass_rate=0.0,
             pipeline_last_run=None,
+            pcap_trend=[0] * 7,
+            flow_trend=[0] * 7,
+            alert_open_trend=[0] * 7,
         )
 
     @staticmethod

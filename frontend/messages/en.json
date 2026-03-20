@@ -20,14 +20,6 @@
   },
   "dashboard": {
     "title": "Dashboard",
-    "pcapsTitle": "PCAPs",
-    "pcapsDesc": "Upload and process PCAP files",
-    "alertsTitle": "Alerts",
-    "alertsDesc": "View and triage alerts",
-    "topologyTitle": "Topology",
-    "topologyDesc": "3D Network Twin",
-    "scenariosTitle": "Scenarios",
-    "scenariosDesc": "Run security scenarios",
 
     "heroProjectName": "NetTwin SOC",
     "heroRunningStatus": "Running Status",
@@ -112,7 +104,17 @@
     "loading": "Loading dashboard data...",
     "error": "Failed to load dashboard data",
     "noData": "No data available",
-    "retry": "Retry"
+    "retry": "Retry",
+
+    "activitySummaryPcapUpload": "PCAP Upload: {filename}",
+    "activitySummaryPipelineRun": "Pipeline Run: {status}",
+    "activitySummaryAlertCreated": "{type} Alert - {severity}",
+    "activitySummaryDryrunExecuted": "Dry-Run Executed: {plan_id}",
+    "activitySummaryScenarioRun": "Scenario Run: {status}",
+    "emptyAlertTrend": "No alert trend data",
+    "emptyAlertDistribution": "No alert distribution data",
+    "emptyTopology": "No topology risk data",
+    "emptyPipeline": "No pipeline run data"
   },
   "pcaps": {
     "title": "PCAP Management",

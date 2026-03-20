@@ -78,6 +78,20 @@ class OverviewSchema(BaseModel):
         default=None, description="最后一次流水线运行快照"
     )
 
+    # 新增：Sparkline 趋势数据（最近 7 天每日计数）
+    pcap_trend: list[int] = Field(
+        default_factory=list,
+        description="最近 7 天每日 PCAP 上传数量数组",
+    )
+    flow_trend: list[int] = Field(
+        default_factory=list,
+        description="最近 7 天每日 Flow 新增数量数组",
+    )
+    alert_open_trend: list[int] = Field(
+        default_factory=list,
+        description="最近 7 天每日开放告警数量数组",
+    )
+
 
 class TrendDaySchema(BaseModel):
     """单日趋势数据"""
