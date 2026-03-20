@@ -229,6 +229,7 @@ export function generateMockDashboardSummary(): DashboardSummary {
             scenario_total: 4,
             scenario_last_status: 'pass',
             scenario_pass_rate: 0.75,
+            scenario_run_total: 8,
             pipeline_last_run: {
                 id: 'pipe-001',
                 pcap_id: '11111111-2222-3333-4444-555555555555',
@@ -241,10 +242,6 @@ export function generateMockDashboardSummary(): DashboardSummary {
                 total_latency_ms: 5400,
                 failed_stages: [],
             },
-            // 固定趋势数组，用于 MetricCard Sparkline
-            pcap_trend: [1, 2, 1, 3, 2, 1, 2],
-            flow_trend: [50, 80, 60, 120, 90, 70, 100],
-            alert_open_trend: [3, 2, 4, 3, 5, 2, 3],
         },
         trends: {
             days: FIXED_TREND_DAYS,
@@ -283,45 +280,50 @@ export function generateMockDashboardSummary(): DashboardSummary {
                 id: 'act-1',
                 type: 'alert',
                 summary: 'bruteforce - high',
-                detail: { severity: 'high', src_ip: '192.0.2.10' },
+                detail: { kind: 'created', entity_type: 'alert', entity_id: 'act-1', severity: 'high', src_ip: '192.0.2.10' },
                 created_at: new Date(now.getTime() - 120_000).toISOString(),
             },
             {
                 id: 'act-2',
                 type: 'pcap',
-                summary: 'demo.pcap 上传完成',
-                detail: { filename: 'demo.pcap', size_bytes: 5242880 },
+                summary: 'demo.pcap',
+                detail: { kind: 'created', entity_type: 'pcap', entity_id: 'act-2', filename: 'demo.pcap', size_bytes: 5242880 },
                 created_at: new Date(now.getTime() - 300_000).toISOString(),
             },
             {
                 id: 'act-3',
                 type: 'pipeline',
                 summary: 'success',
-                detail: { pcap_id: '11111111-2222-3333-4444-555555555555', total_latency_ms: 5400 },
+                detail: { kind: 'completed', entity_type: 'pipeline', entity_id: 'act-3', pcap_id: '11111111-2222-3333-4444-555555555555', total_latency_ms: 5400 },
                 created_at: new Date(now.getTime() - 600_000).toISOString(),
             },
             {
                 id: 'act-4',
                 type: 'dryrun',
-                summary: 'dry-run 完成，中断风险 0.62',
-                detail: { plan_id: 'plan-001', disruption_risk: 0.62 },
+                summary: 'dry-run plan-001',
+                detail: { kind: 'executed', entity_type: 'dryrun', entity_id: 'act-4', plan_id: 'plan-001', disruption_risk: 0.62 },
                 created_at: new Date(now.getTime() - 900_000).toISOString(),
             },
             {
                 id: 'act-5',
                 type: 'scenario',
                 summary: 'pass',
-                detail: { scenario_name: 'brute_force_demo', checks_passed: 4 },
+                detail: { kind: 'executed', entity_type: 'scenario', entity_id: 'act-5', scenario_name: 'brute_force_demo', checks_passed: 4 },
                 created_at: new Date(now.getTime() - 1200_000).toISOString(),
             },
             {
                 id: 'act-6',
                 type: 'alert',
-                summary: 'port_scan - medium',
-                detail: { severity: 'medium', src_ip: '10.0.0.100' },
+                summary: 'scan - medium',
+                detail: { kind: 'created', entity_type: 'alert', entity_id: 'act-6', severity: 'medium', src_ip: '10.0.0.100' },
                 created_at: new Date(now.getTime() - 1500_000).toISOString(),
             },
         ],
+        metric_sparklines: {
+            pcap_trend: [1, 2, 1, 3, 2, 1, 2],
+            flow_trend: [50, 80, 60, 120, 90, 70, 100],
+            alert_open_trend: [3, 2, 4, 3, 5, 2, 3],
+        },
     };
 }
 

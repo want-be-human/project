@@ -1,11 +1,12 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import type { DashboardOverview } from '@/lib/api/types';
+import type { DashboardOverview, MetricSparklines } from '@/lib/api/types';
 import MetricCard from './MetricCard';
 
 interface MetricCardsProps {
   overview: DashboardOverview;
+  sparklines: MetricSparklines;
 }
 
 /**
@@ -28,7 +29,7 @@ export function calcChange(trend: number[]): 'up' | 'down' | 'flat' {
  * 六张指标卡片容器组件
  * 展示 PCAP、Flow、Alert、开放告警、场景通过率、Dry-Run 六类核心指标
  */
-export default function MetricCards({ overview }: MetricCardsProps) {
+export default function MetricCards({ overview, sparklines }: MetricCardsProps) {
   const t = useTranslations('dashboard');
 
   /** 格式化严重程度分布为副标题文本 */
@@ -56,8 +57,8 @@ export default function MetricCards({ overview }: MetricCardsProps) {
         title={t('metricPcapTitle')}
         value={overview.pcap_total}
         subtitle={`${t('metricPcap24h')}: ${overview.pcap_24h_count}`}
-        sparkData={overview.pcap_trend}
-        change={calcChange(overview.pcap_trend)}
+        sparkData={sparklines.pcap_trend}
+        change={calcChange(sparklines.pcap_trend)}
         tooltip={t('metricPcapTooltip')}
       />
 
@@ -66,8 +67,8 @@ export default function MetricCards({ overview }: MetricCardsProps) {
         title={t('metricFlowTitle')}
         value={overview.flow_total}
         subtitle={`${t('metricFlow24h')}: ${overview.flow_24h_count}`}
-        sparkData={overview.flow_trend}
-        change={calcChange(overview.flow_trend)}
+        sparkData={sparklines.flow_trend}
+        change={calcChange(sparklines.flow_trend)}
         tooltip={t('metricFlowTooltip')}
       />
 
@@ -83,8 +84,8 @@ export default function MetricCards({ overview }: MetricCardsProps) {
       <MetricCard
         title={t('metricOpenAlertTitle')}
         value={overview.alert_open_count}
-        sparkData={overview.alert_open_trend}
-        change={calcChange(overview.alert_open_trend)}
+        sparkData={sparklines.alert_open_trend}
+        change={calcChange(sparklines.alert_open_trend)}
         tooltip={t('metricOpenAlertTooltip')}
       />
 

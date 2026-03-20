@@ -6,6 +6,7 @@ import CountUp from './CountUp';
 
 interface HeroSectionProps {
   overview: DashboardOverview;
+  apiReachable: boolean;
 }
 
 /**
@@ -65,7 +66,7 @@ function formatTime(iso: string | null): string {
  * 展示项目名称、运行状态、最后更新时间、运行模式和核心态势评分
  * 深色背景 + 半透明面板视觉风格
  */
-export default function HeroSection({ overview }: HeroSectionProps) {
+export default function HeroSection({ overview, apiReachable }: HeroSectionProps) {
   const t = useTranslations('dashboard');
 
   const score = calcPostureScore(overview);
@@ -100,9 +101,9 @@ export default function HeroSection({ overview }: HeroSectionProps) {
               <div className="bg-gray-800/60 rounded-lg px-3 py-2">
                 <span className="text-xs text-gray-400 block">{t('heroRunningStatus')}</span>
                 <span className="flex items-center gap-1.5 mt-0.5">
-                  <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                  <span className="text-sm font-medium text-green-400">
-                    {t('heroStatusOnline')}
+                  <span className={`w-2 h-2 rounded-full ${apiReachable ? 'bg-green-400 animate-pulse' : 'bg-gray-500'}`} />
+                  <span className={`text-sm font-medium ${apiReachable ? 'text-green-400' : 'text-gray-400'}`}>
+                    {apiReachable ? t('heroStatusOnline') : t('heroStatusOffline')}
                   </span>
                 </span>
               </div>

@@ -73,23 +73,14 @@ class OverviewSchema(BaseModel):
         ..., description="场景通过率（0.0 ~ 1.0）"
     )
 
+    # Scenario 运行总数（统计基数）
+    scenario_run_total: int = Field(
+        default=0, description="场景运行总数"
+    )
+
     # Pipeline 相关
     pipeline_last_run: PipelineSnapshotSchema | None = Field(
         default=None, description="最后一次流水线运行快照"
-    )
-
-    # 新增：Sparkline 趋势数据（最近 7 天每日计数）
-    pcap_trend: list[int] = Field(
-        default_factory=list,
-        description="最近 7 天每日 PCAP 上传数量数组",
-    )
-    flow_trend: list[int] = Field(
-        default_factory=list,
-        description="最近 7 天每日 Flow 新增数量数组",
-    )
-    alert_open_trend: list[int] = Field(
-        default_factory=list,
-        description="最近 7 天每日开放告警数量数组",
     )
 
 
@@ -155,6 +146,23 @@ class ActivityEventSchema(BaseModel):
     created_at: str = Field(..., description="创建时间（ISO8601）")
 
 
+class MetricSparklinesSchema(BaseModel):
+    """卡片级迷你趋势线数据（最近 7 天每日计数）"""
+
+    pcap_trend: list[int] = Field(
+        default_factory=list,
+        description="最近 7 天每日 PCAP 上传数量数组",
+    )
+    flow_trend: list[int] = Field(
+        default_factory=list,
+        description="最近 7 天每日 Flow 新增数量数组",
+    )
+    alert_open_trend: list[int] = Field(
+        default_factory=list,
+        description="最近 7 天每日开放告警数量数组",
+    )
+
+
 class DashboardSummarySchema(BaseModel):
     """仪表盘聚合响应"""
 
@@ -166,4 +174,7 @@ class DashboardSummarySchema(BaseModel):
     )
     recent_activity: list[ActivityEventSchema] = Field(
         default_factory=list, description="最近活动事件列表"
+    )
+    metric_sparklines: MetricSparklinesSchema = Field(
+        ..., description="卡片级迷你趋势线数据"
     )

@@ -15,9 +15,11 @@ export default async function DashboardPage() {
 
   let data: DashboardSummary | null = null;
   let error: string | null = null;
+  let apiReachable = false;
 
   try {
     data = await api.getDashboardSummary();
+    apiReachable = true;
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
   }
@@ -44,9 +46,9 @@ export default async function DashboardPage() {
       {/* 主内容区域：z-10 确保内容层级高于粒子背景 */}
       <div className="relative z-10">
         {/* Hero 区域：项目状态与态势评分 */}
-        <HeroSection overview={data.overview} />
+        <HeroSection overview={data.overview} apiReachable={apiReachable} />
         {/* 六张核心指标卡片 */}
-        <MetricCards overview={data.overview} />
+        <MetricCards overview={data.overview} sparklines={data.metric_sparklines} />
         {/* 图表区域：告警趋势、分布、流水线阶段 */}
         <TrendCharts
           trends={data.trends}

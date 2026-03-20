@@ -314,12 +314,23 @@ export interface PipelineRun {
 // ==================== Dashboard 仪表盘类型定义 ====================
 
 /** 仪表盘聚合响应 */
+/** 卡片级迷你趋势线数据 */
+export interface MetricSparklines {
+  /** 最近 7 天每日 PCAP 上传数量 */
+  pcap_trend: number[];
+  /** 最近 7 天每日 Flow 新增数量 */
+  flow_trend: number[];
+  /** 最近 7 天每日开放告警数量 */
+  alert_open_trend: number[];
+}
+
 export interface DashboardSummary {
   overview: DashboardOverview;
   trends: DashboardTrends;
   distributions: DashboardDistributions;
   topology_snapshot: TopologySnapshot;
   recent_activity: ActivityEvent[];
+  metric_sparklines: MetricSparklines;
 }
 
 /** 总览指标 */
@@ -358,14 +369,10 @@ export interface DashboardOverview {
   scenario_last_status: string | null;
   /** 通过率（0.0 ~ 1.0） */
   scenario_pass_rate: number;
+  /** 场景运行总数 */
+  scenario_run_total: number;
   /** 最后一次流水线运行快照 */
   pipeline_last_run: PipelineSnapshot | null;
-  /** 最近 7 天每日 PCAP 上传数量 */
-  pcap_trend: number[];
-  /** 最近 7 天每日 Flow 新增数量 */
-  flow_trend: number[];
-  /** 最近 7 天每日开放告警数量 */
-  alert_open_trend: number[];
 }
 
 /** 最后一次流水线运行快照 */
