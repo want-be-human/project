@@ -210,14 +210,22 @@ export default function ActivityFeed({ initialEvents }: ActivityFeedProps) {
   }, [startPolling, stopPolling]);
 
   return (
-    <div className="bg-gray-900/80 border border-gray-700/50 rounded-xl p-4 backdrop-blur-sm">
-      {/* 标题 */}
-      <h3 className="text-sm font-semibold text-gray-300 mb-3">
-        {t('activityTitle')}
-      </h3>
+    <div className="bg-gray-900/80 border border-gray-700/50 rounded-2xl p-5 backdrop-blur-sm hover:border-cyan-500/40 transition-colors h-full flex flex-col">
+      {/* 标题 + 事件计数 badge */}
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-gray-200">
+          {t('activityTitle')}
+        </h3>
+        <span
+          data-testid="activity-count-badge"
+          className="text-xs font-medium text-cyan-400 bg-cyan-400/10 rounded-full px-2 py-0.5"
+        >
+          {events.length}
+        </span>
+      </div>
 
       {/* 事件列表 */}
-      <ul className="space-y-2 max-h-80 overflow-y-auto pr-1">
+      <ul className="space-y-2 flex-1 overflow-y-auto pr-1">
         {events.length === 0 && (
           <li className="text-xs text-gray-500 text-center py-4">
             {t('noData')}
@@ -251,6 +259,17 @@ export default function ActivityFeed({ initialEvents }: ActivityFeedProps) {
           </li>
         ))}
       </ul>
+
+      {/* 查看全部活动链接 */}
+      <div className="mt-3 pt-3 border-t border-gray-700/50 text-center">
+        <button
+          type="button"
+          onClick={() => router.push('/alerts')}
+          className="text-xs text-cyan-400 hover:text-cyan-300 transition-colors"
+        >
+          {t('activityViewAll')}
+        </button>
+      </div>
     </div>
   );
 }

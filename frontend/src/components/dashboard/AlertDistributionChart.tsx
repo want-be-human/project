@@ -43,7 +43,7 @@ export default function AlertDistributionChart({ distributions }: AlertDistribut
 
   if (isEmpty) {
     return (
-      <div className="bg-gray-900/80 border border-gray-700/50 rounded-xl p-8 flex items-center justify-center">
+      <div className="bg-gray-900/80 border border-gray-700/50 rounded-2xl p-5 flex items-center justify-center">
         <p className="text-sm text-gray-500">{t('emptyAlertDistribution')}</p>
       </div>
     );
@@ -102,19 +102,21 @@ export default function AlertDistributionChart({ distributions }: AlertDistribut
   };
 
   return (
-    <div className="bg-gray-900/80 border border-gray-700/50 rounded-xl p-4 backdrop-blur-sm">
+    <div className="bg-gray-900/80 border border-gray-700/50 rounded-2xl p-4 backdrop-blur-sm h-full flex flex-col">
       {/* 标题 */}
-      <h3 className="text-sm font-medium text-gray-200 mb-3">
+      <h3 className="text-sm font-semibold text-gray-200 mb-3">
         {t('chartAlertDistributionTitle')}
       </h3>
 
       {/* ECharts 环形饼图 */}
-      <ReactECharts
-        option={option}
-        style={{ height: 260 }}
-        opts={{ renderer: 'canvas' }}
-        notMerge
-      />
+      <div className="flex-1 min-h-0">
+        <ReactECharts
+          option={option}
+          style={{ height: '100%' }}
+          opts={{ renderer: 'canvas' }}
+          notMerge
+        />
+      </div>
     </div>
   );
 }

@@ -44,22 +44,23 @@ export default async function DashboardPage() {
     <div className="relative min-h-screen bg-gray-950">
       {/* 客户端动态组件：粒子背景（fixed 定位）渲染在此 */}
       {/* 主内容区域：z-10 确保内容层级高于粒子背景 */}
-      <div className="relative z-10">
-        {/* Hero 区域：项目状态与态势评分 */}
+      <div className="relative z-10 flex flex-col gap-6 px-6 pt-6 pb-8">
+        {/* A 层：Hero 区域 — 项目状态与态势评分 */}
         <HeroSection overview={data.overview} apiReachable={apiReachable} />
-        {/* 六张核心指标卡片 */}
+        {/* B 层：六张核心指标卡片 */}
         <MetricCards overview={data.overview} sparklines={data.metric_sparklines} />
-        {/* 图表区域：告警趋势、分布、流水线阶段 */}
+        {/* C 层：图表区域 — 告警趋势、分布、流水线阶段 */}
         <TrendCharts
           trends={data.trends}
           distributions={data.distributions}
           pipeline={data.overview.pipeline_last_run}
         />
-        {/* 3D 迷你拓扑 + 活动流 + 粒子背景（客户端动态加载） */}
+        {/* D 层：3D 迷你拓扑 + 活动流（客户端动态加载） */}
         <ClientDynamicWidgets
           topologySnapshot={data.topology_snapshot}
           recentActivity={data.recent_activity}
         />
+        {/* E 层：底部留白由 pb-8 提供 */}
       </div>
     </div>
   );

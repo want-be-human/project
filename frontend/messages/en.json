@@ -83,6 +83,7 @@
     "alertTypeUnknown": "Unknown",
 
     "activityTitle": "Recent Activity",
+    "activityViewAll": "View All Activity →",
     "activityTypePcap": "PCAP Upload",
     "activityTypePipeline": "Pipeline Run",
     "activityTypeAlert": "Alert Created",
@@ -100,6 +101,7 @@
     "topoViewFull": "View Full Topology",
     "topoNodes": "Nodes",
     "topoEdges": "Edges",
+    "topoHighRisk": "High Risk",
 
     "loading": "Loading dashboard data...",
     "error": "Failed to load dashboard data",

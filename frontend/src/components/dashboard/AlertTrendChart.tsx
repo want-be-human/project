@@ -25,7 +25,7 @@ export default function AlertTrendChart({ trends }: AlertTrendChartProps) {
 
   if (isEmpty) {
     return (
-      <div className="bg-gray-900/80 border border-gray-700/50 rounded-xl p-8 flex items-center justify-center">
+      <div className="bg-gray-900/80 border border-gray-700/50 rounded-2xl p-8 flex items-center justify-center">
         <p className="text-sm text-gray-500">{t('emptyAlertTrend')}</p>
       </div>
     );
@@ -121,10 +121,10 @@ export default function AlertTrendChart({ trends }: AlertTrendChartProps) {
   };
 
   return (
-    <div className="bg-gray-900/80 border border-gray-700/50 rounded-xl p-4 backdrop-blur-sm">
+    <div className="bg-gray-900/80 border border-gray-700/50 rounded-2xl p-4 backdrop-blur-sm h-full flex flex-col">
       {/* 标题栏 + 时间范围切换 */}
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-medium text-gray-200">
+        <h3 className="text-sm font-semibold text-gray-200">
           {t('chartAlertTrendTitle')}
         </h3>
         <div className="flex gap-1">
@@ -145,12 +145,14 @@ export default function AlertTrendChart({ trends }: AlertTrendChartProps) {
       </div>
 
       {/* ECharts 图表 */}
-      <ReactECharts
-        option={option}
-        style={{ height: 260 }}
-        opts={{ renderer: 'canvas' }}
-        notMerge
-      />
+      <div className="flex-1 min-h-0">
+        <ReactECharts
+          option={option}
+          style={{ height: '100%' }}
+          opts={{ renderer: 'canvas' }}
+          notMerge
+        />
+      </div>
     </div>
   );
 }

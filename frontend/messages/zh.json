@@ -83,6 +83,7 @@
     "alertTypeUnknown": "未知",
 
     "activityTitle": "最近活动",
+    "activityViewAll": "查看全部活动 →",
     "activityTypePcap": "PCAP 上传",
     "activityTypePipeline": "流水线运行",
     "activityTypeAlert": "告警创建",
@@ -100,6 +101,7 @@
     "topoViewFull": "查看完整拓扑",
     "topoNodes": "节点",
     "topoEdges": "连线",
+    "topoHighRisk": "高风险",
 
     "loading": "正在加载仪表盘数据...",
     "error": "加载仪表盘数据失败",

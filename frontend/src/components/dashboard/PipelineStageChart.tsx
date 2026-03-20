@@ -42,11 +42,11 @@ export default function PipelineStageChart({ pipeline }: PipelineStageChartProps
   // 无数据时显示提示
   if (!pipeline?.stages?.length) {
     return (
-      <div className="bg-gray-900/80 border border-gray-700/50 rounded-xl p-4 backdrop-blur-sm">
-        <h3 className="text-sm font-medium text-gray-200 mb-3">
+      <div className="bg-gray-900/80 border border-gray-700/50 rounded-2xl p-4 backdrop-blur-sm h-full flex flex-col">
+        <h3 className="text-sm font-semibold text-gray-200 mb-3">
           {t('chartPipelineStageTitle')}
         </h3>
-        <div className="flex items-center justify-center h-[260px] text-gray-500 text-sm">
+        <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
           {t('noData')}
         </div>
       </div>
@@ -115,16 +115,18 @@ export default function PipelineStageChart({ pipeline }: PipelineStageChartProps
   };
 
   return (
-    <div className="bg-gray-900/80 border border-gray-700/50 rounded-xl p-4 backdrop-blur-sm">
-      <h3 className="text-sm font-medium text-gray-200 mb-3">
+    <div className="bg-gray-900/80 border border-gray-700/50 rounded-2xl p-4 backdrop-blur-sm h-full flex flex-col">
+      <h3 className="text-sm font-semibold text-gray-200 mb-3">
         {t('chartPipelineStageTitle')}
       </h3>
-      <ReactECharts
-        option={option}
-        style={{ height: 260 }}
-        opts={{ renderer: 'canvas' }}
-        notMerge
-      />
+      <div className="flex-1 min-h-0">
+        <ReactECharts
+          option={option}
+          style={{ height: '100%' }}
+          opts={{ renderer: 'canvas' }}
+          notMerge
+        />
+      </div>
     </div>
   );
 }

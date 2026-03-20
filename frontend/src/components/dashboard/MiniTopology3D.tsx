@@ -91,26 +91,33 @@ export default function MiniTopology3D({ snapshot }: MiniTopology3DProps) {
     return { nodes, links };
   }, [snapshot]);
 
-  // 自动旋转：通过 requestAnimationFrame 控制相机轨道旋转
+  // 自动旋转：先用 zoomToFit 居中节点，再通过 requestAnimationFrame 控制相机轨道旋转
   useEffect(() => {
     const fg = graphRef.current;
     if (!fg) return;
 
     let angle = 0;
     let frameId: number;
-    const distance = 200;
+    let orbitDistance = 120;
 
     const rotate = () => {
       angle += 0.002;
-      const x = distance * Math.sin(angle);
-      const z = distance * Math.cos(angle);
-      fg.cameraPosition({ x, y: 60, z });
+      const x = orbitDistance * Math.sin(angle);
+      const z = orbitDistance * Math.cos(angle);
+      fg.cameraPosition({ x, y: 30, z });
       frameId = requestAnimationFrame(rotate);
     };
 
-    // 等待力导向图稳定后开始旋转
+    // 等待力导向图稳定后，先 zoomToFit 居中，再开始旋转
     const timer = setTimeout(() => {
-      frameId = requestAnimationFrame(rotate);
+      // zoomToFit 自动调整相机使所有节点可见并居中
+      fg.zoomToFit(400, 40);
+      // zoomToFit 完成后获取当前相机距离作为旋转半径
+      setTimeout(() => {
+        const pos = fg.cameraPosition();
+        orbitDistance = Math.sqrt(pos.x * pos.x + pos.z * pos.z) || 120;
+        frameId = requestAnimationFrame(rotate);
+      }, 500);
     }, 1500);
 
     return () => {
@@ -141,10 +148,10 @@ export default function MiniTopology3D({ snapshot }: MiniTopology3DProps) {
   const hasHighRiskNodes = graphData.nodes.some((n) => n.risk >= 0.7);
 
   return (
-    <div className="bg-gray-900/80 border border-gray-700/50 rounded-xl p-4 backdrop-blur-sm">
+    <div className="bg-gray-900/80 border border-gray-700/50 rounded-2xl p-4 backdrop-blur-sm h-full flex flex-col">
       {/* 标题栏 */}
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-white">{t('topoTitle')}</h3>
+        <h3 className="text-sm font-semibold text-gray-200">{t('topoTitle')}</h3>
         <button
           onClick={handleClick}
           className="text-xs text-cyan-400 hover:text-cyan-300 transition-colors"
@@ -168,18 +175,18 @@ export default function MiniTopology3D({ snapshot }: MiniTopology3DProps) {
           {t('topoRiskLow')}
         </span>
         <span className="ml-auto text-gray-500">
-          {t('topoNodes')}: {snapshot.node_count} | {t('topoEdges')}: {snapshot.edge_count}
+          {t('topoNodes')}: {snapshot.node_count} | {t('topoEdges')}: {snapshot.edge_count} | {t('topoHighRisk')}: {graphData.nodes.filter((n) => n.risk >= 0.7).length}
         </span>
       </div>
 
       {/* 3D 图或无数据提示，存在高风险节点时添加呼吸发光边框 */}
-      <div className={`h-[280px] rounded-lg overflow-hidden bg-gray-950/50${hasHighRiskNodes ? ' animate-breathe-glow-box' : ''}`}>
+      <div className={`flex-1 min-h-[380px] rounded-lg overflow-hidden bg-gray-950/50${hasHighRiskNodes ? ' animate-breathe-glow-box' : ''}`}>
         {hasData ? (
           <ForceGraph3D
             ref={graphRef as React.MutableRefObject<ForceGraphMethods | undefined>}
             graphData={graphData}
             width={undefined}
-            height={280}
+            height={380}
             backgroundColor="rgba(0,0,0,0)"
             showNavInfo={false}
             enableNavigationControls={false}

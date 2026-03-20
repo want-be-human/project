@@ -21,17 +21,21 @@ interface TrendChartsProps {
  */
 export default function TrendCharts({ trends, distributions, pipeline }: TrendChartsProps) {
   return (
-    <div className="px-6 py-4">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch min-h-[500px]">
         {/* 告警趋势堆叠面积图 — 占左侧两列 */}
         <div className="lg:col-span-2">
           <AlertTrendChart trends={trends} />
         </div>
 
-        {/* 右侧：分布图 + 流水线阶段图 */}
+        {/* 右侧：分布图 + 流水线阶段图，flex-1 使两个图表均分高度与左侧等高 */}
         <div className="flex flex-col gap-6">
-          <AlertDistributionChart distributions={distributions} />
-          <PipelineStageChart pipeline={pipeline} />
+          <div className="flex-1">
+            <AlertDistributionChart distributions={distributions} />
+          </div>
+          <div className="flex-1">
+            <PipelineStageChart pipeline={pipeline} />
+          </div>
         </div>
       </div>
     </div>

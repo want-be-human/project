@@ -51,7 +51,7 @@ export default function MetricCards({ overview, sparklines }: MetricCardsProps) 
   };
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 px-6 py-4">
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
       {/* PCAP 文件 */}
       <MetricCard
         title={t('metricPcapTitle')}

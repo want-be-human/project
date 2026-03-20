@@ -85,7 +85,7 @@ export default function MetricCard({
 
   return (
     <div
-      className={`relative bg-gray-900/60 border border-gray-700/50 rounded-xl p-4 transition-colors hover:border-cyan-500/40${isHighRisk ? ' animate-breathe-glow-box' : ''}`}
+      className={`relative bg-gray-900/80 border border-gray-700/50 rounded-2xl p-4 backdrop-blur-sm transition-colors hover:border-cyan-500/40${isHighRisk ? ' animate-breathe-glow-box' : ''}`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
