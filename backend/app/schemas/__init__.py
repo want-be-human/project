@@ -65,6 +65,17 @@ from app.schemas.pipeline import (
     PipelineRunSchema,
     StageRecordSchema,
 )
+from app.schemas.dashboard import (
+    OverviewSchema,
+    PipelineSnapshotSchema,
+    TrendDaySchema,
+    TrendsSchema,
+    DistributionItemSchema,
+    DistributionsSchema,
+    TopologySnapshotSchema,
+    ActivityEventSchema,
+    DashboardSummarySchema,
+)
 
 __all__ = [
     # Common
@@ -119,4 +130,14 @@ __all__ = [
     # Pipeline
     "PipelineRunSchema",
     "StageRecordSchema",
+    # Dashboard
+    "OverviewSchema",
+    "PipelineSnapshotSchema",
+    "TrendDaySchema",
+    "TrendsSchema",
+    "DistributionItemSchema",
+    "DistributionsSchema",
+    "TopologySnapshotSchema",
+    "ActivityEventSchema",
+    "DashboardSummarySchema",
 ]

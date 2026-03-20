@@ -2,10 +2,14 @@ import {
   PcapFile, FlowRecord, Alert, GraphResponse, Investigation,
   Recommendation, ActionPlan, DryRunResult, Scenario, ScenarioRunResult,
   EvidenceChain, CompilePlanRequest, CompilePlanResponse,
-  PipelineRun, StageRecord
+  PipelineRun, StageRecord, DashboardSummary
 } from './types';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+// 服务端（Server Component）优先使用内部网络地址，客户端使用公开地址
+const BASE_URL =
+  typeof window === 'undefined'
+    ? (process.env.API_BASE_URL_INTERNAL || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000')
+    : (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000');
 
 interface Envelope<T> {
   ok: boolean;
@@ -220,5 +224,10 @@ export const realApi = {
     },
     getPipelineStages: async (pcapId: string): Promise<StageRecord[]> => {
         return fetchJson<StageRecord[]>(`/api/v1/pipeline/${pcapId}/stages`);
+    },
+
+    /** 获取仪表盘聚合数据 */
+    getDashboardSummary: async (): Promise<DashboardSummary> => {
+        return fetchJson<DashboardSummary>('/api/v1/dashboard/summary');
     },
 };

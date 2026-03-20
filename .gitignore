@@ -47,6 +47,26 @@ Thumbs.db
 *.swp
 *.swo
 
+# ── 二进制文件 ─────────────────────────────────────────────────────────────────
+*.pcap
+*.gz
+*.zip
+*.tar
+*.tar.gz
+*.whl
+*.pkl
+*.bin
+*.exe
+*.dll
+*.dylib
+
+# ── 测试文件与测试缓存 ───────────────────────────────────────────────────────
+backend/tests/
+backend/app/tests/
+backend/.hypothesis/
+frontend/src/__tests__/
+frontend/coverage/
+
 # ── Docs (internal, not for repo) ─────────────────────────────────────────────
 /DOC A.md
 /DOC B.md

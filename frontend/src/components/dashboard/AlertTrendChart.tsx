@@ -1,0 +1,132 @@
+'use client';
+
+import { useState, useMemo } from 'react';
+import ReactECharts from 'echarts-for-react';
+import { useTranslations } from 'next-intl';
+import type { DashboardTrends } from '@/lib/api/types';
+
+interface AlertTrendChartProps {
+  trends: DashboardTrends;
+}
+
+/**
+ * 告警趋势堆叠面积图
+ * 使用 ECharts 渲染，支持 24h/7d 时间范围切换
+ * 深色主题配色
+ */
+export default function AlertTrendChart({ trends }: AlertTrendChartProps) {
+  const t = useTranslations('dashboard');
+  const [range, setRange] = useState<'24h' | '7d'>('7d');
+
+  // 根据时间范围过滤数据：24h 只取最后一天，7d 取全部
+  const days = useMemo(() => {
+    if (range === '24h' && trends.days.length > 0) {
+      return trends.days.slice(-1);
+    }
+    return trends.days;
+  }, [range, trends.days]);
+
+  // 提取各维度数据
+  const dates = days.map((d) => d.date);
+  const lowData = days.map((d) => d.low);
+  const mediumData = days.map((d) => d.medium);
+  const highData = days.map((d) => d.high);
+  const criticalData = days.map((d) => d.critical);
+
+  // 构建堆叠面积图系列的通用配置
+  const makeSeries = (name: string, data: number[], color: string) => ({
+    name,
+    type: 'line' as const,
+    stack: 'alerts',
+    areaStyle: { opacity: 0.3 },
+    emphasis: { focus: 'series' as const },
+    symbol: 'circle',
+    symbolSize: 4,
+    lineStyle: { width: 2 },
+    itemStyle: { color },
+    data,
+  });
+
+  const option = {
+    backgroundColor: 'transparent',
+    tooltip: {
+      trigger: 'axis' as const,
+      backgroundColor: '#1f2937',
+      borderColor: '#374151',
+      textStyle: { color: '#e5e7eb', fontSize: 12 },
+    },
+    legend: {
+      data: [
+        t('severityLow'),
+        t('severityMedium'),
+        t('severityHigh'),
+        t('severityCritical'),
+      ],
+      textStyle: { color: '#9ca3af', fontSize: 11 },
+      top: 0,
+      right: 0,
+    },
+    grid: {
+      left: 40,
+      right: 16,
+      top: 36,
+      bottom: 24,
+      containLabel: false,
+    },
+    xAxis: {
+      type: 'category' as const,
+      boundaryGap: false,
+      data: dates,
+      axisLine: { lineStyle: { color: '#374151' } },
+      axisLabel: { color: '#9ca3af', fontSize: 11 },
+      axisTick: { show: false },
+    },
+    yAxis: {
+      type: 'value' as const,
+      minInterval: 1,
+      splitLine: { lineStyle: { color: '#374151', type: 'dashed' as const } },
+      axisLine: { show: false },
+      axisLabel: { color: '#9ca3af', fontSize: 11 },
+    },
+    series: [
+      makeSeries(t('severityLow'), lowData, '#3b82f6'),
+      makeSeries(t('severityMedium'), mediumData, '#eab308'),
+      makeSeries(t('severityHigh'), highData, '#f97316'),
+      makeSeries(t('severityCritical'), criticalData, '#ef4444'),
+    ],
+  };
+
+  return (
+    <div className="bg-gray-900/80 border border-gray-700/50 rounded-xl p-4 backdrop-blur-sm">
+      {/* 标题栏 + 时间范围切换 */}
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-medium text-gray-200">
+          {t('chartAlertTrendTitle')}
+        </h3>
+        <div className="flex gap-1">
+          {(['24h', '7d'] as const).map((r) => (
+            <button
+              key={r}
+              onClick={() => setRange(r)}
+              className={`px-2.5 py-0.5 text-xs rounded transition-colors ${
+                range === r
+                  ? 'bg-cyan-600 text-white'
+                  : 'bg-gray-800 text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              {t(r === '24h' ? 'chartTimeRange24h' : 'chartTimeRange7d')}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ECharts 图表 */}
+      <ReactECharts
+        option={option}
+        style={{ height: 260 }}
+        opts={{ renderer: 'canvas' }}
+        notMerge
+      />
+    </div>
+  );
+}

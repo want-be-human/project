@@ -24,3 +24,45 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* 高风险呼吸发光动画 - 用于 MetricCard、HeroSection 等高风险元素 */
+@keyframes breathe-glow {
+  0%, 100% {
+    text-shadow: 0 0 4px rgba(239, 68, 68, 0.3), 0 0 8px rgba(239, 68, 68, 0.15);
+  }
+  50% {
+    text-shadow: 0 0 8px rgba(239, 68, 68, 0.6), 0 0 16px rgba(239, 68, 68, 0.3);
+  }
+}
+
+/* 高风险卡片边框呼吸发光 */
+@keyframes breathe-glow-box {
+  0%, 100% {
+    box-shadow: 0 0 4px rgba(239, 68, 68, 0.15), 0 0 8px rgba(249, 115, 22, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.3), 0 0 16px rgba(249, 115, 22, 0.2);
+  }
+}
+
+/* 高风险环形图发光 */
+@keyframes breathe-glow-ring {
+  0%, 100% {
+    filter: drop-shadow(0 0 3px rgba(248, 113, 113, 0.3));
+  }
+  50% {
+    filter: drop-shadow(0 0 8px rgba(248, 113, 113, 0.6));
+  }
+}
+
+.animate-breathe-glow {
+  animation: breathe-glow 2.5s ease-in-out infinite;
+}
+
+.animate-breathe-glow-box {
+  animation: breathe-glow-box 2.5s ease-in-out infinite;
+}
+
+.animate-breathe-glow-ring {
+  animation: breathe-glow-ring 2.5s ease-in-out infinite;
+}

@@ -309,3 +309,117 @@ export interface PipelineRun {
     stages: StageRecord[];
     created_at: string | null;
 }
+
+
+// ==================== Dashboard 仪表盘类型定义 ====================
+
+/** 仪表盘聚合响应 */
+export interface DashboardSummary {
+  overview: DashboardOverview;
+  trends: DashboardTrends;
+  distributions: DashboardDistributions;
+  topology_snapshot: TopologySnapshot;
+  recent_activity: ActivityEvent[];
+}
+
+/** 总览指标 */
+export interface DashboardOverview {
+  /** PCAP 总数 */
+  pcap_total: number;
+  /** 处理中的 PCAP 数量 */
+  pcap_processing: number;
+  /** 最后完成时间（ISO8601） */
+  pcap_last_done_at: string | null;
+  /** 24 小时内上传数量 */
+  pcap_24h_count: number;
+  /** Flow 总数 */
+  flow_total: number;
+  /** 24 小时内新增 Flow 数量 */
+  flow_24h_count: number;
+  /** Alert 总数 */
+  alert_total: number;
+  /** 开放告警数量（new + triaged + investigating） */
+  alert_open_count: number;
+  /** 按严重程度分组的告警计数 */
+  alert_by_severity: Record<string, number>;
+  /** 按类型分组的告警计数 */
+  alert_by_type: Record<string, number>;
+  /** 最后分析时间（ISO8601） */
+  alert_last_analysis_at: string | null;
+  /** Dry-Run 总数 */
+  dryrun_total: number;
+  /** 平均中断风险值 */
+  dryrun_avg_disruption_risk: number;
+  /** 最后一次 dry-run 的 impact 摘要 */
+  dryrun_last_result: Record<string, any> | null;
+  /** Scenario 总数 */
+  scenario_total: number;
+  /** 最后运行状态 */
+  scenario_last_status: string | null;
+  /** 通过率（0.0 ~ 1.0） */
+  scenario_pass_rate: number;
+  /** 最后一次流水线运行快照 */
+  pipeline_last_run: PipelineSnapshot | null;
+}
+
+/** 最后一次流水线运行快照 */
+export interface PipelineSnapshot {
+  id: string;
+  pcap_id: string;
+  status: string;
+  /** 解析后的 stages_log */
+  stages: Array<Record<string, any>>;
+  total_latency_ms: number | null;
+  /** 失败阶段列表 */
+  failed_stages: string[];
+}
+
+/** 单日趋势数据 */
+export interface TrendDay {
+  /** 日期，格式如 "2024-01-15" */
+  date: string;
+  low: number;
+  medium: number;
+  high: number;
+  critical: number;
+}
+
+/** 告警趋势 */
+export interface DashboardTrends {
+  days: TrendDay[];
+}
+
+/** 分布项 */
+export interface DistributionItem {
+  type: string;
+  count: number;
+}
+
+/** 告警类型分布 */
+export interface DashboardDistributions {
+  items: DistributionItem[];
+}
+
+/** 迷你拓扑快照 */
+export interface TopologySnapshot {
+  /** 节点数量 */
+  node_count: number;
+  /** 边数量 */
+  edge_count: number;
+  /** 前 10 个高风险节点 */
+  top_risk_nodes: Array<{ id: string; label: string; risk: number }>;
+  /** 前 10 条高风险边 */
+  top_risk_edges: Array<{ id: string; source: string; target: string; risk: number }>;
+}
+
+/** 活动事件 */
+export interface ActivityEvent {
+  id: string;
+  type: 'pcap' | 'pipeline' | 'alert' | 'dryrun' | 'scenario';
+  /** 事件摘要 */
+  summary: string;
+  /** 类型特定的额外信息 */
+  detail: Record<string, any>;
+  /** 创建时间（ISO8601） */
+  created_at: string;
+}

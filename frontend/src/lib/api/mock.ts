@@ -2,7 +2,7 @@ import {
   PcapFile, FlowRecord, Alert, GraphResponse, GraphNode, GraphEdge, Investigation,
   Recommendation, ActionPlan, DryRunResult, Scenario, ScenarioRunResult,
   EvidenceChain, CompilePlanRequest, CompilePlanResponse, CompiledAction,
-  PipelineRun, StageRecord
+  PipelineRun, StageRecord, DashboardSummary
 } from './types';
 import { wsClient } from '../ws';
 
@@ -185,6 +185,141 @@ const mockPcap: PcapFile = {
     flow_count: 1000,
     alert_count: 5
 };
+
+/**
+ * 生成仪表盘聚合模拟数据
+ * 包含 overview、trends、distributions、topology_snapshot、recent_activity 五个顶层字段
+ */
+function generateMockDashboardSummary(): DashboardSummary {
+    const now = new Date();
+
+    // 生成最近 7 天的趋势数据
+    const trendDays = Array.from({ length: 7 }).map((_, i) => {
+        const date = new Date(now);
+        date.setDate(date.getDate() - (6 - i));
+        return {
+            date: date.toISOString().slice(0, 10),
+            low: Math.floor(Math.random() * 5),
+            medium: Math.floor(Math.random() * 4),
+            high: Math.floor(Math.random() * 3),
+            critical: Math.floor(Math.random() * 2),
+        };
+    });
+
+    return {
+        overview: {
+            pcap_total: 12,
+            pcap_processing: 1,
+            pcap_last_done_at: new Date(now.getTime() - 3600_000).toISOString(),
+            pcap_24h_count: 3,
+            flow_total: 1580,
+            flow_24h_count: 420,
+            alert_total: 25,
+            alert_open_count: 8,
+            alert_by_severity: { low: 6, medium: 10, high: 7, critical: 2 },
+            alert_by_type: { scan: 8, bruteforce: 5, dos: 3, anomaly: 4, exfil: 3, unknown: 2 },
+            alert_last_analysis_at: new Date(now.getTime() - 1800_000).toISOString(),
+            dryrun_total: 6,
+            dryrun_avg_disruption_risk: 0.38,
+            dryrun_last_result: {
+                impacted_nodes_count: 2,
+                reachability_drop: 0.18,
+                service_disruption_risk: 0.62,
+            },
+            scenario_total: 4,
+            scenario_last_status: 'pass',
+            scenario_pass_rate: 0.75,
+            pipeline_last_run: {
+                id: 'pipe-001',
+                pcap_id: '11111111-2222-3333-4444-555555555555',
+                status: 'success',
+                stages: [
+                    { stage_name: 'flow_extraction', status: 'success', latency_ms: 1200 },
+                    { stage_name: 'anomaly_detection', status: 'success', latency_ms: 3400 },
+                    { stage_name: 'alert_generation', status: 'success', latency_ms: 800 },
+                ],
+                total_latency_ms: 5400,
+                failed_stages: [],
+            },
+        },
+        trends: {
+            days: trendDays,
+        },
+        distributions: {
+            items: [
+                { type: 'scan', count: 8 },
+                { type: 'bruteforce', count: 5 },
+                { type: 'dos', count: 3 },
+                { type: 'anomaly', count: 4 },
+                { type: 'exfil', count: 3 },
+                { type: 'unknown', count: 2 },
+            ],
+        },
+        topology_snapshot: {
+            node_count: 6,
+            edge_count: 8,
+            top_risk_nodes: [
+                { id: 'ip:192.0.2.10', label: '192.0.2.10', risk: 0.92 },
+                { id: 'ip:10.0.0.100', label: '10.0.0.100', risk: 0.78 },
+                { id: 'ip:198.51.100.20', label: '198.51.100.20', risk: 0.65 },
+                { id: 'ip:192.0.2.50', label: '192.0.2.50', risk: 0.55 },
+                { id: 'ip:203.0.113.5', label: '203.0.113.5', risk: 0.42 },
+                { id: 'ip:10.0.0.1', label: '10.0.0.1', risk: 0.20 },
+            ],
+            top_risk_edges: [
+                { id: 'e1', source: 'ip:192.0.2.10', target: 'ip:198.51.100.20', risk: 0.88 },
+                { id: 'e5', source: 'ip:10.0.0.100', target: 'ip:192.0.2.10', risk: 0.75 },
+                { id: 'e7', source: 'ip:10.0.0.100', target: 'ip:198.51.100.20', risk: 0.62 },
+                { id: 'e2', source: 'ip:192.0.2.10', target: 'ip:203.0.113.5', risk: 0.50 },
+                { id: 'e4', source: 'ip:192.0.2.50', target: 'ip:198.51.100.1', risk: 0.35 },
+            ],
+        },
+        recent_activity: [
+            {
+                id: 'act-1',
+                type: 'alert',
+                summary: 'bruteforce - high',
+                detail: { severity: 'high', src_ip: '192.0.2.10' },
+                created_at: new Date(now.getTime() - 120_000).toISOString(),
+            },
+            {
+                id: 'act-2',
+                type: 'pcap',
+                summary: 'demo.pcap 上传完成',
+                detail: { filename: 'demo.pcap', size_bytes: 5242880 },
+                created_at: new Date(now.getTime() - 300_000).toISOString(),
+            },
+            {
+                id: 'act-3',
+                type: 'pipeline',
+                summary: 'success',
+                detail: { pcap_id: '11111111-2222-3333-4444-555555555555', total_latency_ms: 5400 },
+                created_at: new Date(now.getTime() - 600_000).toISOString(),
+            },
+            {
+                id: 'act-4',
+                type: 'dryrun',
+                summary: 'dry-run 完成，中断风险 0.62',
+                detail: { plan_id: 'plan-001', disruption_risk: 0.62 },
+                created_at: new Date(now.getTime() - 900_000).toISOString(),
+            },
+            {
+                id: 'act-5',
+                type: 'scenario',
+                summary: 'pass',
+                detail: { scenario_name: 'brute_force_demo', checks_passed: 4 },
+                created_at: new Date(now.getTime() - 1200_000).toISOString(),
+            },
+            {
+                id: 'act-6',
+                type: 'alert',
+                summary: 'port_scan - medium',
+                detail: { severity: 'medium', src_ip: '10.0.0.100' },
+                created_at: new Date(now.getTime() - 1500_000).toISOString(),
+            },
+        ],
+    };
+}
 
 export const mockApi = {
     uploadPcap: async (file: File): Promise<PcapFile> => {
@@ -701,5 +836,10 @@ export const mockApi = {
     },
     getPipelineStages: async (_pcapId: string): Promise<StageRecord[]> => {
         throw new Error('404 Pipeline observability not available in mock mode');
+    },
+
+    /** 获取仪表盘聚合数据（模拟） */
+    getDashboardSummary: async (): Promise<DashboardSummary> => {
+        return generateMockDashboardSummary();
     },
 };
