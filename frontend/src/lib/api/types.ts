@@ -429,9 +429,19 @@ export interface TopologySnapshot {
 export interface ActivityEvent {
   id: string;
   type: 'pcap' | 'pipeline' | 'alert' | 'dryrun' | 'scenario';
-  /** 事件摘要 */
+  /** 动作类型标识符，如 "created"、"completed"、"executed" */
+  kind: string;
+  /** 实体类型，如 "pcap"、"pipeline"、"alert"、"dryrun"、"scenario" */
+  entity_type: string;
+  /** 关联实体的 ID */
+  entity_id: string;
+  /** 事件摘要（标准化标识符，如 "alert.created"） */
   summary: string;
-  /** 类型特定的额外信息 */
+  /** 结构化上下文数据 */
+  payload: Record<string, any>;
+  /** 可选导航链接 */
+  href?: string | null;
+  /** 类型特定的额外信息（保留以兼容旧数据） */
   detail: Record<string, any>;
   /** 创建时间（ISO8601） */
   created_at: string;

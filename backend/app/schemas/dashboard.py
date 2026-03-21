@@ -133,15 +133,22 @@ class TopologySnapshotSchema(BaseModel):
 
 
 class ActivityEventSchema(BaseModel):
-    """活动事件"""
+    """活动事件（结构化）"""
 
     id: str = Field(..., description="事件 ID")
     type: str = Field(
         ..., description='事件类型："pcap" | "pipeline" | "alert" | "dryrun" | "scenario"'
     )
-    summary: str = Field(..., description="事件摘要")
+    kind: str = Field(..., description='动作类型："created" | "completed" | "executed" 等')
+    entity_type: str = Field(..., description="实体类型，与 type 一致")
+    entity_id: str = Field(..., description="关联实体 ID")
+    summary: str = Field(..., description='标准化标识符，格式 "{entity_type}.{kind}"')
+    payload: dict[str, Any] = Field(
+        default_factory=dict, description="结构化上下文数据"
+    )
+    href: str | None = Field(default=None, description="可选导航链接")
     detail: dict[str, Any] = Field(
-        default_factory=dict, description="类型特定的额外信息"
+        default_factory=dict, description="类型特定的额外信息（兼容旧数据）"
     )
     created_at: str = Field(..., description="创建时间（ISO8601）")
 

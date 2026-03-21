@@ -404,7 +404,15 @@ class DashboardService:
                 ActivityEventSchema(
                     id=p.id,
                     type="pcap",
-                    summary=p.filename,
+                    kind="created",
+                    entity_type="pcap",
+                    entity_id=str(p.id),
+                    summary="pcap.created",
+                    payload={
+                        "filename": str(p.filename),
+                        "size_bytes": p.size_bytes if p.size_bytes is not None else 0,
+                    },
+                    href="/pcaps",
                     detail={
                         "kind": "created",
                         "entity_type": "pcap",
@@ -429,7 +437,15 @@ class DashboardService:
                 ActivityEventSchema(
                     id=pr.id,
                     type="pipeline",
-                    summary=pr.status,
+                    kind="completed",
+                    entity_type="pipeline",
+                    entity_id=str(pr.id),
+                    summary="pipeline.completed",
+                    payload={
+                        "pcap_id": str(pr.pcap_id),
+                        "status": str(pr.status),
+                    },
+                    href="/pcaps",
                     detail={
                         "kind": pr.status,
                         "entity_type": "pipeline",
@@ -449,11 +465,20 @@ class DashboardService:
             .all()
         )
         for a in alert_rows:
+            entity_id = str(a.id)
             events.append(
                 ActivityEventSchema(
                     id=a.id,
                     type="alert",
-                    summary=f"{a.type} - {a.severity}",
+                    kind="created",
+                    entity_type="alert",
+                    entity_id=entity_id,
+                    summary="alert.created",
+                    payload={
+                        "alert_type": str(a.type),
+                        "severity": str(a.severity),
+                    },
+                    href=f"/alerts/{entity_id}",
                     detail={
                         "kind": "created",
                         "entity_type": "alert",
@@ -478,7 +503,15 @@ class DashboardService:
                 ActivityEventSchema(
                     id=dr.id,
                     type="dryrun",
-                    summary=f"dry-run {dr.alert_id}",
+                    kind="executed",
+                    entity_type="dryrun",
+                    entity_id=str(dr.id),
+                    summary="dryrun.executed",
+                    payload={
+                        "alert_id": str(dr.alert_id),
+                        "plan_id": str(dr.plan_id),
+                    },
+                    href="/alerts",
                     detail={
                         "kind": "executed",
                         "entity_type": "dryrun",
@@ -502,7 +535,15 @@ class DashboardService:
                 ActivityEventSchema(
                     id=sr.id,
                     type="scenario",
-                    summary=sr.status,
+                    kind="executed",
+                    entity_type="scenario",
+                    entity_id=str(sr.id),
+                    summary="scenario.executed",
+                    payload={
+                        "scenario_id": str(sr.scenario_id),
+                        "status": str(sr.status),
+                    },
+                    href="/scenarios",
                     detail={
                         "kind": "executed",
                         "entity_type": "scenario",
