@@ -21,6 +21,23 @@ export function getRiskColor(risk: number): string {
   return '#ef4444';
 }
 
+/** 目标旋转速度（弧度/帧） */
+export const TARGET_SPEED = 0.002;
+
+/** 旋转速度渐入期时长（毫秒） */
+export const RAMP_DURATION = 1000;
+
+/**
+ * 计算旋转速度（导出以便属性测试使用）
+ * 在渐入期内速度从 0 线性增加到 TARGET_SPEED
+ * @param elapsed 自旋转开始以来经过的毫秒数
+ * @returns 当前旋转速度（弧度/帧）
+ */
+export function computeRotationSpeed(elapsed: number): number {
+  const speedFactor = Math.min(Math.max(elapsed / RAMP_DURATION, 0), 1);
+  return TARGET_SPEED * speedFactor;
+}
+
 /**
  * 根据风险值计算节点大小
  * 高风险节点（risk >= 0.7）额外放大以增强视觉突出度
@@ -92,16 +109,28 @@ export default function MiniTopology3D({ snapshot }: MiniTopology3DProps) {
   }, [snapshot]);
 
   // 自动旋转：先用 zoomToFit 居中节点，再通过 requestAnimationFrame 控制相机轨道旋转
+  // 支持 prefers-reduced-motion 时跳过自动旋转（需求 5.4）
   useEffect(() => {
     const fg = graphRef.current;
     if (!fg) return;
 
+    // 检测用户是否偏好减少动画，若是则跳过整个旋转逻辑
+    const prefersReducedMotion =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReducedMotion) return;
+
     let angle = 0;
     let frameId: number;
     let orbitDistance = 120;
+    let rotateStartTime = 0;
 
     const rotate = () => {
-      angle += 0.002;
+      // 计算渐入速度：前 1s 内从 0 线性增加到 TARGET_SPEED（需求 5.1）
+      const elapsed = Date.now() - rotateStartTime;
+      const currentSpeed = computeRotationSpeed(elapsed);
+
+      angle += currentSpeed;
       const x = orbitDistance * Math.sin(angle);
       const z = orbitDistance * Math.cos(angle);
       fg.cameraPosition({ x, y: 30, z });
@@ -114,8 +143,11 @@ export default function MiniTopology3D({ snapshot }: MiniTopology3DProps) {
       fg.zoomToFit(400, 40);
       // zoomToFit 完成后获取当前相机距离作为旋转半径
       setTimeout(() => {
-        const pos = fg.cameraPosition();
+        // cameraPosition 无参数调用为 getter，类型定义要求参数，使用断言绕过
+        const pos = (fg.cameraPosition as unknown as () => { x: number; y: number; z: number })();
         orbitDistance = Math.sqrt(pos.x * pos.x + pos.z * pos.z) || 120;
+        // 记录旋转开始时间，用于速度渐入计算
+        rotateStartTime = Date.now();
         frameId = requestAnimationFrame(rotate);
       }, 500);
     }, 1500);

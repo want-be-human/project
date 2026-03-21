@@ -6,6 +6,29 @@ import { useTranslations } from 'next-intl';
 import type { ActivityEvent } from '@/lib/api/types';
 import { api } from '@/lib/api';
 
+// ==================== 新事件追踪器 — 导出以便属性测试使用 ====================
+
+/**
+ * 创建新事件追踪器，用于追踪 WebSocket 推送的新事件 ID
+ * 初始事件列表中的事件不会被追踪，仅 WebSocket 新增的事件会被追踪
+ * 动画完成后通过 remove() 移除追踪
+ */
+export function createNewEventTracker() {
+  const ids = new Set<string>();
+  return {
+    /** 追踪新事件 ID */
+    track(id: string) { ids.add(id); },
+    /** 检查是否为新事件 */
+    isNew(id: string) { return ids.has(id); },
+    /** 动画完成后移除 */
+    remove(id: string) { ids.delete(id); },
+    /** 获取当前追踪的 ID 集合（用于测试） */
+    getIds() { return new Set(ids); },
+    /** 获取追踪数量 */
+    size() { return ids.size; },
+  };
+}
+
 // ==================== 事件类型图标映射 ====================
 const EVENT_ICONS: Record<string, string> = {
   pcap: '📦',
@@ -131,6 +154,10 @@ export default function ActivityFeed({ initialEvents }: ActivityFeedProps) {
   const wsRef = useRef<WebSocket | null>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // 新事件追踪：仅追踪 WebSocket 推送的新事件，初始事件不触发入场动画
+  const newEventTrackerRef = useRef(createNewEventTracker());
+  const [, forceUpdate] = useState(0);
+
   /**
    * 渲染事件摘要，实现三级降级策略：
    * 1. 尝试 t(activitySummary_{entity_type}_{kind}, payload)
@@ -232,6 +259,8 @@ export default function ActivityFeed({ initialEvents }: ActivityFeedProps) {
             };
 
             // 添加到列表顶部，保持最多 20 条
+            // 将新事件 ID 加入追踪集合，用于入场动画
+            newEventTrackerRef.current.track(newEvent.id);
             setEvents((prev) => [newEvent, ...prev].slice(0, 20));
           } catch {
             // 解析失败时忽略
@@ -289,33 +318,44 @@ export default function ActivityFeed({ initialEvents }: ActivityFeedProps) {
             {t('activityEmptyState')}
           </li>
         )}
-        {events.map((ev) => (
-          <li
-            key={`${ev.type}-${ev.id}`}
-            className="flex items-start gap-2 p-2 rounded-lg hover:bg-gray-800/60 cursor-pointer transition-colors"
-            onClick={() => router.push(resolveEventUrl(ev))}
-          >
-            {/* 类型图标（未知类型回退到默认图标） */}
-            <span className="text-base shrink-0 mt-0.5" aria-hidden>
-              {EVENT_ICONS[ev.type] ?? DEFAULT_EVENT_ICON}
-            </span>
-
-            {/* 事件内容 */}
-            <div className="flex-1 min-w-0">
-              <span className="text-xs text-cyan-400 font-medium">
-                {getTypeLabel(ev.type)}
+        {events.map((ev) => {
+          const eventKey = `${ev.type}-${ev.id}`;
+          const isNew = newEventTrackerRef.current.isNew(ev.id);
+          return (
+            <li
+              key={eventKey}
+              className={`flex items-start gap-2 p-2 rounded-lg hover:bg-gray-800/60 cursor-pointer transition-colors${isNew ? ' animate-slide-in' : ''}`}
+              onClick={() => router.push(resolveEventUrl(ev))}
+              onAnimationEnd={() => {
+                // 动画完成后从追踪集合中移除，触发重渲染以移除动画类
+                if (newEventTrackerRef.current.isNew(ev.id)) {
+                  newEventTrackerRef.current.remove(ev.id);
+                  forceUpdate((n) => n + 1);
+                }
+              }}
+            >
+              {/* 类型图标（未知类型回退到默认图标） */}
+              <span className="text-base shrink-0 mt-0.5" aria-hidden="true">
+                {EVENT_ICONS[ev.type] ?? DEFAULT_EVENT_ICON}
               </span>
-              <p className="text-xs text-gray-300 truncate">
-                {renderSummary(ev)}
-              </p>
-            </div>
 
-            {/* 时间 */}
-            <span className="text-[10px] text-gray-500 shrink-0 mt-0.5">
-              {formatRelativeTime(ev.created_at, t)}
-            </span>
-          </li>
-        ))}
+              {/* 事件内容 */}
+              <div className="flex-1 min-w-0">
+                <span className="text-xs text-cyan-400 font-medium">
+                  {getTypeLabel(ev.type)}
+                </span>
+                <p className="text-xs text-gray-300 truncate">
+                  {renderSummary(ev)}
+                </p>
+              </div>
+
+              {/* 时间 */}
+              <span className="text-[10px] text-gray-500 shrink-0 mt-0.5">
+                {formatRelativeTime(ev.created_at, t)}
+              </span>
+            </li>
+          );
+        })}
       </ul>
 
       {/* 查看全部活动链接 */}

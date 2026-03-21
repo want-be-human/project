@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import ReactECharts from 'echarts-for-react';
 import { useTranslations } from 'next-intl';
 import type { DashboardDistributions } from '@/lib/api/types';
+import { CHART_TOOLTIP_STYLE } from './chartStyles';
 
 interface AlertDistributionChartProps {
   distributions: DashboardDistributions;
@@ -43,7 +44,7 @@ export default function AlertDistributionChart({ distributions }: AlertDistribut
 
   if (isEmpty) {
     return (
-      <div className="bg-gray-900/80 border border-gray-700/50 rounded-2xl p-5 flex items-center justify-center">
+      <div className="bg-gray-900/80 border border-gray-700/50 hover:border-cyan-500/40 transition-colors rounded-2xl p-5 flex items-center justify-center">
         <p className="text-sm text-gray-500">{t('emptyAlertDistribution')}</p>
       </div>
     );
@@ -65,9 +66,7 @@ export default function AlertDistributionChart({ distributions }: AlertDistribut
     backgroundColor: 'transparent',
     tooltip: {
       trigger: 'item' as const,
-      backgroundColor: '#1f2937',
-      borderColor: '#374151',
-      textStyle: { color: '#e5e7eb', fontSize: 12 },
+      ...CHART_TOOLTIP_STYLE,
       formatter: (params: any) => {
         const name = params.name;
         const value = params.value;
@@ -102,7 +101,7 @@ export default function AlertDistributionChart({ distributions }: AlertDistribut
   };
 
   return (
-    <div className="bg-gray-900/80 border border-gray-700/50 rounded-2xl p-4 backdrop-blur-sm h-full flex flex-col">
+    <div className="bg-gray-900/80 border border-gray-700/50 hover:border-cyan-500/40 transition-colors rounded-2xl p-4 backdrop-blur-sm h-full flex flex-col">
       {/* 标题 */}
       <h3 className="text-sm font-semibold text-gray-200 mb-3">
         {t('chartAlertDistributionTitle')}

@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react';
 import ReactECharts from 'echarts-for-react';
 import { useTranslations } from 'next-intl';
 import type { DashboardTrends } from '@/lib/api/types';
+import { CHART_TOOLTIP_STYLE } from './chartStyles';
 
 interface AlertTrendChartProps {
   trends: DashboardTrends;
@@ -25,7 +26,7 @@ export default function AlertTrendChart({ trends }: AlertTrendChartProps) {
 
   if (isEmpty) {
     return (
-      <div className="bg-gray-900/80 border border-gray-700/50 rounded-2xl p-8 flex items-center justify-center">
+      <div className="bg-gray-900/80 border border-gray-700/50 hover:border-cyan-500/40 transition-colors rounded-2xl p-8 flex items-center justify-center">
         <p className="text-sm text-gray-500">{t('emptyAlertTrend')}</p>
       </div>
     );
@@ -65,9 +66,7 @@ export default function AlertTrendChart({ trends }: AlertTrendChartProps) {
     tooltip: {
       trigger: 'axis' as const,
       axisPointer: { type: 'cross' as const, label: { backgroundColor: '#374151' } },
-      backgroundColor: '#1f2937',
-      borderColor: '#374151',
-      textStyle: { color: '#e5e7eb', fontSize: 12 },
+      ...CHART_TOOLTIP_STYLE,
       formatter: (params: any) => {
         if (!Array.isArray(params) || params.length === 0) return '';
         const date = params[0].axisValue;
@@ -121,7 +120,7 @@ export default function AlertTrendChart({ trends }: AlertTrendChartProps) {
   };
 
   return (
-    <div className="bg-gray-900/80 border border-gray-700/50 rounded-2xl p-4 backdrop-blur-sm h-full flex flex-col">
+    <div className="bg-gray-900/80 border border-gray-700/50 hover:border-cyan-500/40 transition-colors rounded-2xl p-4 backdrop-blur-sm h-full flex flex-col">
       {/* 标题栏 + 时间范围切换 */}
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold text-gray-200">

@@ -42,7 +42,8 @@ export default async function DashboardPage() {
 
   return (
     <div className="relative min-h-screen bg-gray-950">
-      {/* 客户端动态组件：粒子背景（fixed 定位）渲染在此 */}
+      {/* 微弱网格线背景，增强深色主题层次感 */}
+      <div className="grid-background" aria-hidden="true" />
       {/* 主内容区域：z-10 确保内容层级高于粒子背景 */}
       <div className="relative z-10 flex flex-col gap-6 px-6 pt-6 pb-8">
         {/* A 层：Hero 区域 — 项目状态与态势评分 */}

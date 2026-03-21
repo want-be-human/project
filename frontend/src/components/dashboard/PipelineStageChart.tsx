@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import ReactECharts from 'echarts-for-react';
 import { useTranslations } from 'next-intl';
 import type { PipelineSnapshot } from '@/lib/api/types';
+import { CHART_TOOLTIP_STYLE } from './chartStyles';
 
 interface PipelineStageChartProps {
   pipeline: PipelineSnapshot | null;
@@ -42,7 +43,7 @@ export default function PipelineStageChart({ pipeline }: PipelineStageChartProps
   // 无数据时显示提示
   if (!pipeline?.stages?.length) {
     return (
-      <div className="bg-gray-900/80 border border-gray-700/50 rounded-2xl p-4 backdrop-blur-sm h-full flex flex-col">
+      <div className="bg-gray-900/80 border border-gray-700/50 hover:border-cyan-500/40 transition-colors rounded-2xl p-4 backdrop-blur-sm h-full flex flex-col">
         <h3 className="text-sm font-semibold text-gray-200 mb-3">
           {t('chartPipelineStageTitle')}
         </h3>
@@ -58,9 +59,7 @@ export default function PipelineStageChart({ pipeline }: PipelineStageChartProps
     tooltip: {
       trigger: 'axis' as const,
       axisPointer: { type: 'shadow' as const },
-      backgroundColor: '#1f2937',
-      borderColor: '#374151',
-      textStyle: { color: '#e5e7eb', fontSize: 12 },
+      ...CHART_TOOLTIP_STYLE,
       formatter: (params: any) => {
         const p = Array.isArray(params) ? params[0] : params;
         // 从反转后的索引还原原始阶段信息
@@ -115,7 +114,7 @@ export default function PipelineStageChart({ pipeline }: PipelineStageChartProps
   };
 
   return (
-    <div className="bg-gray-900/80 border border-gray-700/50 rounded-2xl p-4 backdrop-blur-sm h-full flex flex-col">
+    <div className="bg-gray-900/80 border border-gray-700/50 hover:border-cyan-500/40 transition-colors rounded-2xl p-4 backdrop-blur-sm h-full flex flex-col">
       <h3 className="text-sm font-semibold text-gray-200 mb-3">
         {t('chartPipelineStageTitle')}
       </h3>
