@@ -331,3 +331,19 @@ async def process_pcap(
 
     background_tasks.add_task(_process_pcap_sync, pcap_id, request.mode, request.window_sec)
     return ApiResponse.success(PcapProcessResponse(accepted=True))
+
+
+@router.delete(
+    "/{pcap_id}",
+    response_model=ApiResponse[dict],
+    summary="Delete PCAP File",
+    description="删除 PCAP 文件及其所有关联数据。",
+)
+async def delete_pcap(
+    pcap_id: str,
+    db: Session = Depends(get_db),
+) -> ApiResponse[dict]:
+    """删除 PCAP 文件、关联数据和磁盘文件。"""
+    service = IngestionService(db)
+    service.delete_pcap(pcap_id)
+    return ApiResponse.success({"deleted": True})

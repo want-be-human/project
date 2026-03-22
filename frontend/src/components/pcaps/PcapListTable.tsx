@@ -1,6 +1,6 @@
 'use client';
 
-import { Play, FileText, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { Play, FileText, CheckCircle, AlertCircle, Loader2, Trash2 } from 'lucide-react';
 import { PcapFile } from '@/lib/api/types';
 import { useTranslations } from 'next-intl';
 import { formatBytes } from '@/lib/utils';
@@ -12,9 +12,11 @@ interface PcapListTableProps {
   processingId: string | null;
   onSelect?: (pcap: PcapFile) => void;
   selectedId?: string | null;
+  onDelete?: (id: string) => void;
+  deletingId?: string | null;
 }
 
-export default function PcapListTable({ pcaps, onProcess, processingId, onSelect, selectedId }: PcapListTableProps) {
+export default function PcapListTable({ pcaps, onProcess, processingId, onSelect, selectedId, onDelete, deletingId }: PcapListTableProps) {
   const t = useTranslations('pcaps');
 
   const getStatusIcon = (status: string) => {
@@ -67,18 +69,35 @@ export default function PcapListTable({ pcaps, onProcess, processingId, onSelect
                 <td className="px-6 py-3 text-gray-600">{pcap.flow_count || '-'}</td>
                 <td className="px-6 py-3 text-gray-600">{pcap.alert_count || '-'}</td>
                 <td className="px-6 py-3 text-right">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onProcess(pcap.id); }}
-                    disabled={pcap.status === 'processing' || processingId === pcap.id}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 rounded hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {processingId === pcap.id ? (
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                    ) : (
-                      <Play className="w-3 h-3" />
+                  <div className="inline-flex items-center gap-2">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onProcess(pcap.id); }}
+                      disabled={pcap.status === 'processing' || processingId === pcap.id}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 rounded hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {processingId === pcap.id ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <Play className="w-3 h-3" />
+                      )}
+                      {t('analyze')}
+                    </button>
+                    {onDelete && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onDelete(pcap.id); }}
+                        disabled={pcap.status === 'processing' || deletingId === pcap.id}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-700 bg-red-50 rounded hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        aria-label={t('delete')}
+                      >
+                        {deletingId === pcap.id ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-3 h-3" />
+                        )}
+                        {t('delete')}
+                      </button>
                     )}
-                    {t('analyze')}
-                  </button>
+                  </div>
                 </td>
               </tr>
             ))

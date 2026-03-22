@@ -8,7 +8,7 @@ from typing import BinaryIO
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.errors import NotFoundError, UnsupportedMediaError
+from app.core.errors import ConflictError, NotFoundError, UnsupportedMediaError
 from app.core.logging import get_logger
 from app.core.utils import (
     generate_uuid,
@@ -18,6 +18,10 @@ from app.core.utils import (
     datetime_to_iso,
 )
 from app.models.pcap import PcapFile
+from app.models.flow import Flow
+from app.models.alert import Alert, alert_flows
+from app.models.pipeline import PipelineRunModel
+from app.models.scenario import Scenario, ScenarioRun
 from app.schemas.pcap import PcapFileSchema
 
 logger = get_logger(__name__)
@@ -227,3 +231,136 @@ class IngestionService:
             b"\x0a\x0d\x0d\x0a",  # PCAP-NG Section Header Block
         ]
         return magic in valid_magics
+
+
+    def _find_orphan_alerts(self, flow_ids: list[str]) -> list[str]:
+        """
+        找出仅通过给定 flow_ids 关联的 alerts。
+        即：alert 的所有关联 flow 都在 flow_ids 列表中，
+        没有其他 PCAP 的 flow 与之关联。
+        """
+        from sqlalchemy import func, select
+
+        # 找出与这些 flow 关联的所有 alert_id
+        related_alert_ids = [
+            aid for (aid,) in
+            self.db.execute(
+                select(alert_flows.c.alert_id)
+                .where(alert_flows.c.flow_id.in_(flow_ids))
+                .distinct()
+            ).all()
+        ]
+
+        if not related_alert_ids:
+            return []
+
+        # 对每个 alert，检查是否还有关联到其他 PCAP 的 flow
+        orphan_ids = []
+        for aid in related_alert_ids:
+            other_flow_count = self.db.execute(
+                select(func.count())
+                .select_from(alert_flows)
+                .where(
+                    alert_flows.c.alert_id == aid,
+                    ~alert_flows.c.flow_id.in_(flow_ids),
+                )
+            ).scalar()
+            if other_flow_count == 0:
+                orphan_ids.append(aid)
+
+        return orphan_ids
+
+
+    def _remove_disk_file(self, storage_path: str) -> None:
+        """删除磁盘文件，文件不存在时记录警告日志。"""
+        from pathlib import Path
+        path = Path(storage_path)
+        if path.exists():
+            path.unlink()
+            logger.info(f"Deleted PCAP disk file: {storage_path}")
+        else:
+            logger.warning(f"PCAP disk file not found (already removed?): {storage_path}")
+
+
+    def delete_pcap(self, pcap_id: str) -> None:
+        """
+        删除 PCAP 文件及所有关联数据。
+
+        删除顺序：alert_flows → alerts → flows → pipeline_runs → pcap_files
+        事务成功后删除磁盘文件。
+
+        Raises:
+            NotFoundError: PCAP 不存在
+            ConflictError: PCAP 正在处理中
+        """
+        # 1. 查询并校验
+        pcap = self.db.query(PcapFile).filter(PcapFile.id == pcap_id).first()
+        if not pcap:
+            raise NotFoundError(
+                message=f"PCAP file not found: {pcap_id}",
+                details={"pcap_id": pcap_id},
+            )
+        if pcap.status == "processing":
+            raise ConflictError(
+                message=f"Cannot delete PCAP {pcap_id}: currently processing",
+                details={"pcap_id": pcap_id, "status": pcap.status},
+            )
+
+        storage_path = pcap.storage_path
+
+        # 2. 在事务中按顺序删除关联数据
+        try:
+            # 获取该 PCAP 的所有 flow_id
+            flow_ids = [fid for (fid,) in
+                        self.db.query(Flow.id).filter(Flow.pcap_id == pcap_id).all()]
+
+            if flow_ids:
+                # 先找出仅属于该 PCAP 的 alerts（必须在删除 alert_flows 之前查询）
+                alert_ids_to_delete = self._find_orphan_alerts(flow_ids)
+
+                # 删除 alert_flows 关联记录
+                self.db.execute(
+                    alert_flows.delete().where(alert_flows.c.flow_id.in_(flow_ids))
+                )
+
+                # 删除孤立 alerts
+                if alert_ids_to_delete:
+                    self.db.query(Alert).filter(Alert.id.in_(alert_ids_to_delete)).delete(
+                        synchronize_session=False
+                    )
+
+                # 删除 flows
+                self.db.query(Flow).filter(Flow.pcap_id == pcap_id).delete(
+                    synchronize_session=False
+                )
+
+            # 删除 pipeline_runs
+            self.db.query(PipelineRunModel).filter(
+                PipelineRunModel.pcap_id == pcap_id
+            ).delete(synchronize_session=False)
+
+            # 删除 scenario_runs 和 scenarios
+            scenario_ids = [
+                sid for (sid,) in
+                self.db.query(Scenario.id).filter(Scenario.pcap_id == pcap_id).all()
+            ]
+            if scenario_ids:
+                self.db.query(ScenarioRun).filter(
+                    ScenarioRun.scenario_id.in_(scenario_ids)
+                ).delete(synchronize_session=False)
+                self.db.query(Scenario).filter(
+                    Scenario.pcap_id == pcap_id
+                ).delete(synchronize_session=False)
+
+            # 删除 pcap_files 主记录
+            self.db.delete(pcap)
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
+
+        # 3. 事务成功后删除磁盘文件
+        self._remove_disk_file(storage_path)
+
+
+

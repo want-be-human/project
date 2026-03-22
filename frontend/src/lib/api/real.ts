@@ -226,6 +226,11 @@ export const realApi = {
         return fetchJson<StageRecord[]>(`/api/v1/pipeline/${pcapId}/stages`);
     },
 
+    /** 删除 PCAP 文件及其所有关联数据 */
+    deletePcap: async (id: string): Promise<{ deleted: boolean }> => {
+        return fetchJson<{ deleted: boolean }>(`/api/v1/pcaps/${id}`, { method: 'DELETE' });
+    },
+
     /** 获取仪表盘聚合数据 */
     getDashboardSummary: async (): Promise<DashboardSummary> => {
         return fetchJson<DashboardSummary>('/api/v1/dashboard/summary');

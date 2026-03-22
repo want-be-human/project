@@ -15,6 +15,7 @@ export default function PcapsPage() {
   const [pcaps, setPcaps] = useState<PcapFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [selectedPcap, setSelectedPcap] = useState<PcapFile | null>(null);
   const [pipelineRun, setPipelineRun] = useState<PipelineRun | null>(null);
@@ -121,6 +122,25 @@ export default function PcapsPage() {
     setSelectedPcap(prev => prev?.id === pcap.id ? null : pcap);
   };
 
+  const handleDelete = async (id: string) => {
+    if (!window.confirm(t('deleteConfirmMessage'))) return;
+    setDeletingId(id);
+    try {
+      await api.deletePcap(id);
+      setPcaps(prev => prev.filter(p => p.id !== id));
+      if (selectedPcap?.id === id) {
+        setSelectedPcap(null);
+        setPipelineRun(null);
+        setPipelineError(null);
+      }
+    } catch (e) {
+      console.error(e);
+      alert(t('deleteFailed'));
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto">
       <div className="flex justify-between items-center mb-6">
@@ -143,6 +163,8 @@ export default function PcapsPage() {
           processingId={processingId}
           onSelect={handleSelectPcap}
           selectedId={selectedPcap?.id}
+          onDelete={handleDelete}
+          deletingId={deletingId}
         />
       )}
 
