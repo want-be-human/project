@@ -42,22 +42,6 @@ const EVENT_ICONS: Record<string, string> = {
 const DEFAULT_EVENT_ICON = '📋';
 
 // ==================== 事件导航 URL 生成 ====================
-
-// ==================== summary 标识符到 i18n 键映射（已弃用） ====================
-
-/**
- * 将后端返回的 summary 标识符映射到 i18n 翻译键
- * 修复后 summary 已改为上下文摘要，此映射仅作为兼容回退
- * 导出以便属性测试使用
- */
-export const SUMMARY_I18N_MAP: Record<string, string> = {
-  pcap_upload: 'activitySummaryPcapUpload',
-  pipeline_run: 'activitySummaryPipelineRun',
-  alert_created: 'activitySummaryAlertCreated',
-  dryrun_executed: 'activitySummaryDryrunExecuted',
-  scenario_run: 'activitySummaryScenarioRun',
-};
-
 /**
  * 根据事件类型和 ID 生成导航 URL
  * 导出以便属性测试使用

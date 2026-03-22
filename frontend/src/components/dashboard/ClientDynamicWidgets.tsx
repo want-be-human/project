@@ -77,8 +77,8 @@ export default function ClientDynamicWidgets({
       {/* 粒子背景动效：降级时不渲染 */}
       {!degraded && <ParticleBackground />}
       {/* 3D 迷你拓扑 + 活动流 */}
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
-        <div className="lg:col-span-2 h-full">
+      <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+        <div className="h-full">
           <MiniTopology3D snapshot={topologySnapshot} />
         </div>
         <div className="h-full">

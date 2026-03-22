@@ -108,11 +108,6 @@
     "noData": "暂无数据",
     "retry": "重试",
 
-    "activitySummaryPcapUpload": "PCAP 上传: {filename}",
-    "activitySummaryPipelineRun": "流水线运行: {status}",
-    "activitySummaryAlertCreated": "{type} 告警 - {severity}",
-    "activitySummaryDryrunExecuted": "Dry-Run 执行: {plan_id}",
-    "activitySummaryScenarioRun": "场景运行: {status}",
     "activitySummary_pcap_created": "PCAP 上传: {filename}",
     "activitySummary_pipeline_completed": "流水线运行: {status}",
     "activitySummary_alert_created": "{alert_type} 告警 - {severity}",

@@ -108,11 +108,6 @@
     "noData": "No data available",
     "retry": "Retry",
 
-    "activitySummaryPcapUpload": "PCAP Upload: {filename}",
-    "activitySummaryPipelineRun": "Pipeline Run: {status}",
-    "activitySummaryAlertCreated": "{type} Alert - {severity}",
-    "activitySummaryDryrunExecuted": "Dry-Run Executed: {plan_id}",
-    "activitySummaryScenarioRun": "Scenario Run: {status}",
     "activitySummary_pcap_created": "PCAP Upload: {filename}",
     "activitySummary_pipeline_completed": "Pipeline Run: {status}",
     "activitySummary_alert_created": "{alert_type} Alert - {severity}",
