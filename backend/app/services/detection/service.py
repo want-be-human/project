@@ -22,7 +22,7 @@ class DetectionService:
         self.model_params = model_params or {}
         self.model = None
         
-        # Features to use for detection
+        # 用于检测的特征集合
         self.feature_names = [
             "total_packets",
             "total_bytes",
@@ -60,16 +60,16 @@ class DetectionService:
         try:
             from sklearn.ensemble import IsolationForest
             
-            # Extract feature matrix
+            # 提取特征矩阵
             X = self._flows_to_matrix(flows)
             
             if X.shape[0] < 2:
-                # Not enough samples for meaningful detection
+                # 样本数不足，无法进行有意义的检测
                 for flow in flows:
                     flow["anomaly_score"] = 0.5
                 return flows
             
-            # Fit IsolationForest
+            # 拟合 IsolationForest
             contamination = self.model_params.get("contamination", 0.1)
             n_estimators = self.model_params.get("n_estimators", 100)
             
@@ -112,7 +112,7 @@ class DetectionService:
         except ImportError:
             logger.warning("sklearn not installed, using random scores")
             for flow in flows:
-                flow["anomaly_score"] = np.random.random() * 0.5  # Random 0-0.5
+                flow["anomaly_score"] = np.random.random() * 0.5  # 随机分数 0-0.5
         except Exception as e:
             logger.error(f"Error in anomaly detection: {e}")
             for flow in flows:
@@ -130,9 +130,9 @@ class DetectionService:
             
             for name in self.feature_names:
                 value = features.get(name, 0)
-                # Handle non-numeric values
+                # 处理非数值特征
                 if isinstance(value, str):
-                    value = hash(value) % 10  # Simple encoding
+                    value = hash(value) % 10  # 简单编码
                 row.append(float(value))
             
             rows.append(row)

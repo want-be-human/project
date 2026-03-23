@@ -67,10 +67,10 @@ export function computeStageStats(stages: StageRecord[]): {
   };
 }
 
-// 状态样式映射函数，导出以便测试使用
+// 状态样式映射函数，导出供测试使用
 export function getStatusStyle(status: string) {
   switch (status as PipelineStageStatus | 'success') {
-    // 'success' 作为旧版状态值的 fallthrough 兼容，与 'completed' 共用同一样式
+    // 'success' 作为旧版状态值做 fallthrough 兼容，与 'completed' 共用同一套样式
     case 'success':
     case 'completed':
       return {
@@ -125,7 +125,7 @@ export default function PipelineStageTimeline({ pipelineRun, loading, error }: P
     if (i18nKey) {
       return t(i18nKey);
     }
-    // 未知阶段 fallback：将下划线替换为空格并首字母大写
+    // 未知阶段兜底：将下划线替换为空格并首字母大写
     return name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   };
 

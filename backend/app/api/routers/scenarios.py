@@ -47,7 +47,7 @@ async def create_scenario(
     - Evidence chain requirements
     - Whether dry-run is required
     """
-    # Verify PCAP exists
+    # 校验 PCAP 是否存在
     pcap = db.query(PcapFile).filter(PcapFile.id == request.pcap_ref.pcap_id).first()
     if not pcap:
         raise NotFoundError(message=f"PcapFile {request.pcap_ref.pcap_id} not found")
@@ -113,7 +113,7 @@ async def run_scenario(
 
     result = svc.run_scenario(scenario)
 
-    # WS broadcast: scenario.run.done (DOC C C7.2)
+    # WS 广播：scenario.run.done（DOC C C7.2）
     asyncio.create_task(
         broadcast_scenario_done(scenario_id=scenario.id, status=result.status)
     )

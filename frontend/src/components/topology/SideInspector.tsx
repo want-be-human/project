@@ -11,7 +11,7 @@ interface SideInspectorProps {
   dryRunResult?: DryRunResult | null;
   impactedNodeIds?: Set<string>;
   impactedEdgeIds?: Set<string>;
-  /** Original risk/weight values before dry-run deltas were applied */
+  /** 应用 dry-run 增量前的原始风险/权重值 */
   originalValues?: { nodeRisks: Record<string, number>; edgeWeights: Record<string, number> };
   onClose: () => void;
   onLocateNode?: (nodeId: string) => void;
@@ -25,7 +25,7 @@ export default function SideInspector({ selectedNode, selectedEdge, dryRunResult
 
   return (
     <div className="w-80 border-l border-gray-200 bg-white flex flex-col overflow-hidden">
-      {/* Header */}
+      {/* 头部 */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 shrink-0">
         <h2 className="font-medium text-gray-900 text-sm">{t('inspectorTitle')}</h2>
         {hasSelection && (
@@ -42,7 +42,7 @@ export default function SideInspector({ selectedNode, selectedEdge, dryRunResult
           </div>
         )}
 
-        {/* Node Inspector */}
+        {/* 节点检查面板 */}
         {selectedNode && (
           <div className="space-y-4">
             <div className="flex items-center gap-2">
@@ -82,7 +82,7 @@ export default function SideInspector({ selectedNode, selectedEdge, dryRunResult
               )}
             </div>
 
-            {/* Dry-run impact info */}
+            {/* Dry-run 影响信息 */}
             {nodeIsImpacted && dryRunResult && (
               <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                 <div className="flex items-center gap-1.5 text-amber-800 font-semibold text-xs mb-2">
@@ -102,7 +102,7 @@ export default function SideInspector({ selectedNode, selectedEdge, dryRunResult
           </div>
         )}
 
-        {/* Edge Inspector */}
+        {/* 边检查面板 */}
         {selectedEdge && (
           <div className="space-y-4">
             <div className="flex items-center gap-2">
@@ -129,7 +129,7 @@ export default function SideInspector({ selectedNode, selectedEdge, dryRunResult
               <DetailRow label={t('protocols')} value={(selectedEdge.protocols ?? []).join(', ') || '—'} />
             </div>
 
-            {/* Services */}
+            {/* 服务 */}
             {(selectedEdge.services ?? []).length > 0 && (
               <div>
                 <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">{t('services')}</h4>
@@ -143,7 +143,7 @@ export default function SideInspector({ selectedNode, selectedEdge, dryRunResult
               </div>
             )}
 
-            {/* Active Intervals */}
+            {/* 活跃时间区间 */}
             {selectedEdge.activeIntervals.length > 0 && (
               <div>
                 <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">{t('activeIntervals')}</h4>
@@ -157,7 +157,7 @@ export default function SideInspector({ selectedNode, selectedEdge, dryRunResult
               </div>
             )}
 
-            {/* Alert IDs */}
+            {/* 告警 ID */}
             {(selectedEdge.alert_ids ?? []).length > 0 && (
               <div>
                 <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
@@ -181,7 +181,7 @@ export default function SideInspector({ selectedNode, selectedEdge, dryRunResult
               <div className="text-xs text-gray-400 italic">{t('noAlerts')}</div>
             )}
 
-            {/* Dry-run impact info */}
+            {/* Dry-run 影响信息 */}
             {edgeIsImpacted && dryRunResult && (
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
                 <div className="flex items-center gap-1.5 text-amber-800 font-semibold text-xs mb-2">
@@ -209,7 +209,7 @@ export default function SideInspector({ selectedNode, selectedEdge, dryRunResult
   );
 }
 
-// ── Helper components ──
+// ── 辅助组件 ──
 
 function DetailRow({
   label,

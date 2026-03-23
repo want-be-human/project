@@ -34,7 +34,7 @@ from app.schemas.alert import (
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
 
-# ---------- helper: ORM → Pydantic ----------
+# ---------- 辅助方法：ORM → Pydantic ----------
 
 def _parse_json(text: str, fallback=None):
     """Safely parse a JSON TEXT column."""
@@ -54,7 +54,7 @@ def _alert_to_schema(alert: Alert) -> AlertSchema:
     twin_raw = _parse_json(alert.twin, {})
     tags_raw = _parse_json(alert.tags, [])
 
-    # Build nested evidence
+    # 构建嵌套 evidence
     top_flows = [
         TopFlowSummary(
             flow_id=tf.get("flow_id", ""),
@@ -118,7 +118,7 @@ def _alert_to_schema(alert: Alert) -> AlertSchema:
     )
 
 
-# ---------- endpoints ----------
+# ---------- 接口 ----------
 
 @router.get(
     "",
@@ -197,7 +197,7 @@ async def update_alert(
             details={"alert_id": alert_id},
         )
 
-    # Apply partial updates
+    # 应用局部更新
     if request.status is not None:
         alert.status = request.status
     if request.severity is not None:
@@ -210,7 +210,7 @@ async def update_alert(
     db.commit()
     db.refresh(alert)
 
-    # WS broadcast alert.updated (fire-and-forget via EventBus)
+    # WS 广播 alert.updated（通过 EventBus 以 fire-and-forget 方式触发）
     try:
         from app.api.routers.stream import broadcast_alert_updated
         asyncio.create_task(broadcast_alert_updated(alert.id, alert.status))

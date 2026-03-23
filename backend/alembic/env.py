@@ -9,14 +9,14 @@ from sqlalchemy import pool
 
 from alembic import context
 
-# this is the Alembic Config object
+# 这是 Alembic 配置对象
 config = context.config
 
-# Interpret the config file for Python logging.
+# 解析配置文件中的 Python 日志设置。
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Import all models to ensure they are registered with Base
+# 导入所有模型，确保都注册到 Base
 from app.models.base import Base  # noqa: E402
 from app.models import (  # noqa: E402, F401
     PcapFile,
@@ -51,7 +51,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
-        render_as_batch=True,  # SQLite batch mode for alters
+        render_as_batch=True,  # SQLite 变更使用批处理模式
     )
 
     with context.begin_transaction():
@@ -74,7 +74,7 @@ def run_migrations_online() -> None:
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
-            render_as_batch=True,  # SQLite batch mode for alters
+            render_as_batch=True,  # SQLite 变更使用批处理模式
         )
 
         with context.begin_transaction():

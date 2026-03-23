@@ -1,6 +1,6 @@
 """
-Alerting service.
-Flow -> Alert generation and aggregation.
+告警服务。
+将 Flow 生成并聚合为 Alert。
 """
 
 import json
@@ -14,10 +14,10 @@ logger = get_logger(__name__)
 
 class AlertingService:
     """
-    Service for generating and aggregating alerts.
-    
-    Follows DOC B B4.5 specification.
-    """
+用于生成并聚合告警的服务。
+
+遵循 DOC B B4.5 规范。
+"""
 
     def __init__(
         self,
@@ -27,7 +27,7 @@ class AlertingService:
         self.score_threshold = score_threshold
         self.window_sec = window_sec
         
-        # Severity mapping based on score
+        # 基于分数的严重等级映射
         self.severity_thresholds = {
             "critical": 0.95,
             "high": 0.85,
@@ -50,7 +50,7 @@ class AlertingService:
         Returns:
             List of alert dictionaries
         """
-        # Filter anomalous flows
+        # 筛选异常流
         anomalous = [
             f for f in flows
             if (f.get("anomaly_score") or 0) >= self.score_threshold
@@ -62,10 +62,10 @@ class AlertingService:
         
         logger.info(f"Found {len(anomalous)} anomalous flows")
         
-        # Group by aggregation rule: same_src_ip + window
+        # 按聚合规则分组：same_src_ip + window
         groups = self._aggregate_flows(anomalous)
         
-        # Generate alerts from groups
+        # 基于分组生成告警
         alerts = []
         for group_key, group_flows in groups.items():
             alert = self._create_alert(group_key, group_flows, pcap_id)
@@ -86,7 +86,7 @@ class AlertingService:
             src_ip = flow.get("src_ip", "unknown")
             ts_start = flow.get("ts_start")
             
-            # Calculate time bucket
+            # 计算时间桶
             if isinstance(ts_start, datetime):
                 bucket = int(ts_start.timestamp()) // self.window_sec * self.window_sec
             else:
@@ -109,25 +109,25 @@ class AlertingService:
         """Create an alert from a group of flows."""
         now = utc_now()
         
-        # Calculate time window
+        # 计算时间窗口
         ts_starts = [f.get("ts_start") for f in flows if f.get("ts_start")]
         ts_ends = [f.get("ts_end") for f in flows if f.get("ts_end")]
         
         window_start = min(t for t in ts_starts if t is not None) if ts_starts else now
         window_end = max(t for t in ts_ends if t is not None) if ts_ends else now
         
-        # Get primary entities from most anomalous flow
+        # 从最异常流中提取主要实体
         flows_sorted = sorted(flows, key=lambda x: x.get("anomaly_score", 0), reverse=True)
         primary_flow = flows_sorted[0]
         
-        # Calculate severity from max score
+        # 由最高分计算严重等级
         max_score = max(f.get("anomaly_score", 0) for f in flows)
         severity = self._score_to_severity(max_score)
         
-        # Determine alert type based on patterns
+        # 基于模式判断告警类型
         alert_type = self._determine_type(flows)
         
-        # Build evidence
+        # 构建 evidence
         flow_ids = [f.get("id") for f in flows if f.get("id")]
         top_flows = self._get_top_flows(flows_sorted[:5])
         top_features = self._get_top_features(flows)
@@ -139,7 +139,7 @@ class AlertingService:
             "pcap_ref": {"pcap_id": pcap_id, "offset_hint": None},
         }
         
-        # Build aggregation
+        # 构建 aggregation
         aggregation = {
             "rule": f"same_src_ip + {self.window_sec}s_window",
             "group_key": group_key,
@@ -172,7 +172,7 @@ class AlertingService:
             }),
             "tags": json.dumps(["auto"]),
             "notes": "",
-            "_flow_ids": flow_ids,  # For creating alert_flows associations
+            "_flow_ids": flow_ids,  # 用于创建 alert_flows 关联
         }
         
         return alert
@@ -186,11 +186,11 @@ class AlertingService:
 
     def _determine_type(self, flows: list[dict]) -> str:
         """Determine alert type based on flow patterns."""
-        # Count unique destinations
+        # 统计唯一目标
         dst_ips = set(f.get("dst_ip") for f in flows)
         dst_ports = set(f.get("dst_port") for f in flows)
         
-        # High SYN count and many destinations -> scan
+        # SYN 数高且目标多 -> scan
         total_syn = sum(f.get("features", {}).get("syn_count", 0) for f in flows)
         total_packets = sum(f.get("features", {}).get("total_packets", 0) for f in flows)
         
@@ -200,18 +200,18 @@ class AlertingService:
         if total_packets > 100 and total_syn / max(total_packets, 1) > 0.5:
             return "scan"
         
-        # Single destination, many connections -> bruteforce
+        # 单目标且连接多 -> bruteforce
         if len(dst_ips) == 1 and len(flows) > 5:
             dst_port = flows[0].get("dst_port", 0)
-            if dst_port in [22, 23, 3389, 21]:  # SSH, Telnet, RDP, FTP
+            if dst_port in [22, 23, 3389, 21]:  # SSH、Telnet、RDP、FTP
                 return "bruteforce"
         
-        # High volume to single target -> dos
+        # 单目标高流量 -> dos
         total_bytes = sum(f.get("features", {}).get("total_bytes", 0) for f in flows)
         if total_bytes > 1000000 and len(dst_ips) == 1:  # >1MB
             return "dos"
         
-        # Default to anomaly
+        # 默认归类为 anomaly
         return "anomaly"
 
     def _get_top_flows(self, flows: list[dict]) -> list[dict]:
@@ -231,7 +231,7 @@ class AlertingService:
 
     def _get_top_features(self, flows: list[dict]) -> list[dict]:
         """Get top contributing features across flows."""
-        # Aggregate features
+        # 聚合特征
         feature_values = {}
         
         for flow in flows:
@@ -242,10 +242,10 @@ class AlertingService:
                         feature_values[name] = []
                     feature_values[name].append(value)
         
-        # Find features with highest variance or extreme values
+        # 找出方差较高或极值特征
         top_features = []
         
-        # Check for high SYN count
+        # 检查 SYN 计数是否偏高
         syn_counts = feature_values.get("syn_count", [])
         if syn_counts and max(syn_counts) > 10:
             top_features.append({
@@ -254,7 +254,7 @@ class AlertingService:
                 "direction": "high",
             })
         
-        # Check for high packet rate
+        # 检查包速率是否偏高
         total_packets = feature_values.get("total_packets", [])
         if total_packets and max(total_packets) > 100:
             top_features.append({
@@ -263,7 +263,7 @@ class AlertingService:
                 "direction": "high",
             })
         
-        # Check for RST ratio
+        # 检查 RST 比例
         rst_ratios = feature_values.get("rst_ratio", [])
         if rst_ratios and max(rst_ratios) > 0.3:
             top_features.append({
@@ -272,7 +272,7 @@ class AlertingService:
                 "direction": "high",
             })
 
-        # --- Additional candidates with lower thresholds ---
+        # --- 低阈值补充候选特征 ---
         # bytes_per_packet
         bpp = feature_values.get("bytes_per_packet", [])
         if bpp and max(bpp) > 0:
@@ -281,7 +281,7 @@ class AlertingService:
                 "value": round(max(bpp), 2),
                 "direction": "high",
             })
-        # flow_duration_ms (very short / scan-like)
+        # flow_duration_ms（极短时长/扫描特征）
         dur = feature_values.get("flow_duration_ms", [])
         if dur:
             min_dur = min(dur)
@@ -290,7 +290,7 @@ class AlertingService:
                 "value": round(min_dur, 2),
                 "direction": "low" if min_dur < 100 else "high",
             })
-        # fwd_ratio_packets (unidirectional traffic)
+        # fwd_ratio_packets（单向流特征）
         fwd = feature_values.get("fwd_ratio_packets", [])
         if fwd and max(fwd) >= 0.9:
             top_features.append({
@@ -299,4 +299,4 @@ class AlertingService:
                 "direction": "high",
             })
         
-        return top_features[:5]  # Limit to 5
+        return top_features[:5]  # 最多保留 5 项

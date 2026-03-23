@@ -1,6 +1,6 @@
 """
-Features service.
-Flow -> Features extraction.
+特征服务。
+将 Flow 提取为特征。
 """
 
 from typing import Any
@@ -12,11 +12,11 @@ logger = get_logger(__name__)
 
 class FeaturesService:
     """
-    Service for extracting features from flows.
-    
-    Follows DOC B B4.3 specification.
-    Minimum feature set (20-40 features).
-    """
+从流记录中提取特征的服务。
+
+遵循 DOC B B4.3 规范。
+最小特征集约 20-40 个特征。
+"""
 
     def __init__(self):
         pass
@@ -33,17 +33,17 @@ class FeaturesService:
         """
         features = {}
         
-        # Basic counts
+        # 基础计数
         features["total_packets"] = flow.get("packets_fwd", 0) + flow.get("packets_bwd", 0)
         features["total_bytes"] = flow.get("bytes_fwd", 0) + flow.get("bytes_bwd", 0)
         
-        # Bytes per packet
+        # 平均每包字节数
         if features["total_packets"] > 0:
             features["bytes_per_packet"] = features["total_bytes"] / features["total_packets"]
         else:
             features["bytes_per_packet"] = 0
         
-        # Flow duration (handles datetime objects *and* floats/epoch)
+        # 流持续时长（兼容 datetime 对象与 float/epoch）
         ts_start = flow.get("ts_start")
         ts_end = flow.get("ts_end")
         if ts_start and ts_end:
@@ -58,7 +58,7 @@ class FeaturesService:
         else:
             features["flow_duration_ms"] = 0
         
-        # Forward/backward ratios
+        # 正反向比例
         total_packets = features["total_packets"]
         total_bytes = features["total_bytes"]
         
@@ -72,13 +72,13 @@ class FeaturesService:
         else:
             features["fwd_ratio_bytes"] = 0.5
         
-        # Inter-arrival time statistics
+        # 包间隔时间统计
         timestamps = flow.get("_packet_timestamps", [])
         if len(timestamps) > 1:
             iats = [timestamps[i+1] - timestamps[i] for i in range(len(timestamps)-1)]
             features["iat_mean_ms"] = sum(iats) / len(iats) * 1000
             
-            # Standard deviation
+            # 标准差
             if len(iats) > 1:
                 mean = features["iat_mean_ms"] / 1000
                 variance = sum((x - mean) ** 2 for x in iats) / len(iats)
@@ -89,7 +89,7 @@ class FeaturesService:
             features["iat_mean_ms"] = 0
             features["iat_std_ms"] = 0
         
-        # TCP flags (if available)
+        # TCP 标志位（如可用）
         tcp_flags = flow.get("_tcp_flags", {})
         features["syn_count"] = tcp_flags.get("syn", 0)
         features["ack_count"] = tcp_flags.get("ack", 0)
@@ -97,7 +97,7 @@ class FeaturesService:
         features["rst_count"] = tcp_flags.get("rst", 0)
         features["psh_count"] = tcp_flags.get("psh", 0)
         
-        # Port bucket
+        # 端口分桶
         dst_port = flow.get("dst_port", 0)
         if dst_port < 1024:
             features["dst_port_bucket"] = "well_known"  # 0-1023
@@ -106,13 +106,13 @@ class FeaturesService:
         else:
             features["dst_port_bucket"] = "dynamic"  # 49152+
         
-        # Protocol-based features
+        # 协议相关特征
         proto = flow.get("proto", "OTHER")
         features["is_tcp"] = 1 if proto == "TCP" else 0
         features["is_udp"] = 1 if proto == "UDP" else 0
         features["is_icmp"] = 1 if proto == "ICMP" else 0
         
-        # Packet size statistics (forward)
+        # 正向包大小统计
         packets_fwd = flow.get("packets_fwd", 0)
         bytes_fwd = flow.get("bytes_fwd", 0)
         if packets_fwd > 0:
@@ -120,7 +120,7 @@ class FeaturesService:
         else:
             features["avg_pkt_size_fwd"] = 0
         
-        # Packet size statistics (backward)
+        # 反向包大小统计
         packets_bwd = flow.get("packets_bwd", 0)
         bytes_bwd = flow.get("bytes_bwd", 0)
         if packets_bwd > 0:
@@ -128,13 +128,13 @@ class FeaturesService:
         else:
             features["avg_pkt_size_bwd"] = 0
         
-        # SYN to packet ratio (potential scan indicator)
+        # SYN 占比（潜在扫描指标）
         if total_packets > 0:
             features["syn_ratio"] = features["syn_count"] / total_packets
         else:
             features["syn_ratio"] = 0
         
-        # RST ratio (potential rejection indicator)
+        # RST 占比（潜在拒绝指标）
         if total_packets > 0:
             features["rst_ratio"] = features["rst_count"] / total_packets
         else:

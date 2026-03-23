@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-Generate synthetic PCAP files for demo and testing.
+为演示与测试生成合成 PCAP 文件。
 
-Creates:
-- scan_demo.pcap: TCP port scan pattern
-- bruteforce_demo.pcap: SSH brute-force pattern
+生成内容：
+- scan_demo.pcap: TCP 端口扫描模式
+- bruteforce_demo.pcap: SSH 暴力破解模式
 
-Usage:
+用法：
     python -m scripts.generate_pcaps
 
-Requires: dpkt
+依赖：dpkt
 """
 
 import struct
@@ -18,7 +18,7 @@ import random
 import time
 from pathlib import Path
 
-# PCAP file format constants
+# PCAP 文件格式常量
 PCAP_MAGIC = 0xA1B2C3D4
 PCAP_VERSION_MAJOR = 2
 PCAP_VERSION_MINOR = 4
@@ -49,9 +49,9 @@ def write_packet(f, timestamp: float, packet_data: bytes):
     caplen = len(packet_data)
     origlen = caplen
     
-    # Packet header
+    # 报文头
     f.write(struct.pack('<IIII', ts_sec, ts_usec, caplen, origlen))
-    # Packet data
+    # 报文数据
     f.write(packet_data)
 
 
@@ -66,9 +66,9 @@ def build_ip_header(src_ip: str, dst_ip: str, proto: int, payload_len: int) -> b
     tos = 0
     total_len = 20 + payload_len
     identification = random.randint(0, 65535)
-    flags_fragment = 0x4000  # Don't fragment
+    flags_fragment = 0x4000  # 不分片
     ttl = 64
-    checksum = 0  # Simplified, would need calculation for real use
+    checksum = 0  # 简化处理，真实场景需计算
     
     src = socket.inet_aton(src_ip)
     dst = socket.inet_aton(dst_ip)
@@ -81,7 +81,7 @@ def build_ip_header(src_ip: str, dst_ip: str, proto: int, payload_len: int) -> b
         src, dst
     )
     
-    # Calculate checksum
+    # 计算校验和
     checksum = ip_checksum(header)
     header = struct.pack(
         '>BBHHHBBH4s4s',
@@ -112,9 +112,9 @@ def ip_checksum(header: bytes) -> int:
 
 def build_tcp_header(src_port: int, dst_port: int, flags: int, seq: int = 0, ack: int = 0) -> bytes:
     """Build TCP header with specified flags."""
-    data_offset = (5 << 4)  # 5 * 4 = 20 bytes, no options
+    data_offset = (5 << 4)  # 5 * 4 = 20 字节，无选项
     window = 65535
-    checksum = 0  # Simplified
+    checksum = 0  # 简化处理
     urgent = 0
     
     return struct.pack(
@@ -131,7 +131,7 @@ def build_tcp_syn_packet(src_mac: bytes, dst_mac: bytes, src_ip: str, dst_ip: st
     """Build a TCP SYN packet."""
     tcp_flags = 0x02  # SYN
     tcp_header = build_tcp_header(src_port, dst_port, tcp_flags)
-    ip_header = build_ip_header(src_ip, dst_ip, 6, len(tcp_header))  # 6 = TCP
+    ip_header = build_ip_header(src_ip, dst_ip, 6, len(tcp_header))  # 6 表示 TCP
     eth_header = build_ethernet_header(src_mac, dst_mac)
     
     return eth_header + ip_header + tcp_header
@@ -172,38 +172,38 @@ def generate_scan_pcap(output_path: Path):
     attacker_ip = "192.0.2.100"
     target_ip = "198.51.100.50"
     
-    # Common ports to scan
+    # 常见扫描端口
     scan_ports = [21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 445, 
                   993, 995, 1723, 3306, 3389, 5900, 8080]
     
-    # Open ports (will respond with SYN-ACK)
+    # 开放端口（会返回 SYN-ACK）
     open_ports = {22, 80, 443}
     
     base_time = time.time()
     packets = []
     
     for i, port in enumerate(scan_ports):
-        # Add some timing variation (100-300ms between probes)
+        # 增加时间抖动（探测间隔 100-300ms）
         timestamp = base_time + i * random.uniform(0.1, 0.3)
         src_port = random.randint(40000, 60000)
         
-        # SYN packet from attacker
+        # 攻击方发起 SYN 报文
         syn = build_tcp_syn_packet(attacker_mac, target_mac, attacker_ip, target_ip, src_port, port)
         packets.append((timestamp, syn))
         
-        # Response (20-50ms later)
+        # 响应（20-50ms 后）
         resp_time = timestamp + random.uniform(0.02, 0.05)
         
         if port in open_ports:
-            # SYN-ACK response
+            # SYN-ACK 响应
             syn_ack = build_tcp_syn_ack_packet(target_mac, attacker_mac, target_ip, attacker_ip, port, src_port)
             packets.append((resp_time, syn_ack))
         else:
-            # RST response (closed port)
+            # RST 响应（端口关闭）
             rst = build_tcp_rst_packet(target_mac, attacker_mac, target_ip, attacker_ip, port, src_port)
             packets.append((resp_time, rst))
     
-    # Write PCAP file
+    # 写入 PCAP 文件
     with open(output_path, 'wb') as f:
         write_pcap_header(f)
         for ts, pkt in packets:
@@ -229,30 +229,30 @@ def generate_bruteforce_pcap(output_path: Path):
     base_time = time.time()
     packets = []
     
-    # Generate 100 rapid connection attempts
+    # 生成 100 次快速连接尝试
     num_attempts = 100
     
     for i in range(num_attempts):
-        # Very fast attempts (10-50ms apart) - characteristic of brute-force
+        # 极快尝试（间隔 10-50ms）- 暴力破解典型特征
         timestamp = base_time + i * random.uniform(0.01, 0.05)
         src_port = random.randint(40000, 60000)
         
-        # SYN packet
+        # SYN 报文
         syn = build_tcp_syn_packet(attacker_mac, target_mac, attacker_ip, target_ip, src_port, target_port)
         packets.append((timestamp, syn))
         
-        # SYN-ACK response (SSH is open)
+        # SYN-ACK 响应（SSH 端口开放）
         resp_time = timestamp + random.uniform(0.005, 0.015)
         syn_ack = build_tcp_syn_ack_packet(target_mac, attacker_mac, target_ip, attacker_ip, target_port, src_port)
         packets.append((resp_time, syn_ack))
         
-        # Sometimes add RST (failed auth, connection closed)
+        # 有时补充 RST（认证失败，连接关闭）
         if random.random() < 0.7:
             rst_time = resp_time + random.uniform(0.1, 0.3)
             rst = build_tcp_rst_packet(target_mac, attacker_mac, target_ip, attacker_ip, target_port, src_port)
             packets.append((rst_time, rst))
     
-    # Write PCAP file
+    # 写入 PCAP 文件
     with open(output_path, 'wb') as f:
         write_pcap_header(f)
         for ts, pkt in sorted(packets, key=lambda x: x[0]):
@@ -262,8 +262,8 @@ def generate_bruteforce_pcap(output_path: Path):
 
 
 def main():
-    """Generate demo PCAP files."""
-    # Create output directory
+    """生成示例 PCAP 文件。"""
+    # 创建输出目录
     demo_dir = Path(__file__).parent.parent / "data" / "pcaps"
     demo_dir.mkdir(parents=True, exist_ok=True)
     
@@ -271,11 +271,11 @@ def main():
     print(f"Output directory: {demo_dir}")
     print()
     
-    # Generate scan demo
+    # 生成扫描示例
     scan_path = demo_dir / "scan_demo.pcap"
     generate_scan_pcap(scan_path)
     
-    # Generate brute-force demo
+    # 生成暴力破解示例
     bruteforce_path = demo_dir / "bruteforce_demo.pcap"
     generate_bruteforce_pcap(bruteforce_path)
     

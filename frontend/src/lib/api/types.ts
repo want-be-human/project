@@ -232,9 +232,9 @@ export interface DryRunResult {
         reachability_drop?: number;
         service_disruption_risk?: number;
         warnings?: string[];
-        /** Per-node risk score changes: nodeId → new risk after action */
+        /** 节点级风险分值变化：nodeId → 执行动作后的新风险值 */
         node_risk_deltas?: Record<string, number>;
-        /** Per-edge weight changes: edgeId → new weight after action */
+        /** 边级权重变化：edgeId → 执行动作后的新权重 */
         edge_weight_deltas?: Record<string, number>;
         [key: string]: any;
     };

@@ -1,12 +1,12 @@
 import type { GraphNode, GraphEdge } from '@/lib/api/types';
 
-/** Available layout modes */
+/** 可用的布局模式 */
 export type LayoutMode = 'circle' | 'force' | 'dag' | 'clustered-subnet';
 
-/** Position dictionary: nodeId → [x, y, z] */
+/** 坐标字典：nodeId → [x, y, z] */
 export type LayoutResult = Record<string, [number, number, number]>;
 
-/** Input for layout computation */
+/** 布局计算输入 */
 export interface LayoutConfig {
   nodes: GraphNode[];
   edges: GraphEdge[];

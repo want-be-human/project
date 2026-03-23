@@ -1,7 +1,7 @@
 import type { LayoutConfig, LayoutResult } from './types';
 
 /**
- * Extract /24 subnet prefix from a node ID.
+ * 从节点 ID 中提取 /24 子网前缀。
  * "ip:192.168.1.10" → "192.168.1"
  * "subnet:10.0.0.0/24" → "10.0.0"
  */
@@ -12,15 +12,15 @@ function subnetPrefix(nodeId: string): string {
 }
 
 /**
- * Clustered-subnet layout.
- * Groups nodes by /24 subnet prefix, arranges groups on a ring,
- * and places nodes within each group in a smaller ring.
+ * 子网分簇布局。
+ * 按 /24 子网前缀对节点分组，将各组排布在外环上，
+ * 并把组内节点排布在更小的内环上。
  */
 export function clusteredSubnetLayout(config: LayoutConfig): LayoutResult {
   const { nodes } = config;
   if (nodes.length === 0) return {};
 
-  // Group by subnet prefix
+  // 按子网前缀分组
   const groups = new Map<string, typeof nodes>();
   for (const node of nodes) {
     const prefix = subnetPrefix(node.id);
@@ -32,18 +32,18 @@ export function clusteredSubnetLayout(config: LayoutConfig): LayoutResult {
   const groupKeys = Array.from(groups.keys()).sort();
   const groupCount = groupKeys.length;
 
-  // Outer ring radius for cluster centres
+  // 集群中心外环半径
   const outerRadius = 5 + groupCount * 3;
 
   groupKeys.forEach((key, gi) => {
     const members = groups.get(key)!;
     const groupAngle = (gi / groupCount) * Math.PI * 2;
 
-    // Group centre
+    // 组中心
     const cx = Math.cos(groupAngle) * outerRadius;
     const cz = Math.sin(groupAngle) * outerRadius;
 
-    // Inner ring for group members
+    // 组成员内环
     const innerRadius = 1 + members.length * 0.6;
     members.forEach((node, ni) => {
       const nodeAngle = (ni / members.length) * Math.PI * 2;

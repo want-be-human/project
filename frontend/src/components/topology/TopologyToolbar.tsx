@@ -15,7 +15,7 @@ interface TopologyToolbarProps {
   endTime?: string;
   onStartTimeChange?: (value: string) => void;
   onEndTimeChange?: (value: string) => void;
-  // ── New props ──
+  // ── 新增属性 ──
   layoutMode?: LayoutMode;
   onLayoutModeChange?: (mode: LayoutMode) => void;
   showLabels?: boolean;
@@ -81,7 +81,7 @@ export default function TopologyToolbar({
         </button>
       </div>
 
-      {/* ── Layout mode selector ── */}
+      {/* ── 布局模式选择器 ── */}
       {onLayoutModeChange && (
         <div className="flex items-center gap-1.5">
           <Layout className="w-3.5 h-3.5 text-gray-400" />
@@ -99,9 +99,9 @@ export default function TopologyToolbar({
         </div>
       )}
 
-      {/* ── Visual toggles ── */}
+      {/* ── 可视化开关 ── */}
       <div className="flex items-center gap-1 border-l border-gray-200 pl-3">
-        {/* Labels */}
+        {/* 标签 */}
         {onShowLabelsChange && (
           <button
             onClick={() => onShowLabelsChange(!showLabels)}
@@ -111,7 +111,7 @@ export default function TopologyToolbar({
             {showLabels ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
           </button>
         )}
-        {/* Arrows */}
+        {/* 箭头 */}
         {onShowArrowsChange && (
           <button
             onClick={() => onShowArrowsChange(!showArrows)}
@@ -121,7 +121,7 @@ export default function TopologyToolbar({
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         )}
-        {/* Risk Heat */}
+        {/* 风险热力 */}
         {onRiskHeatChange && (
           <button
             onClick={() => onRiskHeatChange(!riskHeatEnabled)}
@@ -133,7 +133,7 @@ export default function TopologyToolbar({
         )}
       </div>
 
-      {/* ── Camera presets ── */}
+      {/* ── 相机预设 ── */}
       {onCameraPreset && (
         <div className="flex items-center gap-1 border-l border-gray-200 pl-3">
           <button onClick={() => onCameraPreset('top')} className="px-1.5 py-1 text-[10px] text-gray-500 hover:bg-gray-100 rounded font-medium" title={t('cameraTop')}>
@@ -151,7 +151,7 @@ export default function TopologyToolbar({
         </div>
       )}
 
-      {/* Time range */}
+      {/* 时间范围 */}
       {onStartTimeChange && onEndTimeChange && (
         <div className="flex items-center gap-2 text-sm border-l border-gray-200 pl-3">
           <label className="text-gray-500 font-medium text-xs">{t('from')}</label>
@@ -171,7 +171,7 @@ export default function TopologyToolbar({
         </div>
       )}
 
-      {/* Refresh */}
+      {/* 刷新 */}
       <button
         onClick={onRefresh}
         disabled={loading}
@@ -181,10 +181,10 @@ export default function TopologyToolbar({
         <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
       </button>
 
-      {/* Spacer */}
+      {/* 占位间隔 */}
       <div className="flex-grow" />
 
-      {/* Highlight indicator */}
+      {/* 高亮指示 */}
       {highlightAlertId && (
         <div
           className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-50 border border-red-200 text-red-700 text-xs font-medium relative group cursor-default"
@@ -192,7 +192,7 @@ export default function TopologyToolbar({
           <Crosshair className="w-3.5 h-3.5" />
           <span>{t('highlightingAlert')}</span>
           <span className="font-mono">{highlightAlertId.substring(0, 8)}...</span>
-          {/* Full ID tooltip on hover */}
+          {/* 悬停时显示完整 ID 的提示 */}
           <div className="absolute top-full right-0 mt-1 px-3 py-1.5 bg-gray-900 text-white text-xs font-mono rounded shadow-lg whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50">
             {highlightAlertId}
           </div>

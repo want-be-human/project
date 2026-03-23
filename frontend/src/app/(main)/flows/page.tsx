@@ -33,7 +33,7 @@ export default function FlowsPage() {
     setFilters(newFilters);
   }, []);
 
-  // Derive filtered flows from state
+  // 基于当前状态派生过滤后的 flow 列表
   const filteredFlows = flows.filter(f => {
     if (filters.pcap_id && !f.pcap_id.includes(filters.pcap_id)) return false;
     if (filters.src_ip && !f.src_ip.includes(filters.src_ip)) return false;

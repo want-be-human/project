@@ -29,16 +29,16 @@ export default function AlertsPage() {
   useEffect(() => {
     fetchAlerts();
 
-    // Subscribe to WS events
+    // 订阅 WebSocket 事件
     const unsubscribeCreated = wsClient.onEvent('alert.created', (data) => {
       setToast({ message: t('toastCreated', { severity: data.severity }), type: 'info' });
-      fetchAlerts(); // Refresh list
+      fetchAlerts(); // 刷新列表
       setTimeout(() => setToast(null), 3000);
     });
 
     const unsubscribeUpdated = wsClient.onEvent('alert.updated', (data) => {
       setToast({ message: t('toastUpdated', { status: data.status }), type: 'success' });
-      fetchAlerts(); // Refresh list
+      fetchAlerts(); // 刷新列表
       setTimeout(() => setToast(null), 3000);
     });
 
@@ -54,18 +54,18 @@ export default function AlertsPage() {
 
   const handleStatusChange = async (id: string, newStatus: string) => {
     try {
-      // Optimistic update
+      // 乐观更新
       setAlerts(prev => prev.map(a => a.id === id ? { ...a, status: newStatus as any } : a));
       
       await api.patchAlert(id, { status: newStatus as any });
     } catch (e) {
       console.error("Failed to update alert status", e);
-      // Revert on failure
+      // 失败时回滚
       fetchAlerts();
     }
   };
 
-  // Derive filtered alerts
+  // 根据筛选条件派生告警列表
   const filteredAlerts = alerts.filter(a => {
     if (filters.status && a.status !== filters.status) return false;
     if (filters.severity && a.severity !== filters.severity) return false;
@@ -75,7 +75,7 @@ export default function AlertsPage() {
 
   return (
     <div className="max-w-7xl mx-auto h-[calc(100vh-100px)] flex flex-col relative">
-      {/* Toast Notification */}
+      {/* Toast 提示 */}
       {toast && (
         <div className={`absolute top-0 right-0 m-4 p-4 rounded shadow-lg z-50 text-white transition-opacity ${toast.type === 'info' ? 'bg-blue-600' : 'bg-green-600'}`}>
           {toast.message}

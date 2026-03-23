@@ -1,13 +1,13 @@
 """
-Error handling and custom exceptions.
-Follows DOC C C0.3 error codes.
+错误处理与自定义异常。
+遵循 DOC C C0.3 错误码规范。
 """
 
 from typing import Any
 from fastapi import status
 
 
-# DOC C C0.3 Error Codes
+# DOC C C0.3 错误码
 class ErrorCode:
     BAD_REQUEST = "BAD_REQUEST"
     NOT_FOUND = "NOT_FOUND"
@@ -19,7 +19,7 @@ class ErrorCode:
 
 
 class AppException(Exception):
-    """Base application exception."""
+    """应用异常基类。"""
 
     def __init__(
         self,
@@ -36,7 +36,7 @@ class AppException(Exception):
 
 
 class BadRequestError(AppException):
-    """400 Bad Request - Parameter error."""
+    """400 Bad Request - 参数错误。"""
 
     def __init__(self, message: str, details: dict[str, Any] | None = None):
         super().__init__(
@@ -48,7 +48,7 @@ class BadRequestError(AppException):
 
 
 class NotFoundError(AppException):
-    """404 Not Found - Resource not found."""
+    """404 Not Found - 资源不存在。"""
 
     def __init__(self, message: str, details: dict[str, Any] | None = None):
         super().__init__(
@@ -60,7 +60,7 @@ class NotFoundError(AppException):
 
 
 class ConflictError(AppException):
-    """409 Conflict - State conflict."""
+    """409 Conflict - 状态冲突。"""
 
     def __init__(self, message: str, details: dict[str, Any] | None = None):
         super().__init__(
@@ -72,7 +72,7 @@ class ConflictError(AppException):
 
 
 class UnsupportedMediaError(AppException):
-    """415 Unsupported Media Type - Not a pcap file."""
+    """415 Unsupported Media Type - 非 pcap 文件。"""
 
     def __init__(self, message: str, details: dict[str, Any] | None = None):
         super().__init__(
@@ -84,7 +84,7 @@ class UnsupportedMediaError(AppException):
 
 
 class ProcessingFailedError(AppException):
-    """500 Processing Failed - Parsing/detection failed."""
+    """500 Processing Failed - 解析/检测失败。"""
 
     def __init__(self, message: str, details: dict[str, Any] | None = None):
         super().__init__(
@@ -96,7 +96,7 @@ class ProcessingFailedError(AppException):
 
 
 class ValidationError(AppException):
-    """422 Validation Error - Schema validation failed."""
+    """422 Validation Error - 模式校验失败。"""
 
     def __init__(self, message: str, details: dict[str, Any] | None = None):
         super().__init__(
@@ -108,7 +108,7 @@ class ValidationError(AppException):
 
 
 class InternalError(AppException):
-    """500 Internal Error - Unknown error."""
+    """500 Internal Error - 未知错误。"""
 
     def __init__(self, message: str = "Internal server error", details: dict[str, Any] | None = None):
         super().__init__(

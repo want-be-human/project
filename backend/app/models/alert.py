@@ -11,7 +11,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, BaseModel
 
 
-# Many-to-many association table (附录F Section 4)
+# 多对多关联表（附录F 第 4 节）
 alert_flows = Table(
     "alert_flows",
     Base.metadata,
@@ -31,7 +31,7 @@ class Alert(BaseModel):
 
     __tablename__ = "alerts"
 
-    # Core fields
+    # 核心字段
     severity: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
@@ -49,17 +49,17 @@ class Alert(BaseModel):
         default="anomaly",
     )  # anomaly, scan, dos, bruteforce, exfil, unknown
 
-    # Time window (拆分存储)
+    # 时间窗口（拆分存储）
     time_window_start: Mapped[datetime] = mapped_column(nullable=False)
     time_window_end: Mapped[datetime] = mapped_column(nullable=False)
 
-    # Primary entities (拆分存储便于索引)
+    # 主要实体（拆分存储便于索引）
     primary_src_ip: Mapped[str] = mapped_column(String(45), nullable=False)
     primary_dst_ip: Mapped[str] = mapped_column(String(45), nullable=False)
     primary_proto: Mapped[str] = mapped_column(String(10), nullable=False)
     primary_dst_port: Mapped[int] = mapped_column(Integer, nullable=False)
 
-    # JSON blocks - stored as TEXT for SQLite compatibility
+    # JSON 块：为兼容 SQLite，使用 TEXT 存储
     evidence: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     aggregation: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     agent: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
@@ -67,14 +67,14 @@ class Alert(BaseModel):
     tags: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     notes: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
-    # Relationships
+    # 关联关系
     flows = relationship(
         "Flow",
         secondary=alert_flows,
         backref="alerts",
     )
 
-    # Indexes (附录F 3.2)
+    # 索引（附录F 3.2）
     __table_args__ = (
         Index("idx_alert_status_created", "status", "created_at"),
         Index("idx_alert_sev_created", "severity", "created_at"),

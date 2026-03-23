@@ -42,7 +42,7 @@ export default function PcapsPage() {
     fetchPcaps();
   }, []);
 
-  // Fetch pipeline run when a PCAP is selected or after processing completes
+  // 当选中 PCAP 或处理完成后获取对应的 Pipeline 运行记录
   useEffect(() => {
     if (!selectedPcap) {
       setPipelineRun(null);
@@ -79,7 +79,7 @@ export default function PcapsPage() {
     return () => { cancelled = true; };
   }, [selectedPcap?.id, pipelineRefreshToken]);
 
-  // Subscribe to WS events for real-time progress updates
+  // 订阅 WebSocket 事件以实时更新处理进度
   useEffect(() => {
     const unsubProgress = wsClient.onEvent('pcap.process.progress', (data: { pcap_id: string; percent: number }) => {
       setPcaps(prev => prev.map(p =>
@@ -95,9 +95,9 @@ export default function PcapsPage() {
           ? { ...p, status: 'done' as const, progress: 100, flow_count: data.flow_count, alert_count: data.alert_count }
           : p
       ));
-      // Also do a full refresh to ensure consistency
+      // 同时执行一次全量刷新，确保数据一致
       fetchPcaps();
-      // If the completed PCAP is selected, refresh its pipeline data
+      // 若当前选中的是已完成的 PCAP，则刷新其 Pipeline 数据
       if (data.pcap_id === selectedPcap?.id) {
         setPipelineRefreshToken(t => t + 1);
       }
@@ -167,8 +167,8 @@ export default function PcapsPage() {
     setProcessingId(id);
     try {
       await api.processPcap(id, { mode: 'flows_and_detect' });
-      // WS events (pcap.process.progress / pcap.process.done) will handle updates
-      // Do an initial optimistic status change
+      // 后续状态更新由 WebSocket 事件（pcap.process.progress / pcap.process.done）处理
+      // 先进行一次乐观状态更新
       setPcaps(prev => prev.map(p =>
         p.id === id ? { ...p, status: 'processing' as const, progress: 10 } : p
       ));

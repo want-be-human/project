@@ -135,7 +135,7 @@ async def compile_plan(
     return ApiResponse.success(response)
 
 
-# ---------- lookup endpoints ----------
+# ---------- 查询接口 ----------
 
 @lookup_router.get(
     "/investigations/{investigation_id}",

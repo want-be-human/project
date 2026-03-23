@@ -21,7 +21,7 @@ export default function ActionBuilder({ alertId, initialRecommendation, onPlanCr
   const [newActionType, setNewActionType] = useState('block_ip');
   const [newActionTarget, setNewActionTarget] = useState('');
 
-  // Compile-plan state
+  // compile-plan 状态
   const [compiledResult, setCompiledResult] = useState<CompilePlanResponse | null>(null);
   const [compiling, setCompiling] = useState(false);
   const [selectedActions, setSelectedActions] = useState<number[]>([]);
@@ -34,9 +34,9 @@ export default function ActionBuilder({ alertId, initialRecommendation, onPlanCr
     'rate_limit_service',
   ]);
 
-  // Hydrate from recommendation (fallback path — only when no compiled result)
+  // 从 recommendation 回填（兜底路径：仅在无编译结果时生效）
   useEffect(() => {
-    if (compiledResult) return; // Don't override compiled result
+    if (compiledResult) return; // 不覆盖已存在的编译结果
     if (initialRecommendation && initialRecommendation.actions.length > 0) {
       const inferActionType = (title: string): string => {
         const t = title.toLowerCase();
@@ -64,7 +64,7 @@ export default function ActionBuilder({ alertId, initialRecommendation, onPlanCr
     }
   }, [initialRecommendation, compiledResult]);
 
-  // ── Compile Plan ──
+  // ── 编译方案 ──
   const handleCompilePlan = async () => {
     setCompiling(true);
     try {
@@ -73,7 +73,7 @@ export default function ActionBuilder({ alertId, initialRecommendation, onPlanCr
         language: locale === 'zh' ? 'zh' : 'en',
       });
       setCompiledResult(result);
-      // Select all compiled actions by default
+      // 默认全选已编译动作
       const compiledActions = result.plan.actions as CompiledAction[];
       setSelectedActions(compiledActions.map((_, i) => i));
       setSource('agent');
@@ -85,7 +85,7 @@ export default function ActionBuilder({ alertId, initialRecommendation, onPlanCr
     }
   };
 
-  // ── Toggle action selection ──
+  // ── 切换动作选中状态 ──
   const toggleAction = (idx: number) => {
     setSelectedActions(prev =>
       prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]
@@ -119,16 +119,16 @@ export default function ActionBuilder({ alertId, initialRecommendation, onPlanCr
     setActions(newActions);
   };
 
-  // ── Create Plan ──
+  // ── 创建方案 ──
   const handleCreatePlan = async () => {
     setLoading(true);
     try {
       if (compiledResult) {
-        // Backend compile-plan already persisted the plan via TwinService.create_plan()
-        // Use the compiled plan directly — no need to call createPlan again
+        // 后端 compile-plan 已通过 TwinService.create_plan() 持久化方案
+        // 直接使用编译方案，无需再次调用 createPlan
         onPlanCreated(compiledResult.plan);
       } else {
-        // Fallback: manual actions → createPlan
+        // 兜底：手工 actions → createPlan
         const plan = await api.createPlan({
           alert_id: alertId,
           source: source,
@@ -145,7 +145,7 @@ export default function ActionBuilder({ alertId, initialRecommendation, onPlanCr
     }
   };
 
-  // ── Confidence color helper ──
+  // ── 置信度颜色辅助函数 ──
   const confidenceColor = (c: number) => {
     if (c >= 0.8) return { bar: 'bg-green-500', text: 'text-green-700', bg: 'bg-green-50' };
     if (c >= 0.6) return { bar: 'bg-yellow-500', text: 'text-yellow-700', bg: 'bg-yellow-50' };
@@ -170,7 +170,7 @@ export default function ActionBuilder({ alertId, initialRecommendation, onPlanCr
         </span>
       </div>
 
-      {/* ── Compile Plan Button ── */}
+      {/* ── 编译方案按钮 ── */}
       {initialRecommendation && !hasCompiled && (
         <div className="mb-4">
           <button
@@ -184,10 +184,10 @@ export default function ActionBuilder({ alertId, initialRecommendation, onPlanCr
         </div>
       )}
 
-      {/* ── Compiled Actions Panel ── */}
+      {/* ── 已编译动作面板 ── */}
       {hasCompiled && compiledActions && (
         <div className="mb-6 space-y-3">
-          {/* Compilation metadata */}
+          {/* 编译元信息 */}
           <div className="flex items-center gap-4 text-xs text-gray-500 bg-gray-50 rounded px-3 py-2 border border-gray-100">
             <span className="font-semibold text-gray-700">{t('compilationMeta')}</span>
             <span>{t('rulesMatched')}: <strong className="text-gray-800">{compiledResult!.compilation.rules_matched}</strong></span>
@@ -195,7 +195,7 @@ export default function ActionBuilder({ alertId, initialRecommendation, onPlanCr
             <span>{t('compilerVersion')}: <strong className="text-gray-800">{compiledResult!.compilation.compiler_version}</strong></span>
           </div>
 
-          {/* Select all */}
+          {/* 全选 */}
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-semibold text-indigo-800 flex items-center gap-1.5">
               <Shield className="w-4 h-4" /> {t('compiledActions')}
@@ -206,7 +206,7 @@ export default function ActionBuilder({ alertId, initialRecommendation, onPlanCr
             </button>
           </div>
 
-          {/* Action cards */}
+          {/* 动作卡片 */}
           {compiledActions.map((action, idx) => {
             const cc = confidenceColor(action.confidence);
             const isSelected = selectedActions.includes(idx);
@@ -218,7 +218,7 @@ export default function ActionBuilder({ alertId, initialRecommendation, onPlanCr
                   isSelected ? 'border-indigo-400 bg-white' : 'border-gray-200 bg-gray-50 opacity-70'
                 }`}
               >
-                {/* Header */}
+                {/* 头部 */}
                 <div className="flex items-center gap-3 p-3 cursor-pointer" onClick={() => toggleAction(idx)}>
                   <span className="flex-shrink-0">
                     {isSelected ? <CheckSquare className="w-4 h-4 text-indigo-600" /> : <Square className="w-4 h-4 text-gray-400" />}
@@ -227,7 +227,7 @@ export default function ActionBuilder({ alertId, initialRecommendation, onPlanCr
                   <span className="text-gray-400">→</span>
                   <span className="font-mono text-sm text-blue-600">{action.target.type}:{action.target.value}</span>
                   <div className="ml-auto flex items-center gap-2">
-                    {/* Confidence badge */}
+                    {/* 置信度徽标 */}
                     <span className={`px-2 py-0.5 rounded text-xs font-bold ${cc.bg} ${cc.text}`}>
                       {t('confidence')}: {(action.confidence * 100).toFixed(0)}%
                     </span>
@@ -237,22 +237,22 @@ export default function ActionBuilder({ alertId, initialRecommendation, onPlanCr
                   </div>
                 </div>
 
-                {/* Confidence bar */}
+                {/* 置信度进度条 */}
                 <div className="px-3 pb-2">
                   <div className="w-full bg-gray-200 rounded-full h-1.5">
                     <div className={`${cc.bar} h-1.5 rounded-full transition-all`} style={{ width: `${action.confidence * 100}%` }} />
                   </div>
                 </div>
 
-                {/* Reasoning summary (always visible) */}
+                {/* 推理摘要（始终可见） */}
                 <div className="px-3 pb-3 text-xs text-gray-600">
                   <span className="font-semibold text-gray-500">{t('reasoning')}:</span> {action.reasoning_summary}
                 </div>
 
-                {/* Expanded details */}
+                {/* 展开详情 */}
                 {isExpanded && (
                   <div className="px-3 pb-3 space-y-2 border-t border-gray-100 pt-2">
-                    {/* Evidence */}
+                    {/* 证据 */}
                     <div>
                       <span className="text-xs font-semibold text-gray-500">{t('evidence')}:</span>
                       <div className="flex flex-wrap gap-1 mt-1">
@@ -261,12 +261,12 @@ export default function ActionBuilder({ alertId, initialRecommendation, onPlanCr
                         ))}
                       </div>
                     </div>
-                    {/* Params */}
+                    {/* 参数 */}
                     <div>
                       <span className="text-xs font-semibold text-gray-500">{t('params')}:</span>
                       <pre className="mt-1 text-xs bg-gray-50 rounded p-2 overflow-x-auto text-gray-700">{JSON.stringify(action.params, null, 2)}</pre>
                     </div>
-                    {/* Rollback */}
+                    {/* 回滚 */}
                     {action.rollback && (
                       <div>
                         <span className="text-xs font-semibold text-gray-500">{t('rollback')}:</span>

@@ -20,41 +20,41 @@ class Flow(BaseModel):
 
     __tablename__ = "flows"
 
-    # Foreign key to pcap_files
+    # 指向 pcap_files 的外键
     pcap_id: Mapped[str] = mapped_column(
         String(36),
         ForeignKey("pcap_files.id", ondelete="CASCADE"),
         nullable=False,
     )
 
-    # Time range
+    # 时间范围
     ts_start: Mapped[datetime] = mapped_column(nullable=False)
     ts_end: Mapped[datetime] = mapped_column(nullable=False)
 
-    # 5-tuple
+    # 五元组
     src_ip: Mapped[str] = mapped_column(String(45), nullable=False)  # IPv6 max length
     src_port: Mapped[int] = mapped_column(Integer, nullable=False)
     dst_ip: Mapped[str] = mapped_column(String(45), nullable=False)
     dst_port: Mapped[int] = mapped_column(Integer, nullable=False)
     proto: Mapped[str] = mapped_column(String(10), nullable=False)  # TCP, UDP, ICMP, OTHER
 
-    # Packet and byte counts
+    # 报文与字节计数
     packets_fwd: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     packets_bwd: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     bytes_fwd: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     bytes_bwd: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
-    # Features JSON - stored as TEXT for SQLite compatibility
+    # 特征 JSON：为兼容 SQLite，使用 TEXT 存储
     features: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
 
-    # Anomaly detection
+    # 异常检测字段
     anomaly_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     label: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
 
-    # Relationships
+    # 关联关系
     pcap = relationship("PcapFile", backref="flows")
 
-    # Indexes (附录F 2.2)
+    # 索引（附录F 2.2）
     __table_args__ = (
         Index("idx_flow_pcap_ts", "pcap_id", "ts_start"),
         Index("idx_flow_pcap_src", "pcap_id", "src_ip"),

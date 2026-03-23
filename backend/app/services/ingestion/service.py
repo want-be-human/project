@@ -47,23 +47,23 @@ class IngestionService:
         Raises:
             UnsupportedMediaError: If file is not a valid PCAP
         """
-        # Validate filename
+        # 校验文件名
         if not is_valid_pcap_filename(filename):
             raise UnsupportedMediaError(
                 message=f"Invalid file extension. Expected .pcap or .pcapng, got: {filename}",
                 details={"filename": filename},
             )
 
-        # Generate unique ID and storage path
+        # 生成唯一 ID 与存储路径
         pcap_id = generate_uuid()
         safe_filename = sanitize_filename(filename)
         storage_path = settings.PCAP_DIR / f"{pcap_id}.pcap"
 
-        # Write file to disk
+        # 写入磁盘
         content = file.read()
         size_bytes = len(content)
 
-        # Basic PCAP magic number validation
+        # 基础 PCAP 魔数校验
         if not self._is_valid_pcap_magic(content):
             raise UnsupportedMediaError(
                 message="File does not appear to be a valid PCAP file (invalid magic number)",
@@ -73,10 +73,10 @@ class IngestionService:
         storage_path.write_bytes(content)
         logger.info(f"Saved PCAP file: {pcap_id} ({size_bytes} bytes)")
 
-        # Compute hash (optional but useful)
+        # 计算哈希（可选但有帮助）
         file_hash = compute_file_hash(storage_path)
 
-        # Create database record
+        # 创建数据库记录
         pcap_record = PcapFile(
             id=pcap_id,
             filename=safe_filename,

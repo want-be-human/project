@@ -18,26 +18,26 @@ class TwinPlan(BaseModel):
 
     __tablename__ = "twin_plans"
 
-    # Foreign key to alerts
+    # 指向 alerts 的外键
     alert_id: Mapped[str] = mapped_column(
         String(36),
         ForeignKey("alerts.id", ondelete="CASCADE"),
         nullable=False,
     )
 
-    # Source: agent or manual
+    # 来源：agent 或 manual
     source: Mapped[str] = mapped_column(String(20), nullable=False)
 
-    # Actions JSON array
+    # 动作 JSON 数组
     actions: Mapped[str] = mapped_column(Text, nullable=False)
 
-    # Notes
+    # 备注
     notes: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
-    # Relationship
+    # 关联关系
     alert = relationship("Alert", backref="twin_plans")
 
-    # Index (附录F 7.2)
+    # 索引（附录F 7.2）
     __table_args__ = (
         Index("idx_plan_alert_created", "alert_id", "created_at"),
     )
@@ -55,7 +55,7 @@ class DryRun(BaseModel):
 
     __tablename__ = "dry_runs"
 
-    # Foreign keys
+    # 外键
     alert_id: Mapped[str] = mapped_column(
         String(36),
         ForeignKey("alerts.id", ondelete="CASCADE"),
@@ -67,14 +67,14 @@ class DryRun(BaseModel):
         nullable=False,
     )
 
-    # Full DryRunResult JSON payload
+    # 完整 DryRunResult JSON 载荷
     payload: Mapped[str] = mapped_column(Text, nullable=False)
 
-    # Relationships
+    # 关联关系
     alert = relationship("Alert", backref="dry_runs")
     plan = relationship("TwinPlan", backref="dry_runs")
 
-    # Indexes (附录F 8.2)
+    # 索引（附录F 8.2）
     __table_args__ = (
         Index("idx_dry_alert_created", "alert_id", "created_at"),
         Index("idx_dry_plan_created", "plan_id", "created_at"),

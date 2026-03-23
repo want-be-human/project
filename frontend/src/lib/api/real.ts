@@ -30,7 +30,7 @@ async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<T>
                 detail = ` - ${payload.error.message}`;
             }
         } catch {
-            // ignore parsing failures and keep status text fallback
+            // 忽略解析失败，保留 status text 作为兜底提示
         }
         throw new Error(`API Error: ${res.status} ${res.statusText}${detail}`);
   }
@@ -135,7 +135,7 @@ export const realApi = {
     },
 
     createPlan: async (body: any): Promise<ActionPlan> => {
-         // Transform frontend action shape to backend PlanAction schema
+         // 将前端 action 结构转换为后端 PlanAction schema
          const allowedActionTypes = new Set([
             'block_ip',
             'isolate_host',
@@ -154,7 +154,7 @@ export const realApi = {
             return { type, value };
          };
          const normalizeRollback = (rollback: any) => {
-            // Backend expects rollback as object {action_type, params} or null
+            // 后端要求 rollback 为对象 {action_type, params} 或 null
             if (!rollback || typeof rollback !== 'object' || Array.isArray(rollback)) {
                 return null;
             }

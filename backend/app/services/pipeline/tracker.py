@@ -61,7 +61,7 @@ class PipelineTracker(LoggerMixin):
         with tracker.stage(PipelineStage.PARSE) as stg:
             flows = parser.parse(...)
             stg.record_metrics({"flow_count": len(flows)})
-        # ... more stages ...
+        # ... 其余阶段同理 ...
         tracker.finish()  # persist to DB
     """
 
@@ -76,12 +76,12 @@ class PipelineTracker(LoggerMixin):
             started_at=datetime_to_iso(utc_now()),
             created_at=datetime_to_iso(utc_now()),
         )
-        # Build stage records for stages 1-4 (synchronous PCAP processing).
-        # Agent stages (5-9) are added lazily via `append_stage`.
+        # 预置 1-4 阶段记录（同步 PCAP 处理阶段）。
+        # Agent 阶段（5-9）通过 `append_stage` 延迟追加。
         self._stage_map: dict[str, StageRecord] = {}
 
     # ------------------------------------------------------------------
-    # Public API
+    # 对外 API
     # ------------------------------------------------------------------
 
     @contextmanager
@@ -137,7 +137,7 @@ class PipelineTracker(LoggerMixin):
         Returns the finalised PipelineRun.
         """
         total = (time.monotonic() - self._t0) * 1000
-        # Determine overall status
+        # 确定整体状态
         statuses = {r.status for r in self._stage_map.values()}
         if "failed" in statuses:
             self._run.status = "failed"
@@ -187,7 +187,7 @@ class PipelineTracker(LoggerMixin):
         return self._run.id
 
     # ------------------------------------------------------------------
-    # Internals
+    # 内部实现
     # ------------------------------------------------------------------
 
     def _sync_stages(self) -> None:
@@ -196,7 +196,7 @@ class PipelineTracker(LoggerMixin):
         for ps in PIPELINE_STAGE_ORDER:
             if ps.value in self._stage_map:
                 ordered.append(self._stage_map[ps.value])
-        # Include any custom stages not in the enum (future proof)
+        # 追加不在枚举中的自定义阶段（面向未来扩展）
         for name, rec in self._stage_map.items():
             if name not in {ps.value for ps in PIPELINE_STAGE_ORDER}:
                 ordered.append(rec)

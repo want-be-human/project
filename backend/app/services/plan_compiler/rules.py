@@ -7,19 +7,19 @@ Inspired by agentic-soc-platform's modular playbook approach:
 
 from typing import Literal
 
-# ── Action type matching ───────────────────────────────────────────
-# Keywords (case-insensitive) → action_type.
-# Order matters: first match wins. None means "skip, not compilable".
+# ── Action 类型匹配 ───────────────────────────────────────────────
+# 关键字（不区分大小写）→ action_type。
+# 顺序敏感：先匹配先命中。None 表示“跳过，不可编译”。
 ACTION_TYPE_RULES: list[tuple[list[str], str | None]] = [
-    # Blocking / firewall rules → block_ip
+    # 封禁/防火墙规则 → block_ip
     (["block", "封禁", "ban", "blacklist", "blocklist", "firewall rule"], "block_ip"),
-    # Network segmentation → segment_subnet (before isolate, since titles may contain both)
+    # 网络分段 → segment_subnet（优先于 isolate，因为标题可能同时命中）
     (["segment", "分段", "vlan", "micro-segment"], "segment_subnet"),
-    # Host isolation → isolate_host
+    # 主机隔离 → isolate_host
     (["isolat", "隔离", "quarantine"], "isolate_host"),
-    # Rate limiting → rate_limit_service
+    # 限流 → rate_limit_service
     (["rate limit", "rate-limit", "ratelimit", "限流", "限速", "速率限制", "throttl"], "rate_limit_service"),
-    # Non-compilable: monitoring / logging / auth changes → skip
+    # 不可编译项：监控/日志/认证类变更 → skip
     (["monitor", "监控", "watchlist", "日志", "logging", "alert", "告警",
       "key-only", "密钥", "authentication", "认证", "audit", "审计"], None),
 ]
@@ -42,7 +42,7 @@ def match_action_type(title: str) -> str | None:
     return None
 
 
-# ── Default params per action type ─────────────────────────────────
+# ── 各 action 类型默认参数 ─────────────────────────────────────────
 PARAMS_DEFAULTS: dict[str, dict] = {
     "block_ip": {"duration_minutes": 60},
     "isolate_host": {"duration_minutes": 120},
@@ -51,7 +51,7 @@ PARAMS_DEFAULTS: dict[str, dict] = {
 }
 
 
-# ── Rollback mapping ──────────────────────────────────────────────
+# ── 回滚映射 ───────────────────────────────────────────────────────
 ROLLBACK_MAPPING: dict[str, tuple[str, dict]] = {
     "block_ip": ("unblock_ip", {}),
     "isolate_host": ("restore_host", {}),
@@ -60,7 +60,7 @@ ROLLBACK_MAPPING: dict[str, tuple[str, dict]] = {
 }
 
 
-# ── Confidence calculation ─────────────────────────────────────────
+# ── 置信度计算 ─────────────────────────────────────────────────────
 SEVERITY_BASE: dict[str, float] = {
     "critical": 0.90,
     "high": 0.80,
@@ -94,7 +94,7 @@ def compute_confidence(
 
     score = base + bonus + evidence_bonus
 
-    # If investigation has its own confidence, weight it in
+    # 若 investigation 含有置信度，则参与加权
     if investigation_confidence is not None:
         score = 0.7 * score + 0.3 * investigation_confidence
 

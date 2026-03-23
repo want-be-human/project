@@ -7,8 +7,8 @@ import { dagLayout } from './dag';
 import { clusteredSubnetLayout } from './clustered-subnet';
 
 /**
- * Compute layout positions for the given mode.
- * Falls back to circle layout on any error.
+ * 按指定模式计算布局坐标。
+ * 任意异常时回退到 circle 布局。
  */
 export function computeLayout(
   mode: LayoutMode,
@@ -27,7 +27,7 @@ export function computeLayout(
         return circleLayout(config);
     }
   } catch {
-    // Safety fallback
+    // 安全回退
     return circleLayout(config);
   }
 }

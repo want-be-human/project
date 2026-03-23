@@ -15,7 +15,7 @@ import DryRunOverlay from '@/components/topology/DryRunOverlay';
 import type { LayoutMode } from '@/components/topology/layouts/types';
 import type { CameraPreset } from '@/components/topology/CameraController';
 
-// Dynamic import for 3D canvas (SSR-incompatible)
+// 3D 画布动态导入（不兼容 SSR）
 const Topology3D = dynamic(() => import('@/components/topology/Topology3D'), {
   ssr: false,
   loading: () => (
@@ -40,16 +40,16 @@ function TopologyInner() {
   const [filterStart, setFilterStart] = useState(urlStart || '');
   const [filterEnd, setFilterEnd] = useState(urlEnd || '');
 
-  // Dry-run state
+  // Dry-run 状态
   const [dryRunResult, setDryRunResult] = useState<DryRunResult | null>(null);
   const [dryRunLoading, setDryRunLoading] = useState(false);
   const [dryRunNotFound, setDryRunNotFound] = useState(false);
 
-  // Selection state for SideInspector
+  // SideInspector 选中状态
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<GraphEdge | null>(null);
 
-  // ── Layout & visual enhancement state ──
+  // ── 布局与视觉增强状态 ──
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('circle');
   const [showLabels, setShowLabels] = useState(true);
   const [showArrows, setShowArrows] = useState(false);
@@ -57,10 +57,10 @@ function TopologyInner() {
   const [cameraPreset, setCameraPreset] = useState<CameraPreset>(null);
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
 
-  // Auto-enable arrows in DAG mode
+  // DAG 模式下自动启用箭头
   const effectiveShowArrows = layoutMode === 'dag' ? true : showArrows;
 
-  // Fetch DryRunResult when dryRunId is present
+  // 存在 dryRunId 时拉取 DryRunResult
   useEffect(() => {
     if (!dryRunId) {
       setDryRunResult(null);
@@ -81,7 +81,7 @@ function TopologyInner() {
       .finally(() => setDryRunLoading(false));
   }, [dryRunId]);
 
-  // Compute impacted node IDs and edge IDs from dry-run result
+  // 从 dry-run 结果计算受影响的节点 ID 与边 ID
   const impactedNodeIds = useMemo(() => {
     if (!dryRunResult) return undefined;
     const ids = new Set<string>();
@@ -93,7 +93,7 @@ function TopologyInner() {
     return ids.size > 0 ? ids : undefined;
   }, [dryRunResult]);
 
-  // Edges impacted by dry-run: edges whose source or target is an impacted node
+  // dry-run 受影响的边：source 或 target 命中受影响节点的边
   const impactedEdgeIds = useMemo(() => {
     if (!impactedNodeIds || !graph) return undefined;
     const ids = new Set<string>();
@@ -105,7 +105,7 @@ function TopologyInner() {
     return ids.size > 0 ? ids : undefined;
   }, [impactedNodeIds, graph]);
 
-  // Apply dry-run deltas to produce the "after" graph for display
+  // 应用 dry-run 增量，生成展示用的“after”图
   const displayGraph = useMemo<GraphResponse | null>(() => {
     if (!graph) return null;
     if (!dryRunResult) return graph;
@@ -133,7 +133,7 @@ function TopologyInner() {
     return { ...graph, nodes: newNodes, edges: newEdges };
   }, [graph, dryRunResult]);
 
-  // Keep a map of original values so SideInspector can show before→after
+  // 保留原始值映射，供 SideInspector 展示 before→after
   const originalValues = useMemo(() => {
     if (!graph || !dryRunResult) return undefined;
     const nodeDeltas = dryRunResult.impact?.node_risk_deltas;
@@ -163,7 +163,7 @@ function TopologyInner() {
       if (filterEnd) params.end = new Date(filterEnd).toISOString();
       const data = await api.getGraph(params);
       setGraph(data);
-      // Initialize currentTime to the start of the data window
+      // 将 currentTime 初始化为数据窗口起点
       if (data.meta?.start) {
         setCurrentTime(new Date(data.meta.start).getTime());
       }
@@ -186,12 +186,12 @@ function TopologyInner() {
     setSelectedEdge(null);
   }, []);
 
-  // Alternative paths from dry-run for rendering in the 3D scene
+  // dry-run 产生的替代路径，用于 3D 场景渲染
   const altPaths = dryRunResult?.alternative_paths;
 
   return (
     <div className="h-[calc(100vh-64px)] flex flex-col">
-      {/* Toolbar */}
+      {/* 工具栏 */}
       <TopologyToolbar
         mode={mode}
         onModeChange={setMode}
@@ -213,9 +213,9 @@ function TopologyInner() {
         onCameraPreset={setCameraPreset}
       />
 
-      {/* Main body: 3D view + Side inspector */}
+      {/* 主体：3D 视图 + 侧边检查器 */}
       <div className="flex-grow flex overflow-hidden">
-        {/* 3D Canvas area */}
+        {/* 3D 画布区域 */}
         <div className="flex-grow flex flex-col relative">
           {loading && !graph ? (
             <div className="flex-grow flex items-center justify-center bg-slate-50">
@@ -258,13 +258,13 @@ function TopologyInner() {
             </div>
           )}
 
-          {/* Legend overlay */}
+          {/* 图例浮层 */}
           <TopologyLegend />
 
-          {/* Dry-Run impact overlay */}
+          {/* Dry-Run 影响浮层 */}
           {dryRunId && <DryRunOverlay result={dryRunResult} loading={dryRunLoading} notFound={dryRunNotFound} />}
 
-          {/* TimeSlider overlay */}
+          {/* TimeSlider 浮层 */}
           {graph && startTime > 0 && endTime > 0 && (
             <div className="absolute bottom-4 left-4 right-4">
               <TimeSlider
@@ -277,7 +277,7 @@ function TopologyInner() {
           )}
         </div>
 
-        {/* Side Inspector */}
+        {/* 侧边检查器 */}
         <SideInspector
           selectedNode={selectedNode}
           selectedEdge={selectedEdge}

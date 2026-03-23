@@ -29,9 +29,9 @@ export default function DryRunPanel({ alertId, planId, onDryRunCompleted }: DryR
   const [refreshing, setRefreshing] = useState(false);
   const processedDryRunIds = useRef<Set<string>>(new Set());
 
-  // Subscribe to twin.dryrun.created WS event
-  // Event payload is lightweight: { dry_run_id, alert_id, risk }
-  // We match by alertId, then fetch the full DryRunResult by dry_run_id
+  // 订阅 twin.dryrun.created 的 WebSocket 事件
+  // 事件载荷较轻：{ dry_run_id, alert_id, risk }
+  // 按 alertId 匹配后，再通过 dry_run_id 拉取完整 DryRunResult
   useEffect(() => {
     const unsub = wsClient.onEvent('twin.dryrun.created', async (payload: DryRunCreatedEvent) => {
       if (payload.alert_id !== alertId) return;

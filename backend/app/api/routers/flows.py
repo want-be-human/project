@@ -22,7 +22,7 @@ router = APIRouter(prefix="/flows", tags=["flows"])
 
 def _flow_to_schema(flow: Flow) -> FlowRecordSchema:
     """Convert ORM Flow to Pydantic schema."""
-    # features is stored as TEXT (JSON string) in SQLite
+    # features 在 SQLite 中以 TEXT（JSON 字符串）存储
     features = flow.features
     if isinstance(features, str):
         try:

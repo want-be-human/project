@@ -9,7 +9,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
-# ---------- Threat enrichment schemas (Module E) ----------
+# ---------- 威胁增强 Schema（模块 E） ----------
 
 class ThreatTechnique(BaseModel):
     """Single MITRE ATT&CK technique matched by enrichment."""
@@ -30,7 +30,7 @@ class ThreatContext(BaseModel):
     enrichment_source: str = Field(default="local_mitre_v1", description="Enrichment data source identifier")
 
 
-# ---------- Investigation schemas - DOC C C1.4 ----------
+# ---------- Investigation Schema - DOC C C1.4 ----------
 
 class InvestigationImpact(BaseModel):
     """Impact assessment in Investigation."""
@@ -64,7 +64,7 @@ class InvestigationSchema(BaseModel):
         from_attributes = True
 
 
-# Recommendation schemas - DOC C C1.5
+# Recommendation Schema（DOC C C1.5）
 class RecommendedAction(BaseModel):
     """Single action in Recommendation - DOC C C1.5."""
     title: str = Field(..., description="Action title")
@@ -93,17 +93,17 @@ class RecommendationSchema(BaseModel):
         from_attributes = True
 
 
-# Triage request/response - DOC C C6.5
+# Triage 请求/响应 - DOC C C6.5
 class TriageRequest(BaseModel):
-    """Request for POST /alerts/{id}/triage - DOC C C6.5."""
+    """POST /alerts/{id}/triage 的请求体 - DOC C C6.5。"""
     language: Literal["zh", "en"] = Field(default="en", description="Output language")
 
 
 class TriageResponse(BaseModel):
-    """Response for POST /alerts/{id}/triage - DOC C C6.5."""
+    """POST /alerts/{id}/triage 的响应体 - DOC C C6.5。"""
     triage_summary: str = Field(..., description="Triage summary text")
 
 
 class LanguageRequest(BaseModel):
-    """Optional language request body for investigate/recommend."""
+    """investigate/recommend 的可选语言请求体。"""
     language: Literal["zh", "en"] = Field(default="en", description="Output language")

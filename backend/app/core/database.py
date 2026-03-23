@@ -1,6 +1,6 @@
 """
-Database configuration.
-SQLAlchemy engine and session management.
+数据库配置。
+包含 SQLAlchemy 引擎与会话管理。
 """
 
 from sqlalchemy import create_engine
@@ -9,8 +9,8 @@ from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from app.core.config import settings
 
 
-# Create SQLAlchemy engine
-# For SQLite, use connect_args to allow multi-threading
+# 创建 SQLAlchemy 引擎
+# 对 SQLite 使用 connect_args 以支持多线程
 connect_args = {}
 if settings.DATABASE_URL.startswith("sqlite"):
     connect_args["check_same_thread"] = False
@@ -21,7 +21,7 @@ engine = create_engine(
     echo=settings.DEBUG,
 )
 
-# Session factory
+# 会话工厂
 SessionLocal = sessionmaker(
     autocommit=False,
     autoflush=False,
@@ -30,14 +30,14 @@ SessionLocal = sessionmaker(
 
 
 class Base(DeclarativeBase):
-    """Base class for all SQLAlchemy models."""
+    """所有 SQLAlchemy 模型的基类。"""
     pass
 
 
 def get_db():
     """
-    Dependency that yields a database session.
-    Use with FastAPI's Depends().
+    提供数据库会话的依赖函数。
+    通常与 FastAPI 的 Depends() 一起使用。
     """
     db = SessionLocal()
     try:
@@ -47,5 +47,5 @@ def get_db():
 
 
 def create_tables():
-    """Create all tables (for development/testing)."""
+    """创建全部数据表（用于开发/测试）。"""
     Base.metadata.create_all(bind=engine)

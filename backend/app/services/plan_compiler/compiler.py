@@ -133,7 +133,7 @@ class PlanCompiler:
 
         if action_type == "segment_subnet":
             ip = alert.primary_src_ip or "0.0.0.0"
-            # Derive /24 subnet from source IP
+            # 从源 IP 推导 /24 子网
             parts = ip.split(".")
             if len(parts) == 4:
                 subnet = f"{parts[0]}.{parts[1]}.{parts[2]}.0/24"
@@ -190,8 +190,8 @@ class PlanCompiler:
         if not evidence_chain:
             return []
 
-        # An action traces to: alert node, related flow/feature nodes,
-        # and the hypothesis node that led to the recommendation
+        # action 的溯源节点包括：alert 节点、相关 flow/feature 节点，
+        # 以及触发 recommendation 的 hypothesis 节点
         relevant_types = {"alert", "flow", "feature", "hypothesis"}
         return [
             node.id

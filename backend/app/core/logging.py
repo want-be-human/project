@@ -28,7 +28,7 @@ class StructuredLogFormatter(logging.Formatter):
             "logger": record.name,
             "message": record.getMessage(),
         }
-        # Merge extra fields if present (e.g. run_id, stage, latency_ms)
+        # 如存在额外字段则一并合并（如 run_id、stage、latency_ms）
         for key in ("run_id", "stage", "latency_ms", "metrics", "pcap_id", "status"):
             val = getattr(record, key, None)
             if val is not None:
@@ -54,13 +54,13 @@ def setup_logging() -> None:
             )
         )
 
-    # Root logger configuration
+    # 根日志记录器配置
     logging.basicConfig(
         level=log_level,
         handlers=[handler],
     )
 
-    # Reduce noise from third-party libraries
+    # 降低第三方库日志噪声
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
     logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
 

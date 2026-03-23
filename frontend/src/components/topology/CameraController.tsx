@@ -9,26 +9,26 @@ export type CameraPreset = 'top' | 'front' | 'side' | 'fit' | null;
 
 interface CameraControllerProps {
   preset: CameraPreset;
-  /** Called once the camera animation finishes to reset the trigger */
+  /** 相机动画结束后调用，用于重置触发器 */
   onDone: () => void;
-  /** Current node positions for fit-all calculation */
+  /** 当前节点坐标，用于计算全图适配视角 */
   positions: LayoutResult;
-  /** Node ID to fly the camera towards */
+  /** 需要飞行聚焦的节点 ID */
   focusNodeId?: string | null;
   onFocusDone?: () => void;
 }
 
 const PRESET_POSITIONS: Record<string, THREE.Vector3> = {
-  top:   new THREE.Vector3(0, 25, 0.01), // slight z offset to avoid gimbal lock
+  top:   new THREE.Vector3(0, 25, 0.01), // 轻微 z 偏移以避免万向节锁
   front: new THREE.Vector3(0, 5, 25),
   side:  new THREE.Vector3(25, 5, 0),
 };
 
-const LERP_SPEED = 4; // higher = faster animation
+const LERP_SPEED = 4; // 数值越大，动画越快
 
 /**
- * Manages smooth camera transitions for presets and node focus.
- * Must be placed inside <Canvas>.
+ * 管理预设视角与节点聚焦的平滑相机过渡。
+ * 必须放置在 <Canvas> 内部。
  */
 export default function CameraController({
   preset,
@@ -42,7 +42,7 @@ export default function CameraController({
   const targetLookAt = useRef<THREE.Vector3>(new THREE.Vector3());
   const animating = useRef(false);
 
-  // Compute fit-all camera position from bounding box
+  // 根据包围盒计算“全图适配”相机位置
   useEffect(() => {
     if (!preset) return;
 
@@ -70,7 +70,7 @@ export default function CameraController({
     animating.current = true;
   }, [preset, positions, onDone]);
 
-  // Focus on a specific node
+  // 聚焦到指定节点
   useEffect(() => {
     if (!focusNodeId) return;
     const pos = positions[focusNodeId];
@@ -92,7 +92,7 @@ export default function CameraController({
     camera.position.lerp(targetPos.current, t);
     camera.lookAt(targetLookAt.current);
 
-    // Check convergence
+    // 检查是否收敛到目标位置
     if (camera.position.distanceTo(targetPos.current) < 0.05) {
       animating.current = false;
       targetPos.current = null;

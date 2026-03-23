@@ -11,7 +11,7 @@ import ArrowHead from './ArrowHead';
 import RiskHeatDisk from './RiskHeatDisk';
 import CameraController, { type CameraPreset } from './CameraController';
 
-// ── Types ──
+// ── 类型定义 ──
 export interface Topology3DProps {
   nodes: GraphNode[];
   edges: GraphEdge[];
@@ -32,7 +32,7 @@ export interface Topology3DProps {
   onSelectEdge?: (edge: GraphEdge | null) => void;
 }
 
-// ── Animated position wrapper: lerps between old and new positions ──
+// ── 动画位置包装：在旧坐标与新坐标之间做线性插值 ──
 function AnimatedGroup({
   targetPosition,
   children,
@@ -44,7 +44,7 @@ function AnimatedGroup({
   const current = useRef(new THREE.Vector3(...targetPosition));
 
   useEffect(() => {
-    // On first mount snap immediately
+    // 首次挂载时直接吸附到目标坐标
     current.current.set(...targetPosition);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -59,7 +59,7 @@ function AnimatedGroup({
   return <group ref={ref}>{children}</group>;
 }
 
-// ── Pulsing ring for dry-run impacted nodes ──
+// ── Dry-run 受影响节点的脉冲环 ──
 function PulsingRing({ color }: { color: string }) {
   const ref = useRef<THREE.Mesh>(null);
   useFrame(({ clock }) => {
@@ -76,7 +76,7 @@ function PulsingRing({ color }: { color: string }) {
   );
 }
 
-// ── Breathing pulse for alert-highlighted nodes ──
+// ── 告警高亮节点的呼吸脉冲 ──
 function BreathingPulse() {
   const ref = useRef<THREE.Mesh>(null);
   useFrame(({ clock }) => {
@@ -95,7 +95,7 @@ function BreathingPulse() {
   );
 }
 
-// ── Node sphere ──
+// ── 节点球体 ──
 function NodeSphere({
   node,
   position,
@@ -132,7 +132,7 @@ function NodeSphere({
     return '#6ee7b7';
   }, [node, highlighted, impacted]);
 
-  // Risk-based emissive: stronger glow for higher risk when heat is enabled
+  // 基于风险的自发光：启用热力效果时风险越高发光越强
   const emissiveColor = highlighted
     ? '#ef4444'
     : impacted
@@ -168,20 +168,20 @@ function NodeSphere({
           opacity={opacity}
         />
       </mesh>
-      {/* Selection ring */}
+      {/* 选中环 */}
       {selected && (
         <mesh rotation={[Math.PI / 2, 0, 0]}>
           <ringGeometry args={[0.9, 1.1, 32]} />
           <meshBasicMaterial color="#ffffff" side={THREE.DoubleSide} />
         </mesh>
       )}
-      {/* Pulsing ring for impacted */}
+      {/* 受影响节点脉冲环 */}
       {impacted && !selected && <PulsingRing color="#f59e0b" />}
-      {/* Breathing pulse for alert-highlighted */}
+      {/* 告警高亮呼吸脉冲 */}
       {highlighted && <BreathingPulse />}
-      {/* Risk heat disk */}
+      {/* 风险热力圆盘 */}
       {riskHeatEnabled && <RiskHeatDisk risk={node.risk} />}
-      {/* Label */}
+      {/* 标签 */}
       {showLabel && (
         <Text
           position={[0, 1.2, 0]}
@@ -197,7 +197,7 @@ function NodeSphere({
   );
 }
 
-// ── Animated dashed edge for dry-run impact (flowing dash) ──
+// ── Dry-run 影响边的动画虚线（流动虚线） ──
 function FlowingDashLine({
   from,
   to,
@@ -223,7 +223,7 @@ function FlowingDashLine({
   );
 }
 
-// ── Edge line ──
+// ── 边线 ──
 function EdgeLine({
   edge,
   from,
@@ -289,9 +289,9 @@ function EdgeLine({
           opacity={opacity}
         />
       )}
-      {/* Arrow head */}
+      {/* 箭头头部 */}
       {showArrow && active && <ArrowHead from={from} to={to} color={color} opacity={opacity} />}
-      {/* Invisible cylinder for click detection */}
+      {/* 用于点击检测的不可见圆柱 */}
       <mesh
         position={cylPos}
         rotation={cylRot}
@@ -302,7 +302,7 @@ function EdgeLine({
         <cylinderGeometry args={[0.15, 0.15, length, 6]} />
         <meshBasicMaterial transparent opacity={0} />
       </mesh>
-      {/* Weight / impact label */}
+      {/* 权重 / 影响标签 */}
       {active && (highlighted || impacted) && (
         <Text position={[mid[0], mid[1] + 0.5, mid[2]]} fontSize={0.3} color={impacted ? '#f59e0b' : '#ef4444'}>
           {impacted ? '⚠ IMPACTED' : `${(edge.protocols ?? []).join(',')} w=${edge.weight}`}
@@ -312,7 +312,7 @@ function EdgeLine({
   );
 }
 
-// ── Alternative-path lines (green dashed) for dry-run ──
+// ── Dry-run 的替代路径线（绿色虚线） ──
 function AltPathLines({
   altPaths,
   positions,
@@ -329,7 +329,7 @@ function AltPathLines({
           const from = positions[nodeId];
           const to = positions[next];
           if (!from || !to) return null;
-          // Offset slightly upward so it doesn't z-fight with real edges
+          // 略微上移，避免与真实边出现 Z-fighting
           const f: [number, number, number] = [from[0], from[1] + 0.3, from[2]];
           const t: [number, number, number] = [to[0], to[1] + 0.3, to[2]];
           return (
@@ -351,7 +351,7 @@ function AltPathLines({
   );
 }
 
-// ── Scene ──
+// ── 场景 ──
 function Scene({
   nodes,
   edges,
@@ -379,11 +379,11 @@ function Scene({
     [nodes, edges, layoutMode],
   );
 
-  // Determine which edges should show arrows
+  // 决定哪些边显示箭头
   const arrowEdgeIds = useMemo(() => {
-    // DAG mode: all arrows by default
+    // DAG 模式：默认全部显示箭头
     if (layoutMode === 'dag' || showArrows) return null; // null = all
-    // When a node is selected, show arrows on its edges
+    // 选中节点时，仅显示其相关边的箭头
     if (selectedNodeId) {
       return new Set(
         edges
@@ -391,7 +391,7 @@ function Scene({
           .map(e => e.id),
       );
     }
-    // When an edge is selected, show its arrow only
+    // 选中边时，仅显示该边箭头
     if (selectedEdgeId) return new Set([selectedEdgeId]);
     return new Set<string>(); // empty = none
   }, [layoutMode, showArrows, selectedNodeId, selectedEdgeId, edges]);
@@ -418,7 +418,7 @@ function Scene({
     return nodeIds;
   }, [edges, highlightAlertId]);
 
-  // Dimming: when something is selected, dim non-related elements
+  // 变暗策略：有选中项时，弱化无关元素
   const hasSelection = selectedNodeId !== null || selectedEdgeId !== null;
 
   const isNodeDimmed = (nodeId: string) => {
@@ -429,7 +429,7 @@ function Scene({
       if (edge && (edge.source === nodeId || edge.target === nodeId)) return false;
     }
     if (selectedNodeId) {
-      // Don't dim direct neighbours
+      // 直接邻居不做变暗
       const isNeighbour = edges.some(
         e =>
           (e.source === selectedNodeId && e.target === nodeId) ||
@@ -464,7 +464,7 @@ function Scene({
       <directionalLight position={[10, 10, 5]} intensity={0.8} />
       <pointLight position={[-10, -10, -5]} intensity={0.3} />
 
-      {/* Edges */}
+      {/* 边 */}
       {edges.map(edge => {
         const from = positions[edge.source];
         const to = positions[edge.target];
@@ -489,7 +489,7 @@ function Scene({
         );
       })}
 
-      {/* Nodes */}
+      {/* 节点 */}
       {nodes.map(node => {
         const pos = positions[node.id];
         if (!pos) return null;
@@ -513,15 +513,15 @@ function Scene({
         );
       })}
 
-      {/* Alternative-path lines for dry-run */}
+      {/* Dry-run 的替代路径线 */}
       {altPaths && altPaths.length > 0 && (
         <AltPathLines altPaths={altPaths} positions={positions} />
       )}
 
-      {/* Grid */}
+      {/* 网格 */}
       <gridHelper args={[20, 20, '#e5e7eb', '#f3f4f6']} position={[0, -3, 0]} />
 
-      {/* Camera controller */}
+      {/* 相机控制器 */}
       <CameraController
         preset={cameraPreset ?? null}
         onDone={onCameraPresetDone ?? (() => {})}
@@ -541,7 +541,7 @@ function Scene({
   );
 }
 
-// ── Main export ──
+// ── 主导出组件 ──
 export default function Topology3D(props: Topology3DProps) {
   const [mounted, setMounted] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);

@@ -49,7 +49,7 @@ class GraphResponseSchema(BaseModel):
     meta: GraphMeta = Field(..., description="Graph metadata")
 
 
-# Query parameters for topology - DOC C C6.7
+# topology 查询参数 - DOC C C6.7
 class TopologyQueryParams(BaseModel):
     """Query parameters for GET /topology/graph - DOC C C6.7."""
     start: str = Field(..., description="Start time ISO8601")

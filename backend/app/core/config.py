@@ -1,45 +1,45 @@
 """
-Application configuration.
-Environment variables and constants.
+应用配置。
+环境变量与常量定义。
 """
 
 from pathlib import Path
 from functools import lru_cache
 from pydantic_settings import BaseSettings
 
-# Resolve BASE_DIR to the backend/ directory regardless of CWD
+# 无论当前工作目录如何，都将 BASE_DIR 解析到 backend/ 目录
 # config.py → core/ → app/ → backend/
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
 class Settings(BaseSettings):
-    """Application settings loaded from environment variables."""
+    """从环境变量加载的应用配置。"""
 
-    # Application
+    # 应用基础配置
     APP_NAME: str = "NetTwin-SOC Backend"
     APP_VERSION: str = "1.1"
     DEBUG: bool = False
 
-    # Database – absolute path derived from backend/
+    # 数据库：基于 backend/ 推导绝对路径
     DATABASE_URL: str = f"sqlite:///{(BASE_DIR / 'data' / 'nettwin.db').as_posix()}"
 
-    # Data storage – absolute paths derived from backend/
+    # 数据存储：基于 backend/ 推导绝对路径
     DATA_DIR: Path = BASE_DIR / "data"
     PCAP_DIR: Path = BASE_DIR / "data" / "pcaps"
 
-    # Detection model parameters (JSON string, parsed in detection service)
+    # 检测模型参数（JSON 字符串，在 detection 服务中解析）
     MODEL_PARAMS: str = "{}"
 
     # API
     API_V1_PREFIX: str = "/api/v1"
 
-    # Feature flags
+    # 功能开关
     WORKFLOW_ENGINE_ENABLED: bool = True
     THREAT_ENRICHMENT_ENABLED: bool = True
     PIPELINE_OBSERVABILITY_ENABLED: bool = True
     STRUCTURED_LOG_ENABLED: bool = False
 
-    # CORS (for development)
+    # CORS（开发环境）
     CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
 
     class Config:
@@ -50,12 +50,12 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    """Get cached settings instance."""
+    """获取缓存后的配置实例。"""
     return Settings()
 
 
 settings = get_settings()
 
-# Ensure directories exist
+# 确保目录存在
 settings.DATA_DIR.mkdir(parents=True, exist_ok=True)
 settings.PCAP_DIR.mkdir(parents=True, exist_ok=True)

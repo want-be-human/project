@@ -23,7 +23,7 @@ from alembic import op
 import sqlalchemy as sa
 
 
-# revision identifiers, used by Alembic.
+# 修订标识（Alembic 使用）
 revision: str = "0001"
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
@@ -44,7 +44,7 @@ def upgrade() -> None:
         sa.Column("status", sa.String(20), nullable=False, default="pending"),
         sa.Column("progress", sa.Integer(), nullable=False, default=0),
         sa.Column("error", sa.Text(), nullable=True),
-        sa.Column("metadata", sa.Text(), nullable=True),  # JSON as TEXT for SQLite
+        sa.Column("metadata", sa.Text(), nullable=True),  # 为兼容 SQLite，JSON 以 TEXT 存储
     )
     op.create_index("idx_pcap_status", "pcap_files", ["status"])
     op.create_index("idx_pcap_created_at", "pcap_files", ["created_at"])
@@ -65,7 +65,7 @@ def upgrade() -> None:
         sa.Column("dst_port", sa.Integer(), nullable=True),
         sa.Column("pkt_count", sa.Integer(), nullable=False, default=0),
         sa.Column("byte_count", sa.BigInteger(), nullable=False, default=0),
-        sa.Column("features", sa.Text(), nullable=True),  # JSON as TEXT
+        sa.Column("features", sa.Text(), nullable=True),  # JSON 以 TEXT 存储
         sa.Column("anomaly_score", sa.Float(), nullable=True),
         sa.Column("label", sa.String(50), nullable=True),
     )
@@ -90,17 +90,17 @@ def upgrade() -> None:
         sa.Column("primary_dst_ip", sa.String(45), nullable=False),
         sa.Column("primary_proto", sa.String(10), nullable=False),
         sa.Column("primary_dst_port", sa.Integer(), nullable=True),
-        sa.Column("evidence", sa.Text(), nullable=False),  # JSON as TEXT
-        sa.Column("aggregation", sa.Text(), nullable=False),  # JSON as TEXT
-        sa.Column("agent", sa.Text(), nullable=False, default="{}"),  # JSON as TEXT
-        sa.Column("twin", sa.Text(), nullable=False, default="{}"),  # JSON as TEXT
+        sa.Column("evidence", sa.Text(), nullable=False),  # JSON 以 TEXT 存储
+        sa.Column("aggregation", sa.Text(), nullable=False),  # JSON 以 TEXT 存储
+        sa.Column("agent", sa.Text(), nullable=False, default="{}"),  # JSON 以 TEXT 存储
+        sa.Column("twin", sa.Text(), nullable=False, default="{}"),  # JSON 以 TEXT 存储
     )
     op.create_index("idx_alert_status_sev", "alerts", ["status", "severity"])
     op.create_index("idx_alert_time_window", "alerts", ["time_window_start", "time_window_end"])
     op.create_index("idx_alert_src_ip", "alerts", ["primary_src_ip"])
     op.create_index("idx_alert_type", "alerts", ["type"])
 
-    # F3: alert_flows (association table)
+    # F3: alert_flows（关联表）
     op.create_table(
         "alert_flows",
         sa.Column("alert_id", sa.String(36), sa.ForeignKey("alerts.id", ondelete="CASCADE"), primary_key=True),
@@ -116,7 +116,7 @@ def upgrade() -> None:
         sa.Column("version", sa.String(10), nullable=False, default="1.1"),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("alert_id", sa.String(36), sa.ForeignKey("alerts.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("payload", sa.Text(), nullable=False),  # JSON as TEXT
+        sa.Column("payload", sa.Text(), nullable=False),  # JSON 以 TEXT 存储
     )
     op.create_index("idx_inv_alert_created", "investigations", ["alert_id", "created_at"])
 
@@ -127,7 +127,7 @@ def upgrade() -> None:
         sa.Column("version", sa.String(10), nullable=False, default="1.1"),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("alert_id", sa.String(36), sa.ForeignKey("alerts.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("payload", sa.Text(), nullable=False),  # JSON as TEXT
+        sa.Column("payload", sa.Text(), nullable=False),  # JSON 以 TEXT 存储
     )
     op.create_index("idx_rec_alert_created", "recommendations", ["alert_id", "created_at"])
 
@@ -138,8 +138,8 @@ def upgrade() -> None:
         sa.Column("version", sa.String(10), nullable=False, default="1.1"),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("alert_id", sa.String(36), sa.ForeignKey("alerts.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("source", sa.String(20), nullable=False),  # 'agent' or 'manual'
-        sa.Column("actions", sa.Text(), nullable=False),  # JSON as TEXT
+        sa.Column("source", sa.String(20), nullable=False),  # 'agent' 或 'manual'
+        sa.Column("actions", sa.Text(), nullable=False),  # JSON 以 TEXT 存储
         sa.Column("notes", sa.Text(), nullable=True),
     )
     op.create_index("idx_plan_alert_created", "twin_plans", ["alert_id", "created_at"])
@@ -152,7 +152,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("alert_id", sa.String(36), sa.ForeignKey("alerts.id", ondelete="CASCADE"), nullable=False),
         sa.Column("plan_id", sa.String(36), sa.ForeignKey("twin_plans.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("payload", sa.Text(), nullable=False),  # JSON as TEXT
+        sa.Column("payload", sa.Text(), nullable=False),  # JSON 以 TEXT 存储
     )
     op.create_index("idx_dryrun_plan_created", "dry_runs", ["plan_id", "created_at"])
 
@@ -165,7 +165,7 @@ def upgrade() -> None:
         sa.Column("name", sa.String(100), nullable=False, unique=True),
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("pcap_id", sa.String(36), sa.ForeignKey("pcap_files.id", ondelete="SET NULL"), nullable=True),
-        sa.Column("payload", sa.Text(), nullable=False),  # JSON as TEXT (expectations, tags)
+        sa.Column("payload", sa.Text(), nullable=False),  # JSON 以 TEXT 存储（expectations、tags）
     )
     op.create_index("idx_scenario_name", "scenarios", ["name"], unique=True)
 
@@ -176,8 +176,8 @@ def upgrade() -> None:
         sa.Column("version", sa.String(10), nullable=False, default="1.1"),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("scenario_id", sa.String(36), sa.ForeignKey("scenarios.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("status", sa.String(20), nullable=False),  # 'pass' or 'fail'
-        sa.Column("payload", sa.Text(), nullable=False),  # JSON as TEXT
+        sa.Column("status", sa.String(20), nullable=False),  # 'pass' 或 'fail'
+        sa.Column("payload", sa.Text(), nullable=False),  # JSON 以 TEXT 存储
     )
     op.create_index("idx_scenrun_scenario_created", "scenario_runs", ["scenario_id", "created_at"])
 
@@ -188,13 +188,13 @@ def upgrade() -> None:
         sa.Column("version", sa.String(10), nullable=False, default="1.1"),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("alert_id", sa.String(36), sa.ForeignKey("alerts.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("payload", sa.Text(), nullable=False),  # JSON as TEXT
+        sa.Column("payload", sa.Text(), nullable=False),  # JSON 以 TEXT 存储
     )
     op.create_index("idx_evidence_alert", "evidence_chains", ["alert_id"])
 
 
 def downgrade() -> None:
-    # Drop tables in reverse order
+    # 按逆序删除数据表
     op.drop_table("evidence_chains")
     op.drop_table("scenario_runs")
     op.drop_table("scenarios")

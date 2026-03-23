@@ -1,5 +1,5 @@
 """
-Triage stage – delegates to AgentService.triage().
+研判阶段：委托给 AgentService.triage() 执行。
 """
 
 from app.services.agent.service import AgentService
@@ -7,7 +7,7 @@ from app.workflows.stages.base import BaseStage, StageContext, StageResult
 
 
 class TriageStage(BaseStage):
-    """Generate triage summary for an alert."""
+    """为告警生成研判摘要。"""
 
     @property
     def name(self) -> str:

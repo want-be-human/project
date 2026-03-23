@@ -1,5 +1,5 @@
 """
-Compile Plan stage – delegates to PlanCompilerService.
+编译方案阶段：委托给 PlanCompilerService 执行。
 """
 
 from app.services.plan_compiler.service import PlanCompilerService
@@ -7,7 +7,7 @@ from app.workflows.stages.base import BaseStage, StageContext, StageResult
 
 
 class CompilePlanStage(BaseStage):
-    """Compile Agent recommendations into a structured Twin ActionPlan."""
+    """将智能体建议编译为结构化 Twin ActionPlan。"""
 
     @property
     def name(self) -> str:

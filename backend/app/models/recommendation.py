@@ -18,20 +18,20 @@ class Recommendation(BaseModel):
 
     __tablename__ = "recommendations"
 
-    # Foreign key to alerts
+    # 指向 alerts 的外键
     alert_id: Mapped[str] = mapped_column(
         String(36),
         ForeignKey("alerts.id", ondelete="CASCADE"),
         nullable=False,
     )
 
-    # Full Recommendation JSON payload
+    # 完整 Recommendation JSON 载荷
     payload: Mapped[str] = mapped_column(Text, nullable=False)
 
-    # Relationship
+    # 关联关系
     alert = relationship("Alert", backref="recommendations")
 
-    # Index (附录F 6.2)
+    # 索引（附录F 6.2）
     __table_args__ = (
         Index("idx_rec_alert_created", "alert_id", "created_at"),
     )

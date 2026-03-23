@@ -58,21 +58,21 @@ class PlanCompilerService:
         Raises:
             ValueError: If alert or recommendation not found.
         """
-        # Fetch alert
+        # 获取 alert
         alert = self.db.query(Alert).filter(Alert.id == alert_id).first()
         if not alert:
             raise ValueError(f"Alert {alert_id} not found")
 
-        # Fetch recommendation
+        # 获取 recommendation
         recommendation = self._load_recommendation(alert_id, recommendation_id)
 
-        # Fetch investigation (optional)
+        # 获取 investigation（可选）
         investigation = self._load_investigation(alert_id)
 
-        # Fetch evidence chain (optional)
+        # 获取 evidence chain（可选）
         evidence_chain = self._load_evidence_chain(alert_id)
 
-        # Compile
+        # 编译
         compiled_actions, skipped = self._compiler.compile(
             alert=alert,
             recommendation=recommendation,
@@ -81,13 +81,13 @@ class PlanCompilerService:
             language=language,
         )
 
-        # Build notes with compilation info
+        # 生成包含编译信息的 notes
         notes = (
             f"Auto-compiled from recommendation {recommendation.id}. "
             f"{len(compiled_actions)} actions compiled, {skipped} skipped."
         )
 
-        # Create plan via TwinService (reuse existing persistence logic)
+        # 通过 TwinService 创建 plan（复用既有持久化逻辑）
         twin_service = TwinService(self.db)
         plan = twin_service.create_plan(
             alert_id=alert_id,

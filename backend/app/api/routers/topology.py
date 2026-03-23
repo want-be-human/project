@@ -51,7 +51,7 @@ async def get_topology_graph(
         dt_end = db.query(func.max(Flow.ts_end)).scalar()
 
     if dt_start is None or dt_end is None:
-        # No flows in DB — return empty graph
+        # 数据库无 flow 时返回空图
         from app.schemas.topology import GraphMeta
         empty = GraphResponseSchema(
             version="1.1", nodes=[], edges=[],

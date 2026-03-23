@@ -1,6 +1,6 @@
 """
-Scenarios service.
-Scenario CRUD and execution.
+场景服务。
+负责 Scenario 的增删改查与执行。
 """
 
 import json
@@ -25,10 +25,10 @@ logger = get_logger(__name__)
 
 class ScenariosService:
     """
-    Service for scenario management and execution.
-    
-    Follows DOC B B4.10 specification.
-    """
+用于场景管理与执行的服务。
+
+遵循 DOC B B4.10 规范。
+"""
 
     def __init__(self, db: Session):
         self.db = db
@@ -57,13 +57,13 @@ class ScenariosService:
         scenario_id = generate_uuid()
         now = utc_now()
         
-        # Build payload with expectations and tags
+        # 构建包含 expectations 与 tags 的 payload
         payload = {
             "expectations": expectations.model_dump(),
             "tags": tags,
         }
         
-        # Create database record
+        # 创建数据库记录
         scenario_model = Scenario(
             id=scenario_id,
             created_at=now,
@@ -117,19 +117,19 @@ class ScenariosService:
         """
         logger.info(f"Running scenario {scenario.id}: {scenario.name}")
         
-        # Parse expectations
+        # 解析 expectations
         payload = json.loads(scenario.payload) if isinstance(scenario.payload, str) else scenario.payload
         expectations = payload.get("expectations", {})
         
-        # Query alerts for this PCAP
+        # 查询该 PCAP 对应的 alerts
         from app.models.flow import Flow
         from app.models.alert import alert_flows
         
-        # Get flow IDs for this PCAP
+        # 获取该 PCAP 的 flow ID 列表
         flows = self.db.query(Flow).filter(Flow.pcap_id == scenario.pcap_id).all()
         flow_ids = [f.id for f in flows]
         
-        # Get alerts that have these flows
+        # 获取关联这些 flow 的 alerts
         alerts = []
         if flow_ids:
             alerts = self.db.query(Alert).join(
@@ -139,11 +139,11 @@ class ScenariosService:
                 alert_flows.c.flow_id.in_(flow_ids)
             ).distinct().all()
         
-        # Run checks
+        # 执行检查项
         checks = []
         all_pass = True
         
-        # Check: min_alerts
+        # 检查项：min_alerts
         min_alerts = expectations.get("min_alerts", 0)
         actual_alerts = len(alerts)
         min_alerts_pass = actual_alerts >= min_alerts
@@ -154,13 +154,13 @@ class ScenariosService:
         }))
         all_pass = all_pass and min_alerts_pass
         
-        # Check: must_have
+        # 检查项：must_have
         must_have = expectations.get("must_have", [])
         for must in must_have:
             must_type = must.get("type", "")
             must_severity = must.get("severity_at_least", "low")
             
-            # Find matching alert
+            # 查找匹配告警
             severity_order = ["low", "medium", "high", "critical"]
             min_sev_idx = severity_order.index(must_severity) if must_severity in severity_order else 0
             
@@ -185,7 +185,7 @@ class ScenariosService:
             }))
             all_pass = all_pass and matched
         
-        # Check: evidence_chain_contains
+        # 检查项：evidence_chain_contains
         evidence_contains = expectations.get("evidence_chain_contains", [])
         if evidence_contains and alerts:
             from app.services.evidence.service import EvidenceService
@@ -206,10 +206,10 @@ class ScenariosService:
                 }))
                 all_pass = all_pass and found
         
-        # Check: dry_run_required
+        # 检查项：dry_run_required
         dry_run_required = expectations.get("dry_run_required", False)
         if dry_run_required:
-            # Check if any alert has a dry-run
+            # 检查是否存在带 dry-run 的 alert
             has_dry_run = False
             dry_run_risk = 0.0
             
@@ -218,7 +218,7 @@ class ScenariosService:
                 if twin_data.get("dry_run_id"):
                     has_dry_run = True
                     
-                    # Get dry-run risk
+                    # 获取 dry-run 风险
                     from app.models.twin import DryRun
                     dry_run = self.db.query(DryRun).filter(
                         DryRun.id == twin_data["dry_run_id"]
@@ -235,10 +235,10 @@ class ScenariosService:
             }))
             all_pass = all_pass and has_dry_run
         
-        # Calculate metrics
+        # 计算指标
         high_severity_count = sum(1 for a in alerts if a.severity in ["high", "critical"])
         
-        # Calculate average dry-run risk
+        # 计算平均 dry-run 风险
         dry_run_risks = []
         for alert in alerts:
             twin_data = json.loads(alert.twin) if isinstance(alert.twin, str) else alert.twin
@@ -257,7 +257,7 @@ class ScenariosService:
             avg_dry_run_risk=round(avg_risk, 3),
         )
         
-        # Create run result
+        # 创建运行结果
         run_id = generate_uuid()
         now = utc_now()
         status = "pass" if all_pass else "fail"
@@ -272,7 +272,7 @@ class ScenariosService:
             metrics=metrics,
         )
         
-        # Save to database
+        # 保存到数据库
         run_model = ScenarioRun(
             id=run_id,
             created_at=now,

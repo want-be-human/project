@@ -7,7 +7,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 
-# Nested objects for Alert schema
+# Alert schema 的嵌套对象
 class TimeWindow(BaseModel):
     """Time window for alert - DOC C C1.3."""
     start: str = Field(..., description="Start time ISO8601 UTC")

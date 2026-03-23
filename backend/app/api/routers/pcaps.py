@@ -32,7 +32,7 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/pcaps", tags=["pcaps"])
 
 
-# --------------- background processing task ---------------
+# --------------- 后台处理任务 ---------------
 
 def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
     """
@@ -47,7 +47,7 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
             logger.error(f"PCAP {pcap_id} not found for processing")
             return
 
-        # --- broadcast helpers (fire-and-forget in running event loop) ---
+        # --- 广播辅助（在运行中的事件循环里 fire-and-forget） ---
         from app.api.routers.stream import manager
 
         def _broadcast(event: str, data: dict):
@@ -64,18 +64,18 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
             except RuntimeError:
                 pass  # 兜底：防止其他运行时异常
 
-        # --- pipeline tracker (observability) ---
+        # --- pipeline 追踪器（可观测性） ---
         tracker = None
         if settings.PIPELINE_OBSERVABILITY_ENABLED:
             tracker = PipelineTracker(pcap_id, db)
 
-        # Step 1: update → processing 10 %
+        # 步骤 1：更新状态 → processing 10%
         pcap.status = "processing"
         pcap.progress = 10
         db.commit()
         _broadcast("pcap.process.progress", {"pcap_id": pcap_id, "percent": 10})
 
-        # Step 2: parse PCAP → flows
+        # 步骤 2：解析 PCAP → flows
         if tracker:
             with tracker.stage(PipelineStage.PARSE) as stg:
                 parser = ParsingService()
@@ -90,7 +90,7 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
         db.commit()
         _broadcast("pcap.process.progress", {"pcap_id": pcap_id, "percent": 40})
 
-        # Step 3: extract features for every flow
+        # 步骤 3：为每条 flow 提取特征
         if tracker:
             with tracker.stage(PipelineStage.FEATURE_EXTRACT) as stg:
                 feat_svc = FeaturesService()
@@ -105,7 +105,7 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
         db.commit()
         _broadcast("pcap.process.progress", {"pcap_id": pcap_id, "percent": 55})
 
-        # Step 4: anomaly scoring (only when mode == flows_and_detect)
+        # 步骤 4：异常评分（仅当 mode == flows_and_detect）
         if mode == "flows_and_detect":
             if tracker:
                 with tracker.stage(PipelineStage.DETECT) as stg:
@@ -128,7 +128,7 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
             with tracker.stage(PipelineStage.DETECT) as stg:
                 stg.skip("mode != flows_and_detect")
 
-        # Step 5: insert flows into DB
+        # 步骤 5：将 flows 入库
         for fd in flow_dicts:
             features_json = json.dumps(fd.get("features", {}))
             flow = Flow(
@@ -158,7 +158,7 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
         db.commit()
         _broadcast("pcap.process.progress", {"pcap_id": pcap_id, "percent": 85})
 
-        # Step 6: generate alerts (only when mode == flows_and_detect)
+        # 步骤 6：生成 alerts（仅当 mode == flows_and_detect）
         alert_count = 0
         if mode == "flows_and_detect":
             if tracker:
@@ -195,7 +195,7 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
                 )
                 db.add(alert_obj)
                 db.flush()
-                # Insert alert_flows associations
+                # 插入 alert_flows 关联
                 for fid in flow_ids_for_alert:
                     db.execute(
                         alert_flows.insert().values(
@@ -218,7 +218,7 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
             with tracker.stage(PipelineStage.AGGREGATE) as stg:
                 stg.skip("mode != flows_and_detect")
 
-        # Step 7: finalize
+        # 步骤 7：收尾
         flow_count = len(flow_dicts)
         pcap.status = "done"
         pcap.progress = 100
@@ -233,7 +233,7 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
             "alert_count": alert_count,
         })
 
-        # Finish pipeline tracking
+        # 结束 pipeline 追踪
         if tracker:
             tracker.finish()
             db.commit()
@@ -258,7 +258,7 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
         db.close()
 
 
-# --------------- endpoints ---------------
+# --------------- 接口 ---------------
 
 @router.post(
     "/upload",

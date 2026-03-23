@@ -1,6 +1,6 @@
 """
-Base stage abstraction for workflow engine.
-All stages implement a unified interface for orchestration.
+工作流引擎的阶段抽象基类。
+所有阶段通过统一接口参与编排。
 """
 
 from abc import ABC, abstractmethod
@@ -14,7 +14,7 @@ from app.models.alert import Alert
 
 @dataclass
 class StageContext:
-    """Input context passed to each workflow stage."""
+    """传递给各工作流阶段的输入上下文。"""
 
     alert: Alert
     language: str = "en"
@@ -24,30 +24,30 @@ class StageContext:
 
 @dataclass
 class StageResult:
-    """Output returned by each workflow stage."""
+    """各工作流阶段返回的输出结构。"""
 
     output: Any
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class BaseStage(ABC):
-    """Abstract base class for all workflow stages."""
+    """所有工作流阶段的抽象基类。"""
 
     @property
     @abstractmethod
     def name(self) -> str:
-        """Stage identifier used in registry and execution logs."""
+        """阶段标识符，用于注册表与执行日志。"""
         ...
 
     @abstractmethod
     def execute(self, context: StageContext) -> StageResult:
         """
-        Execute stage logic.
+        执行阶段逻辑。
 
-        Args:
-            context: StageContext with alert, language, previous_outputs, db.
+        参数：
+            context: 包含 alert、language、previous_outputs、db 的 StageContext。
 
-        Returns:
-            StageResult with output compatible with existing schemas.
+        返回：
+            与现有模式兼容输出的 StageResult。
         """
         ...

@@ -21,7 +21,7 @@ from pathlib import Path
 from datetime import datetime
 
 
-# Sample data matching DOC C v1.1 exactly
+# 与 DOC C v1.1 严格匹配的示例数据
 SAMPLES = {
     "flow.sample.json": {
         "version": "1.1",
@@ -135,7 +135,7 @@ def validate_sample(file_path: Path) -> tuple[bool, list[str]]:
     except json.JSONDecodeError as e:
         return False, [f"Invalid JSON: {e}"]
     
-    # Check required fields for all schemas
+    # 检查所有 schema 的必填字段
     if "version" not in data:
         errors.append("Missing required field: version")
     elif data["version"] != "1.1":
@@ -147,7 +147,7 @@ def validate_sample(file_path: Path) -> tuple[bool, list[str]]:
     if "created_at" not in data:
         errors.append("Missing required field: created_at")
     else:
-        # Validate ISO8601 format
+        # 校验 ISO8601 格式
         try:
             datetime.strptime(data["created_at"], "%Y-%m-%dT%H:%M:%SZ")
         except ValueError:
@@ -219,12 +219,12 @@ def regenerate_samples(samples_dir: Path, force: bool = False):
 
 def main():
     """Main entry point."""
-    # Find contract/samples directory
+    # 定位 contract/samples 目录
     script_dir = Path(__file__).parent
     project_root = script_dir.parent.parent
     samples_dir = project_root / "contract" / "samples"
     
-    # Parse args
+    # 解析参数
     args = sys.argv[1:]
     
     if "--regenerate" in args or "--force" in args:

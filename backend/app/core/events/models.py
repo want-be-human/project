@@ -13,8 +13,8 @@ from pydantic import BaseModel, Field
 from app.core.utils import generate_uuid
 
 
-# ── Event type constants ────────────────────────────────────────
-# Must match existing WebSocket event names exactly.
+# ── 事件类型常量 ───────────────────────────────────────────────
+# 必须与现有 WebSocket 事件名完全一致。
 
 PCAP_PROCESS_PROGRESS = "pcap.process.progress"
 PCAP_PROCESS_DONE = "pcap.process.done"
@@ -23,7 +23,7 @@ ALERT_UPDATED = "alert.updated"
 TWIN_DRYRUN_CREATED = "twin.dryrun.created"
 SCENARIO_RUN_DONE = "scenario.run.done"
 
-# Pipeline observability events
+# 流水线可观测性事件
 PIPELINE_RUN_STARTED = "pipeline.run.started"
 PIPELINE_STAGE_COMPLETED = "pipeline.stage.completed"
 PIPELINE_STAGE_FAILED = "pipeline.stage.failed"

@@ -13,7 +13,7 @@ from app.schemas.agent import ThreatContext, ThreatTechnique
 
 logger = get_logger(__name__)
 
-# ── Module-level cache: loaded once per process ──────────────────────────────
+# ── 模块级缓存：每个进程仅加载一次 ─────────────────────────────────────────
 
 _KNOWLEDGE_DIR = Path(__file__).resolve().parent / "knowledge"
 _mitre_mapping: dict | None = None
@@ -75,7 +75,7 @@ class ThreatEnrichmentService:
             logger.warning("Threat enrichment failed – degrading gracefully", exc_info=True)
             return None
 
-    # ── Internal implementation ──────────────────────────────────────────
+    # ── 内部实现 ───────────────────────────────────────────────────────
 
     def _do_enrich(
         self,
@@ -88,16 +88,16 @@ class ThreatEnrichmentService:
         mapping = _get_mitre_mapping()
         rules = _get_port_protocol_rules()
 
-        # 1. Base techniques from alert_type
+        # 1. 基于 alert_type 的基础技术匹配
         type_entry = mapping.get(alert_type, mapping.get("unknown", {}))
         techniques_raw: list[dict] = list(type_entry.get("techniques", []))
 
-        # 2. Port-based supplementary techniques
+        # 2. 基于端口的补充技术匹配
         for rule in rules.get("port_rules", []):
             if port in rule["ports"] and protocol in rule.get("protocols", []):
                 techniques_raw.extend(rule["techniques"])
 
-        # 3. Protocol-only rules (e.g. ICMP)
+        # 3. 仅基于协议的规则（如 ICMP）
         for rule in rules.get("protocol_rules", []):
             if protocol in rule.get("protocols", []):
                 techniques_raw.extend(rule["techniques"])
@@ -105,7 +105,7 @@ class ThreatEnrichmentService:
         if not techniques_raw:
             return None
 
-        # 4. De-duplicate by technique_id, keep highest base_confidence
+        # 4. 按 technique_id 去重，保留最高 base_confidence
         seen: dict[str, dict] = {}
         for t in techniques_raw:
             tid = t["technique_id"]
@@ -113,7 +113,7 @@ class ThreatEnrichmentService:
                 seen[tid] = dict(t)  # shallow copy
         unique_techniques = list(seen.values())
 
-        # 5. Feature-based confidence boosting
+        # 5. 基于特征的置信度提升
         feature_boost = rules.get("feature_boost_rules", {})
         feature_map = {f.get("name", ""): f for f in top_features}
 
@@ -139,7 +139,7 @@ class ThreatEnrichmentService:
                     if t["technique_id"] in boost_ids:
                         t["base_confidence"] = min(t.get("base_confidence", 0) + boost, 1.0)
 
-        # 6. Build ThreatTechnique list
+        # 6. 构建 ThreatTechnique 列表
         threat_techniques: list[ThreatTechnique] = []
         for t in unique_techniques:
             threat_techniques.append(ThreatTechnique(
@@ -152,10 +152,10 @@ class ThreatEnrichmentService:
                 intel_refs=t.get("intel_refs", []),
             ))
 
-        # Sort: highest confidence first
+        # 排序：按置信度从高到低
         threat_techniques.sort(key=lambda x: x.confidence, reverse=True)
 
-        # 7. De-duplicated tactics list (preserve order of first appearance)
+        # 7. 去重 tactics 列表（保留首次出现顺序）
         tactics_seen: set[str] = set()
         tactics: list[str] = []
         for tt in threat_techniques:
@@ -163,7 +163,7 @@ class ThreatEnrichmentService:
                 tactics_seen.add(tt.tactic_name)
                 tactics.append(tt.tactic_name)
 
-        # 8. Overall enrichment confidence = weighted average of top-3
+        # 8. 总体增强置信度 = 前 3 项加权平均
         top_scores = [tt.confidence for tt in threat_techniques[:3]]
         enrichment_confidence = round(sum(top_scores) / len(top_scores), 2) if top_scores else 0.0
 

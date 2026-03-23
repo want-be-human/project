@@ -35,7 +35,7 @@ class PipelineStage(str, Enum):
     VISUALIZE = "visualize"
 
 
-# Ordered list for display / iteration purposes
+# 供展示/遍历使用的有序阶段列表
 PIPELINE_STAGE_ORDER: list[PipelineStage] = list(PipelineStage)
 
 StageStatus = Literal["pending", "running", "completed", "failed", "skipped"]

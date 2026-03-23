@@ -1,8 +1,8 @@
 """
-In-memory event bus implementation.
+内存事件总线实现。
 
-Default backend for the event bus — no external dependencies.
-Suitable for single-process deployments.
+作为事件总线的默认后端，无外部依赖。
+适用于单进程部署。
 """
 
 import asyncio
@@ -16,21 +16,21 @@ logger = logging.getLogger(__name__)
 
 
 class InMemoryEventBus(EventBus):
-    """Async in-memory publish/subscribe event bus."""
+    """异步内存发布/订阅事件总线。"""
 
     def __init__(self) -> None:
         self._handlers: dict[str, list[EventHandler]] = defaultdict(list)
         self._lock = asyncio.Lock()
 
-    # ── publish ──────────────────────────────────────────────────
+    # ── 发布 ────────────────────────────────────────────────────
 
     async def publish(self, event: DomainEvent) -> None:
         """
-        Dispatch *event* to all handlers registered for its type
-        **and** to wildcard (``*``) handlers.
+        将 *event* 分发给其类型对应的处理器，
+        同时分发给通配符（``*``）处理器。
 
-        Individual handler failures are logged but never propagate —
-        one broken subscriber cannot disrupt others.
+        单个处理器失败仅记录日志，不向外传播，
+        以避免某个订阅者异常影响整体分发。
         """
         async with self._lock:
             handlers = list(self._handlers.get(event.event_type, []))
@@ -46,7 +46,7 @@ class InMemoryEventBus(EventBus):
                     event.event_type,
                 )
 
-    # ── subscribe / unsubscribe ──────────────────────────────────
+    # ── 订阅 / 取消订阅 ─────────────────────────────────────────
 
     async def subscribe(self, event_type: str, handler: EventHandler) -> None:
         async with self._lock:
@@ -58,4 +58,4 @@ class InMemoryEventBus(EventBus):
             try:
                 self._handlers[event_type].remove(handler)
             except ValueError:
-                pass  # handler was not registered — nothing to do
+                pass  # 处理器未注册，无需处理

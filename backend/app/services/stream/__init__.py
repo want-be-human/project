@@ -1,4 +1,4 @@
-"""Stream service for WebSocket broadcasting & EventBus access."""
+"""用于 WebSocket 广播与 EventBus 访问的流式服务。"""
 
 from app.api.routers.stream import (
     get_connection_manager,
@@ -22,7 +22,7 @@ from app.core.events import (
 )
 
 __all__ = [
-    # Connection manager & broadcast helpers
+    # 连接管理器与广播辅助函数
     "get_connection_manager",
     "broadcast_pcap_progress",
     "broadcast_pcap_done",
@@ -34,7 +34,7 @@ __all__ = [
     "get_event_bus",
     "DomainEvent",
     "make_event",
-    # Event type constants
+    # 事件类型常量
     "PCAP_PROCESS_PROGRESS",
     "PCAP_PROCESS_DONE",
     "ALERT_CREATED",

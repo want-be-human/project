@@ -1,6 +1,6 @@
 """
-Agent service.
-Structured output for triage, investigation, and recommendation.
+智能体服务。
+为分诊、调查与建议生成结构化输出。
 """
 
 import json
@@ -27,11 +27,11 @@ logger = get_logger(__name__)
 
 class AgentService:
     """
-    Service for agent-based analysis.
-    
-    Follows DOC B B4.7 specification.
-    Generates structured outputs without executing actions.
-    """
+用于智能体分析的服务。
+
+遵循 DOC B B4.7 规范。
+仅生成结构化输出，不执行动作。
+"""
 
     def __init__(self, db: Session):
         self.db = db
@@ -66,7 +66,7 @@ class AgentService:
                 f"Recommend investigation and consider temporary blocking."
             )
         
-        # Update alert's triage summary
+        # 更新 alert 的 triage 摘要
         agent_data = json.loads(alert.agent) if isinstance(alert.agent, str) else alert.agent
         agent_data["triage_summary"] = summary
         alert.agent = json.dumps(agent_data)
@@ -89,22 +89,22 @@ class AgentService:
         evidence = json.loads(alert.evidence) if isinstance(alert.evidence, str) else alert.evidence
         aggregation = json.loads(alert.aggregation) if isinstance(alert.aggregation, str) else alert.aggregation
         
-        # Threat enrichment (Module E)
+        # 威胁增强（模块 E）
         threat_context = self._run_enrichment(alert, evidence)
 
-        # Build hypothesis based on alert type
+        # 基于告警类型构建假设
         hypothesis = self._build_hypothesis(alert, language, threat_context)
         
-        # Build reasoning
+        # 构建推理依据
         why = self._build_why(alert, evidence, aggregation, language, threat_context)
         
-        # Assess impact
+        # 评估影响
         impact = self._assess_impact(alert, evidence)
         
-        # Suggest next steps
+        # 给出后续步骤
         next_steps = self._suggest_next_steps(alert, language)
         
-        # Create investigation record
+        # 创建 investigation 记录
         inv_id = generate_uuid()
         now = utc_now()
         
@@ -124,7 +124,7 @@ class AgentService:
             threat_context=threat_context,
         )
         
-        # Save to database
+        # 写入数据库
         inv_model = Investigation(
             id=inv_id,
             created_at=now,
@@ -133,7 +133,7 @@ class AgentService:
         )
         self.db.add(inv_model)
         
-        # Update alert's agent field
+        # 更新 alert 的 agent 字段
         agent_data = json.loads(alert.agent) if isinstance(alert.agent, str) else alert.agent
         agent_data["investigation_id"] = inv_id
         alert.agent = json.dumps(agent_data)
@@ -156,13 +156,13 @@ class AgentService:
         """
         evidence = json.loads(alert.evidence) if isinstance(alert.evidence, str) else alert.evidence
 
-        # Threat enrichment (Module E)
+        # 威胁增强（模块 E）
         threat_context = self._run_enrichment(alert, evidence)
 
-        # Build actions based on alert type and severity
+        # 基于告警类型与严重级别构建建议动作
         actions = self._build_actions(alert, language, threat_context)
         
-        # Create recommendation record
+        # 创建 recommendation 记录
         rec_id = generate_uuid()
         now = utc_now()
         
@@ -175,7 +175,7 @@ class AgentService:
             threat_context=threat_context,
         )
         
-        # Save to database
+        # 写入数据库
         rec_model = Recommendation(
             id=rec_id,
             created_at=now,
@@ -184,7 +184,7 @@ class AgentService:
         )
         self.db.add(rec_model)
         
-        # Update alert's agent field
+        # 更新 alert 的 agent 字段
         agent_data = json.loads(alert.agent) if isinstance(alert.agent, str) else alert.agent
         agent_data["recommendation_id"] = rec_id
         alert.agent = json.dumps(agent_data)
@@ -239,7 +239,7 @@ class AgentService:
             }
         base = hypotheses.get(alert.type, hypotheses["anomaly"])
 
-        # Augment with MITRE technique reference
+        # 补充 MITRE 技术引用
         if threat_context and threat_context.techniques:
             top = threat_context.techniques[0]
             if language == "zh":
@@ -283,7 +283,7 @@ class AgentService:
         else:
             reasons.append(f"Alert severity assessed as {alert.severity} based on anomaly scores")
 
-        # Append MITRE-based reasoning
+        # 追加基于 MITRE 的推理说明
         if threat_context and threat_context.techniques:
             tactics_str = ", ".join(threat_context.tactics)
             if language == "zh":
@@ -306,7 +306,7 @@ class AgentService:
             f"service:{alert.primary_proto}/{alert.primary_dst_port}",
         ]
         
-        # Confidence based on flow count and severity
+        # 基于 flow 数量与严重级别计算置信度
         flow_count = len(evidence.get("flow_ids", []))
         
         if alert.severity == "critical":
@@ -318,7 +318,7 @@ class AgentService:
         else:
             base_confidence = 0.5
         
-        # Adjust for flow count
+        # 按 flow 数量调整
         confidence = min(base_confidence + (flow_count * 0.01), 0.95)
         
         return {"scope": scope, "confidence": round(confidence, 2)}
@@ -425,7 +425,7 @@ class AgentService:
                     risk="May impact legitimate high-volume users",
                 ))
         
-        # Build MITRE risk suffix for contextual referencing
+        # 构建 MITRE 风险后缀，增强上下文引用
         mitre_risk_suffix = ""
         if threat_context and threat_context.techniques:
             top = threat_context.techniques[0]

@@ -18,20 +18,20 @@ class Investigation(BaseModel):
 
     __tablename__ = "investigations"
 
-    # Foreign key to alerts
+    # 指向 alerts 的外键
     alert_id: Mapped[str] = mapped_column(
         String(36),
         ForeignKey("alerts.id", ondelete="CASCADE"),
         nullable=False,
     )
 
-    # Full Investigation JSON payload
+    # 完整 Investigation JSON 载荷
     payload: Mapped[str] = mapped_column(Text, nullable=False)
 
-    # Relationship
+    # 关联关系
     alert = relationship("Alert", backref="investigations")
 
-    # Index (附录F 5.2)
+    # 索引（附录F 5.2）
     __table_args__ = (
         Index("idx_inv_alert_created", "alert_id", "created_at"),
     )

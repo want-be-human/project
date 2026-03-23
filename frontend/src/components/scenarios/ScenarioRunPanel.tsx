@@ -27,20 +27,20 @@ export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props)
   const [pipelineRun, setPipelineRun] = useState<PipelineRun | null>(null);
   const [pipelineLoading, setPipelineLoading] = useState(false);
 
-  // Clear result when selecting a new scenario
+  // 选择新场景时清空旧结果
   useEffect(() => {
     setResult(null);
     setError(null);
     setPipelineRun(null);
   }, [scenario?.id]);
 
-  // Subscribe to scenario.run.done WS event
-  // Event payload is lightweight: { scenario_id, status }
-  // When not actively running (POST in-flight), fetch the full run result by scenario_id
+  // 订阅 scenario.run.done 的 WebSocket 事件
+  // 事件载荷较轻：{ scenario_id, status }
+  // 当未处于主动运行中（POST 未在进行）时，通过 scenario_id 拉取完整运行结果
   useEffect(() => {
     const unsub = wsClient.onEvent('scenario.run.done', async (payload: ScenarioRunDoneEvent) => {
       if (!scenario || payload.scenario_id !== scenario.id) return;
-      // Skip if we're already handling a POST-initiated run (it will set the result directly)
+      // 若当前已在处理 POST 发起的运行则跳过（其会直接写入结果）
       if (running) return;
       setRefreshing(true);
       try {
@@ -67,7 +67,7 @@ export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props)
       const res = await api.runScenario(scenario.id);
       setResult(res);
 
-      // Fire-and-forget pipeline fetch — errors are silently swallowed (feature flag may be off)
+      // 以 fire-and-forget 方式获取流水线结果：错误静默处理（功能开关可能关闭）
       if (scenario.pcap_ref?.pcap_id) {
         setPipelineLoading(true);
         api.getPipelineRun(scenario.pcap_ref.pcap_id)

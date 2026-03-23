@@ -18,24 +18,24 @@ class Scenario(BaseModel):
 
     __tablename__ = "scenarios"
 
-    # Scenario metadata
+    # 场景元数据
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
-    # Reference to pcap (拆分出来便于 join)
+    # 引用 pcap（拆分后便于 join）
     pcap_id: Mapped[str] = mapped_column(
         String(36),
         ForeignKey("pcap_files.id", ondelete="CASCADE"),
         nullable=False,
     )
 
-    # Full Scenario JSON payload (expectations, tags, etc.)
+    # 完整 Scenario JSON 载荷（expectations、tags 等）
     payload: Mapped[str] = mapped_column(Text, nullable=False)
 
-    # Relationship
+    # 关联关系
     pcap = relationship("PcapFile", backref="scenarios")
 
-    # Indexes (附录F 10.2)
+    # 索引（附录F 10.2）
     __table_args__ = (
         UniqueConstraint("name", name="uq_scenario_name"),
         Index("idx_scenario_created", "created_at"),
@@ -55,23 +55,23 @@ class ScenarioRun(BaseModel):
 
     __tablename__ = "scenario_runs"
 
-    # Foreign key to scenarios
+    # 指向 scenarios 的外键
     scenario_id: Mapped[str] = mapped_column(
         String(36),
         ForeignKey("scenarios.id", ondelete="CASCADE"),
         nullable=False,
     )
 
-    # Result status
+    # 执行结果状态
     status: Mapped[str] = mapped_column(String(20), nullable=False)  # pass, fail
 
-    # Full ScenarioRunResult JSON payload
+    # 完整 ScenarioRunResult JSON 载荷
     payload: Mapped[str] = mapped_column(Text, nullable=False)
 
-    # Relationship
+    # 关联关系
     scenario = relationship("Scenario", backref="runs")
 
-    # Indexes (附录F 11.2)
+    # 索引（附录F 11.2）
     __table_args__ = (
         Index("idx_run_scenario_created", "scenario_id", "created_at"),
         Index("idx_run_status_created", "status", "created_at"),

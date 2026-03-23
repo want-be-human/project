@@ -1,6 +1,6 @@
 """
-API dependencies.
-Database session, common utilities.
+API 依赖项。
+包含数据库会话与通用依赖。
 """
 
 from typing import Generator
@@ -11,8 +11,8 @@ from app.core.config import settings
 from app.models.base import Base
 
 
-# Create engine based on DATABASE_URL
-# For SQLite, we need check_same_thread=False for FastAPI async
+# 基于 DATABASE_URL 创建引擎
+# 对 SQLite 需设置 check_same_thread=False 以兼容 FastAPI 异步场景
 connect_args = {}
 if settings.DATABASE_URL.startswith("sqlite"):
     connect_args["check_same_thread"] = False
@@ -27,14 +27,14 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 def init_db() -> None:
-    """Initialize database tables."""
+    """初始化数据库表。"""
     Base.metadata.create_all(bind=engine)
 
 
 def get_db() -> Generator[Session, None, None]:
     """
-    Dependency that provides a database session.
-    Yields a session and ensures it's closed after use.
+    提供数据库会话依赖。
+    产出会话并确保使用后关闭。
     """
     db = SessionLocal()
     try:

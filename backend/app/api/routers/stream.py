@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["stream"])
 
 
-# ── WebSocket connection manager (unchanged) ─────────────────────
+# ── WebSocket 连接管理器（保持不变） ──────────────────────────────
 
 class ConnectionManager:
     """Manage WebSocket connections."""
@@ -66,7 +66,7 @@ class ConnectionManager:
             except Exception:
                 disconnected.add(connection)
 
-        # Clean up disconnected clients
+        # 清理已断开连接的客户端
         self.active_connections -= disconnected
 
     async def send_to(self, websocket: WebSocket, event: str, data: dict):
@@ -75,7 +75,7 @@ class ConnectionManager:
         await websocket.send_text(message)
 
 
-# Global connection manager instance
+# 全局连接管理器实例
 manager = ConnectionManager()
 
 
@@ -84,7 +84,7 @@ def get_connection_manager() -> ConnectionManager:
     return manager
 
 
-# ── WebSocket event consumer (EventBus → WS) ────────────────────
+# ── WebSocket 事件消费者（EventBus → WS） ───────────────────────
 
 class WebSocketEventConsumer:
     """
@@ -113,11 +113,11 @@ class WebSocketEventConsumer:
         await bus.unsubscribe(WILDCARD, self.handle)
 
 
-# Singleton consumer — initialised on app startup via ``register()``.
+# 单例消费者：在应用启动阶段通过 ``register()`` 初始化。
 ws_consumer = WebSocketEventConsumer(manager)
 
 
-# ── WebSocket endpoint (unchanged) ──────────────────────────────
+# ── WebSocket 端点（保持不变） ───────────────────────────────────
 
 @router.websocket("/stream")
 @router.websocket("/ws")
@@ -136,21 +136,21 @@ async def websocket_stream(websocket: WebSocket):
     await manager.connect(websocket)
 
     try:
-        # Keep connection alive and handle incoming messages
+        # 保持连接存活并处理入站消息
         while True:
             try:
-                # Wait for messages (ping/pong or commands)
+                # 等待消息（ping/pong 或其他指令）
                 data = await asyncio.wait_for(
                     websocket.receive_text(),
                     timeout=30.0  # Heartbeat timeout
                 )
 
-                # Handle ping
+                # 处理 ping
                 if data == "ping":
                     await websocket.send_text("pong")
 
             except asyncio.TimeoutError:
-                # Send heartbeat
+                # 发送心跳
                 try:
                     await websocket.send_text(json.dumps({"event": "heartbeat", "data": {}}))
                 except Exception:
@@ -162,10 +162,10 @@ async def websocket_stream(websocket: WebSocket):
         manager.disconnect(websocket)
 
 
-# ── Broadcast helpers ────────────────────────────────────────────
-# Signatures are *unchanged* — callers need zero modifications.
-# Internally they now publish through the EventBus; the
-# WebSocketEventConsumer forwards each event to WS clients.
+# ── 广播辅助函数 ─────────────────────────────────────────────────
+# 函数签名保持不变，调用方无需改动。
+# 内部改为经由 EventBus 发布，再由
+# WebSocketEventConsumer 转发到 WS 客户端。
 
 async def broadcast_pcap_progress(pcap_id: str, percent: int):
     """Broadcast PCAP processing progress."""

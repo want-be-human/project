@@ -1,7 +1,7 @@
 import type { LayoutConfig, LayoutResult } from './types';
 import { circleLayout } from './circle';
 
-// d3-force-3d has no official @types — use dynamic import + manual typing
+// d3-force-3d 没有官方 @types，使用动态导入与手工类型定义
 interface SimNode {
   id: string;
   x: number;
@@ -11,18 +11,18 @@ interface SimNode {
 }
 
 /**
- * Force-directed 3D layout using d3-force-3d.
- * Initialises node positions from circle layout to avoid random-start jitter,
- * then runs 300 simulation ticks synchronously.
+ * 基于 d3-force-3d 的三维力导向布局。
+ * 先用 circle 布局初始化节点位置以避免随机初始抖动，
+ * 再同步执行 300 次仿真迭代。
  */
 export function forceLayout(config: LayoutConfig): LayoutResult {
   const { nodes, edges } = config;
   if (nodes.length === 0) return {};
 
-  // Seed from circle layout for stability
+  // 使用 circle 布局作为稳定初始种子
   const seed = circleLayout(config);
 
-  // Build simulation nodes
+  // 构建仿真节点
   const simNodes: SimNode[] = nodes.map((n) => ({
     id: n.id,
     x: seed[n.id]?.[0] ?? 0,
@@ -31,7 +31,7 @@ export function forceLayout(config: LayoutConfig): LayoutResult {
     risk: n.risk,
   }));
 
-  // Build links
+  // 构建连边
   const nodeSet = new Set(nodes.map((n) => n.id));
   const links = edges
     .filter((e) => nodeSet.has(e.source) && nodeSet.has(e.target))
@@ -53,17 +53,17 @@ export function forceLayout(config: LayoutConfig): LayoutResult {
       .force('center', d3Force3d.forceCenter())
       .stop();
 
-    // Run 300 ticks synchronously
+    // 同步执行 300 次 tick
     for (let i = 0; i < 300; i++) sim.tick();
 
     const positions: LayoutResult = {};
     for (const n of simNodes) {
-      // Retain risk-based Y offset
+      // 保留基于风险的 Y 轴偏移
       positions[n.id] = [n.x, (n.risk - 0.5) * 3, n.z];
     }
     return positions;
   } catch {
-    // Fallback if d3-force-3d is unavailable
+    // d3-force-3d 不可用时回退
     return seed;
   }
 }

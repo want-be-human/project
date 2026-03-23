@@ -1,5 +1,5 @@
 """
-Recommendation stage – delegates to AgentService.recommend().
+建议阶段：委托给 AgentService.recommend() 执行。
 """
 
 from app.services.agent.service import AgentService
@@ -7,7 +7,7 @@ from app.workflows.stages.base import BaseStage, StageContext, StageResult
 
 
 class RecommendationStage(BaseStage):
-    """Generate action recommendations for an alert."""
+    """为告警生成处置建议。"""
 
     @property
     def name(self) -> str:

@@ -28,19 +28,19 @@ export default function AgentPanel({
   const locale = useLocale();
   const [activeTab, setActiveTab] = useState<'triage' | 'investigate' | 'recommend'>('triage');
 
-  // "fresh" state: results from user-triggered runs during this session
+  // "fresh" 状态：当前会话中由用户触发运行得到的新结果
   const [freshTriage, setFreshTriage] = useState<string | null>(null);
   const [freshInvestigation, setFreshInvestigation] = useState<Investigation | null>(null);
   const [freshRecommendation, setFreshRecommendation] = useState<Recommendation | null>(null);
 
   const [loading, setLoading] = useState(false);
 
-  // Derived display values: prefer fresh results, fall back to initial (backfilled) props
+  // 派生展示值：优先 fresh 结果，否则回退到初始（回填）props
   const triageSummary = freshTriage ?? initialTriageSummary;
   const investigation = freshInvestigation ?? initialInvestigation;
   const recommendation = freshRecommendation ?? initialRecommendation;
 
-  // Derived history flags
+  // 派生历史标记
   const triageFromHistory = !freshTriage && !!initialTriageSummary;
   const investigationFromHistory = !freshInvestigation && !!initialInvestigation;
   const recommendationFromHistory = !freshRecommendation && !!initialRecommendation;
@@ -87,7 +87,7 @@ export default function AgentPanel({
     }
   };
 
-  /** Small badge indicating the result is from a previous run */
+  /** 用于标识该结果来自历史运行的小徽标 */
   const HistoryBadge = ({ createdAt }: { createdAt?: string }) => (
     <div className="flex items-center gap-1.5 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2.5 py-1 mb-3 w-fit">
       <History className="w-3 h-3" />
@@ -98,7 +98,7 @@ export default function AgentPanel({
     </div>
   );
 
-  /** Re-run button shown below existing results */
+  /** 展示在既有结果下方的重新运行按钮 */
   const RerunButton = ({ label, onClick }: { label: string; onClick: () => void }) => (
     <button
       onClick={onClick}

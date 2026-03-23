@@ -23,7 +23,7 @@ from app.workflows.stages.compile_plan import CompilePlanStage
 
 logger = get_logger(__name__)
 
-# Stage registry: maps stage name → Stage class
+# 阶段注册表：将阶段名映射到阶段类
 _STAGE_REGISTRY: dict[str, type[BaseStage]] = {
     "triage": TriageStage,
     "investigate": InvestigationStage,
@@ -45,7 +45,7 @@ class WorkflowEngine:
         self.db = db
 
     # ------------------------------------------------------------------
-    # Public API
+    # 对外 API
     # ------------------------------------------------------------------
 
     def run_stage(
@@ -72,10 +72,10 @@ class WorkflowEngine:
             db=self.db,
         )
 
-        # Create execution record
+        # 创建执行记录
         execution = self._create_execution(alert.id, stage_name)
 
-        # Execute stage with timing
+        # 执行阶段并计时
         stage_log = StageExecutionLog(
             stage_name=stage_name,
             status="running",
@@ -107,7 +107,7 @@ class WorkflowEngine:
                 elapsed_ms,
             )
 
-            # Bridge to pipeline observability
+            # 对接到流水线可观测性
             self._bridge_to_pipeline(alert, stage_log)
 
             return result.output
@@ -211,7 +211,7 @@ class WorkflowEngine:
         return previous_outputs
 
     # ------------------------------------------------------------------
-    # Internal helpers
+    # 内部辅助方法
     # ------------------------------------------------------------------
 
     def _create_execution(self, alert_id: str, workflow_type: str) -> WorkflowExecution:
@@ -236,10 +236,10 @@ class WorkflowEngine:
         return {}
 
     # ------------------------------------------------------------------
-    # Pipeline observability bridge
+    # 流水线可观测性桥接
     # ------------------------------------------------------------------
 
-    # Map workflow stage names → PipelineStage enum values
+    # 将工作流阶段名映射到 PipelineStage 枚举值
     _STAGE_TO_PIPELINE = {
         "triage": "investigate",       # triage is part of the investigate phase
         "investigate": "investigate",
@@ -262,7 +262,7 @@ class WorkflowEngine:
             if not pipeline_stage:
                 return
 
-            # Find the PCAP id via alert's flows
+            # 通过 alert 关联的 flow 查找 PCAP id
             from app.models.flow import Flow
             flow = (
                 self.db.query(Flow.pcap_id)
@@ -270,12 +270,12 @@ class WorkflowEngine:
                     Alert.__table__.metadata.tables.get("alert_flows", None)
                     or self.db.execute(
                         __import__("sqlalchemy").text("SELECT 1")
-                    ),  # fallback — shouldn't happen
+                    ),  # 兜底分支（理论上不应触发）
                 )
                 .filter(Flow.pcap_id.isnot(None))
                 .first()
             )
-            # Simpler: look up alert_flows → flow → pcap_id
+            # 更直接：通过 alert_flows → flow → pcap_id 查询
             from app.models.alert import alert_flows as af_table
             row = (
                 self.db.query(Flow.pcap_id)
@@ -287,7 +287,7 @@ class WorkflowEngine:
                 return
             pcap_id = row[0]
 
-            # Find existing pipeline run for this pcap
+            # 查找该 pcap 对应的现有 pipeline run
             pipeline_run = (
                 self.db.query(PipelineRunModel)
                 .filter(PipelineRunModel.pcap_id == pcap_id)
@@ -312,7 +312,7 @@ class WorkflowEngine:
                 error_summary=stage_log.error,
             )
 
-            # Replace existing stage or append
+            # 替换已存在阶段记录，或追加新记录
             replaced = False
             for i, s in enumerate(existing_stages):
                 if s.get("stage_name") == pipeline_stage:

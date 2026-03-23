@@ -1,5 +1,5 @@
 """
-Common utility functions.
+通用工具函数。
 """
 
 import uuid
@@ -9,30 +9,30 @@ from pathlib import Path
 
 
 def generate_uuid() -> str:
-    """Generate a new UUID string."""
+    """生成新的 UUID 字符串。"""
     return str(uuid.uuid4())
 
 
 def utc_now() -> datetime:
-    """Get current UTC datetime."""
+    """获取当前 UTC 时间。"""
     return datetime.now(timezone.utc)
 
 
 def utc_now_iso() -> str:
-    """Get current UTC datetime as ISO8601 string."""
+    """获取当前 UTC 时间的 ISO8601 字符串。"""
     return utc_now().strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def datetime_to_iso(dt: datetime) -> str:
-    """Convert datetime to ISO8601 UTC string."""
+    """将 datetime 转换为 ISO8601 UTC 字符串。"""
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def iso_to_datetime(iso_str: str) -> datetime:
-    """Parse ISO8601 string to datetime."""
-    # Handle both with and without microseconds
+    """将 ISO8601 字符串解析为 datetime。"""
+    # 同时兼容带微秒和不带微秒的时间格式
     for fmt in ["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S.%fZ"]:
         try:
             return datetime.strptime(iso_str, fmt).replace(tzinfo=timezone.utc)
@@ -42,7 +42,7 @@ def iso_to_datetime(iso_str: str) -> datetime:
 
 
 def compute_file_hash(file_path: Path, algorithm: str = "sha256") -> str:
-    """Compute hash of a file."""
+    """计算文件哈希值。"""
     hash_func = hashlib.new(algorithm)
     with open(file_path, "rb") as f:
         for chunk in iter(lambda: f.read(8192), b""):
@@ -51,13 +51,13 @@ def compute_file_hash(file_path: Path, algorithm: str = "sha256") -> str:
 
 
 def is_valid_pcap_filename(filename: str) -> bool:
-    """Check if filename has valid pcap extension."""
+    """检查文件名是否为有效的 pcap 扩展名。"""
     lower = filename.lower()
     return lower.endswith(".pcap") or lower.endswith(".pcapng")
 
 
 def sanitize_filename(filename: str) -> str:
-    """Sanitize filename for safe storage."""
-    # Remove path separators and dangerous characters
+    """清洗文件名以便安全存储。"""
+    # 去除路径分隔符和潜在危险字符
     safe_chars = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-")
     return "".join(c if c in safe_chars else "_" for c in filename)

@@ -38,7 +38,7 @@ async def create_plan(
     request: CreatePlanRequest,
     db: Session = Depends(get_db),
 ) -> ApiResponse[ActionPlanSchema]:
-    # Verify alert exists
+    # 校验 alert 是否存在
     alert = db.query(Alert).filter(Alert.id == request.alert_id).first()
     if not alert:
         raise NotFoundError(message=f"Alert {request.alert_id} not found")
@@ -64,17 +64,17 @@ async def execute_dry_run(
     request: DryRunRequest | None = None,
     db: Session = Depends(get_db),
 ) -> ApiResponse[DryRunResultSchema]:
-    # Fetch plan
+    # 获取 plan
     plan = db.query(TwinPlan).filter(TwinPlan.id == plan_id).first()
     if not plan:
         raise NotFoundError(message=f"TwinPlan {plan_id} not found")
 
-    # Fetch alert for default time window
+    # 获取 alert（用于默认时间窗口）
     alert = db.query(Alert).filter(Alert.id == plan.alert_id).first()
     if not alert:
         raise NotFoundError(message=f"Alert {plan.alert_id} not found")
 
-    # Determine time window: use request params or fall back to alert.time_window
+    # 确定时间窗口：优先使用请求参数，否则回退到 alert.time_window
     mode = "ip"
     if request and request.start and request.end:
         start = iso_to_datetime(request.start)
@@ -90,13 +90,13 @@ async def execute_dry_run(
     service = TwinService(db)
     result = service.dry_run(plan, start, end, mode)
 
-    # Broadcast WS event (fire-and-forget)
+    # 广播 WS 事件（fire-and-forget）
     try:
         from app.api.routers.stream import broadcast_dryrun_created
         risk = result.impact.service_disruption_risk
         asyncio.create_task(broadcast_dryrun_created(result.id, result.alert_id, risk))
     except Exception:
-        pass  # WS failure should not break the request
+        pass  # WS 失败不应影响主请求
 
     return ApiResponse.success(result)
 

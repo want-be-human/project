@@ -60,7 +60,7 @@ export const typeColumns: Record<string, number> = {
 export default function EvidenceChainView({ chain }: EvidenceChainViewProps) {
   const router = useRouter();
 
-  // Auto-layout logic (simple horizontal layout for Week 5)
+  // 自动布局逻辑（Week 5 采用简单横向布局）
   const { initialNodes, initialEdges } = useMemo(() => {
     const nodes: Node[] = [];
     const edges: Edge[] = [];
@@ -71,7 +71,7 @@ export default function EvidenceChainView({ chain }: EvidenceChainViewProps) {
     chain.nodes.forEach((n) => {
       const x = typeColumns[n.type] ?? 0;
       const y = colY[x] || 0;
-      colY[x] = y + 100; // Spacing between nodes vertically
+      colY[x] = y + 100; // 节点纵向间距
 
       nodes.push({
         id: n.id,
@@ -121,7 +121,7 @@ export default function EvidenceChainView({ chain }: EvidenceChainViewProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
-  // Sync ReactFlow internal state when chain prop changes (e.g. after auto-refresh)
+  // 当 chain 变化时同步 ReactFlow 内部状态（如自动刷新后）
   useEffect(() => {
     setNodes(initialNodes);
     setEdges(initialEdges);
@@ -131,10 +131,10 @@ export default function EvidenceChainView({ chain }: EvidenceChainViewProps) {
     const rawId = node.id;
     if (rawId.startsWith('flow:')) {
       const flowId = rawId.replace('flow:', '');
-      // In a real app, we might open a drawer or navigate
+      // 在真实应用中，这里可改为打开抽屉或跳转详情
       router.push(`/flows?flow_id=${flowId}`);
     } else if (rawId.startsWith('dry:')) {
-      // Scroll to dry run panel
+      // 滚动到 dry-run 面板
       document.getElementById('dryrun-panel')?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [router]);

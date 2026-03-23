@@ -1,6 +1,6 @@
 """
-Topology service.
-Build GraphResponse for twin simulation.
+拓扑服务。
+为孪生仿真构建 GraphResponse。
 """
 
 import hashlib
@@ -19,10 +19,10 @@ logger = get_logger(__name__)
 
 class TopologyService:
     """
-    Service for building topology graphs.
-    
-    Follows DOC B B4.6 specification.
-    """
+用于构建拓扑图的服务。
+
+遵循 DOC B B4.6 规范。
+"""
 
     def __init__(self, db: Session):
         self.db = db
@@ -49,12 +49,12 @@ class TopologyService:
         
         logger.info(f"Building graph: {start} to {end}, mode={mode}")
         
-        # Normalize to naive UTC for comparison with SQLite-stored datetimes
+        # 规范化为 naive UTC，便于与 SQLite 存储的时间比较
         _start = start.replace(tzinfo=None) if start.tzinfo else start
         _end = end.replace(tzinfo=None) if end.tzinfo else end
         
-        # Query flows that OVERLAP the time window (not just contained)
-        # A flow overlaps when: flow.ts_start <= end AND flow.ts_end >= start
+        # 查询与时间窗“重叠”的 flow（而非仅完全包含）
+        # 重叠条件：flow.ts_start <= end 且 flow.ts_end >= start
         flows = self.db.query(Flow).filter(
             Flow.ts_start <= _end,
             Flow.ts_end >= _start,
@@ -62,17 +62,17 @@ class TopologyService:
         
         logger.info(f"Found {len(flows)} flows in window")
         
-        # Build node and edge dictionaries
+        # 构建节点与边的字典
         nodes: dict[str, GraphNode] = {}
         edges: dict[str, dict] = {}  # edge_key -> edge_data
         
-        # Get all alerts that OVERLAP the time window
+        # 获取与时间窗重叠的所有 alert
         alerts = self.db.query(Alert).filter(
             Alert.time_window_start <= _end,
             Alert.time_window_end >= _start,
         ).all()
         
-        # Build alert lookup by flow
+        # 构建按 flow 映射的 alert 索引
         alert_by_flow: dict[str, list] = {}
         for alert in alerts:
             evidence = json.loads(alert.evidence) if isinstance(alert.evidence, str) else alert.evidence
@@ -82,7 +82,7 @@ class TopologyService:
                 alert_by_flow[flow_id].append(alert)
         
         for flow in flows:
-            # Get node IDs based on mode
+            # 按模式计算节点 ID
             if mode == "subnet":
                 src_id = f"subnet:{self._ip_to_subnet(flow.src_ip)}"
                 dst_id = f"subnet:{self._ip_to_subnet(flow.dst_ip)}"
@@ -90,7 +90,7 @@ class TopologyService:
                 src_id = f"ip:{flow.src_ip}"
                 dst_id = f"ip:{flow.dst_ip}"
             
-            # Create/update nodes
+            # 创建/更新节点
             if src_id not in nodes:
                 nodes[src_id] = GraphNode(
                     id=src_id,
@@ -107,7 +107,7 @@ class TopologyService:
                     risk=0.0,
                 )
             
-            # Create edge key
+            # 生成边键
             edge_key = f"{src_id}>{dst_id}:{flow.proto}:{flow.dst_port}"
             
             if edge_key not in edges:
@@ -126,7 +126,7 @@ class TopologyService:
             edge = edges[edge_key]
             edge["weight"] += 1
             
-            # Clamp interval to the query window for precise time-slider behaviour
+            # 将区间裁剪到查询窗口，确保时间滑块行为精确
             flow_start = flow.ts_start.replace(tzinfo=None) if flow.ts_start.tzinfo else flow.ts_start
             flow_end = flow.ts_end.replace(tzinfo=None) if flow.ts_end.tzinfo else flow.ts_end
             iv_start = max(flow_start, _start)
@@ -134,21 +134,21 @@ class TopologyService:
             interval = [datetime_to_iso(iv_start), datetime_to_iso(iv_end)]
             edge["activeIntervals"].append(interval)
             
-            # Update risk from anomaly score
+            # 根据异常分更新风险值
             if flow.anomaly_score:
                 edge["risk"] = max(edge["risk"], flow.anomaly_score)
                 nodes[src_id].risk = max(nodes[src_id].risk, flow.anomaly_score)
                 nodes[dst_id].risk = max(nodes[dst_id].risk, flow.anomaly_score * 0.5)
             
-            # Add alert associations
+            # 添加 alert 关联
             if flow.id in alert_by_flow:
                 for alert in alert_by_flow[flow.id]:
                     edge["alert_ids"].add(alert.id)
 
-        # Convert edges to GraphEdge objects
+        # 转换为 GraphEdge 对象
         edge_list = []
         for edge_data in edges.values():
-            # Sort and merge overlapping intervals for clean time-slider behaviour
+            # 排序并合并重叠区间，保证时间滑块展示清晰
             merged = self._merge_intervals(edge_data["activeIntervals"])
             edge_list.append(GraphEdge(
                 id=edge_data["id"],
@@ -162,7 +162,7 @@ class TopologyService:
                 alert_ids=sorted(edge_data["alert_ids"]),
             ))
         
-        # Build response
+        # 构建响应
         graph = GraphResponseSchema(
             version="1.1",
             nodes=list(nodes.values()),
@@ -178,7 +178,7 @@ class TopologyService:
         return graph
 
     # ------------------------------------------------------------------
-    # Helpers
+    # 辅助方法
     # ------------------------------------------------------------------
 
     @staticmethod
@@ -186,12 +186,12 @@ class TopologyService:
         """Sort intervals chronologically and merge overlapping ones."""
         if not intervals:
             return []
-        # Sort by start time (ISO8601 strings are lexicographically sortable)
+        # 按开始时间排序（ISO8601 字符串可按字典序排序）
         sorted_iv = sorted(intervals, key=lambda iv: iv[0])
         merged: list[list[str]] = [sorted_iv[0]]
         for iv in sorted_iv[1:]:
             if iv[0] <= merged[-1][1]:
-                # Overlapping or adjacent → extend
+                # 重叠或相邻 -> 延展
                 if iv[1] > merged[-1][1]:
                     merged[-1][1] = iv[1]
             else:
@@ -200,7 +200,7 @@ class TopologyService:
 
     def compute_graph_hash(self, graph: GraphResponseSchema) -> str:
         """Compute SHA256 hash of graph state."""
-        # Create deterministic representation
+        # 构建确定性表示
         data = {
             "nodes": sorted([n.model_dump() for n in graph.nodes], key=lambda x: x["id"]),
             "edges": sorted([e.model_dump() for e in graph.edges], key=lambda x: x["id"]),
@@ -215,4 +215,4 @@ class TopologyService:
         parts = ip.split(".")
         if len(parts) == 4:
             return f"{parts[0]}.{parts[1]}.{parts[2]}.0/24"
-        return ip  # Return as-is for IPv6 or invalid
+        return ip  # IPv6 或非法输入保持原样

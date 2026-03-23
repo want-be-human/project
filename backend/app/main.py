@@ -1,6 +1,6 @@
 """
-NetTwin-SOC Backend Application.
-FastAPI main entry point.
+NetTwin-SOC 后端应用。
+FastAPI 主入口。
 """
 
 import asyncio
@@ -37,14 +37,14 @@ logger = get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan handler."""
-    # Startup
+    """应用生命周期处理器。"""
+    # 启动阶段
     setup_logging()
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     init_db()
     logger.info("Database initialized")
 
-    # Initialise internal event bus & register WebSocket consumer
+    # 初始化内部事件总线并注册 WebSocket 消费者
     from app.core.events import get_event_bus
     from app.api.routers.stream import ws_consumer
     get_event_bus()  # ensure singleton is created
@@ -58,7 +58,7 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # Shutdown
+    # 关闭阶段
     await ws_consumer.unregister()
     logger.info("Shutting down")
 
@@ -72,7 +72,7 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# CORS middleware
+# CORS 中间件
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
@@ -82,10 +82,10 @@ app.add_middleware(
 )
 
 
-# Exception handlers
+# 异常处理器
 @app.exception_handler(AppException)
 async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
-    """Handle application exceptions with DOC C envelope format."""
+    """按 DOC C 统一响应封装处理应用异常。"""
     response = ApiResponse.failure(
         code=exc.code,
         message=exc.message,
@@ -99,7 +99,7 @@ async def app_exception_handler(request: Request, exc: AppException) -> JSONResp
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
-    """Handle Pydantic validation errors with logging and envelope format."""
+    """记录并封装 Pydantic 校验异常。"""
     errors = exc.errors()
     logger.warning(f"Validation error on {request.method} {request.url.path}: {errors}")
     messages = []
@@ -119,7 +119,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    """Handle unexpected exceptions."""
+    """处理未预期异常。"""
     logger.exception(f"Unexpected error: {exc}")
     response = ApiResponse.failure(
         code="INTERNAL_ERROR",
@@ -132,7 +132,7 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
     )
 
 
-# Register routers with API prefix - DOC C C6 path mapping
+# 按 API 前缀注册路由 - 对应 DOC C C6 路径映射
 app.include_router(health.router, prefix=settings.API_V1_PREFIX)
 app.include_router(pcaps.router, prefix=settings.API_V1_PREFIX)
 app.include_router(flows.router, prefix=settings.API_V1_PREFIX)
@@ -149,8 +149,8 @@ app.include_router(pipeline.router, prefix=settings.API_V1_PREFIX)
 app.include_router(dashboard.router, prefix=settings.API_V1_PREFIX)
 
 
-# Root redirect
+# 根路径响应
 @app.get("/", include_in_schema=False)
 async def root():
-    """Redirect root to docs."""
+    """根路径重定向说明。"""
     return {"message": f"Welcome to {settings.APP_NAME}", "docs": "/docs"}

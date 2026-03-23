@@ -1,6 +1,6 @@
 """
-Pydantic schemas for workflow execution traces.
-Used for stage-level logging embedded in WorkflowExecution.stages_log JSON.
+工作流执行轨迹的 Pydantic 模式。
+用于 WorkflowExecution.stages_log JSON 中的阶段级日志记录。
 """
 
 from typing import Any, Literal
@@ -8,22 +8,22 @@ from pydantic import BaseModel, Field
 
 
 class StageExecutionLog(BaseModel):
-    """Single stage execution record, serialised into stages_log JSON."""
+    """单个阶段执行记录，可序列化到 stages_log JSON。"""
 
-    stage_name: str = Field(..., description="Stage identifier")
+    stage_name: str = Field(..., description="阶段标识符")
     status: Literal["pending", "running", "completed", "failed", "skipped"] = Field(
-        ..., description="Stage execution status"
+        ..., description="阶段执行状态"
     )
-    started_at: str | None = Field(default=None, description="ISO8601 start time")
-    completed_at: str | None = Field(default=None, description="ISO8601 end time")
-    latency_ms: float | None = Field(default=None, description="Execution duration in ms")
-    input_snapshot: dict[str, Any] = Field(default_factory=dict, description="Compact input summary")
-    output_snapshot: dict[str, Any] = Field(default_factory=dict, description="Compact output summary")
-    error: str | None = Field(default=None, description="Error message if failed")
+    started_at: str | None = Field(default=None, description="ISO8601 开始时间")
+    completed_at: str | None = Field(default=None, description="ISO8601 结束时间")
+    latency_ms: float | None = Field(default=None, description="执行耗时（毫秒）")
+    input_snapshot: dict[str, Any] = Field(default_factory=dict, description="精简输入摘要")
+    output_snapshot: dict[str, Any] = Field(default_factory=dict, description="精简输出摘要")
+    error: str | None = Field(default=None, description="失败时的错误信息")
 
 
 class WorkflowExecutionSchema(BaseModel):
-    """API-facing schema for workflow execution records."""
+    """面向 API 的工作流执行记录模式。"""
 
     version: str = Field(default="1.1")
     id: str

@@ -1,13 +1,13 @@
 """
-Scenario schemas: Scenario and ScenarioRunResult.
-Strictly follows DOC C C4.1 and C4.2 schemas.
+Scenario 相关 Schema：Scenario 与 ScenarioRunResult。
+严格遵循 DOC C C4.1 与 C4.2。
 """
 
 from typing import Literal
 from pydantic import BaseModel, Field
 
 
-# Scenario schemas - DOC C C4.1
+# Scenario Schema（DOC C C4.1）
 class ScenarioPcapRef(BaseModel):
     """PCAP reference in scenario."""
     pcap_id: str = Field(..., description="PCAP file ID")
@@ -51,7 +51,7 @@ class ScenarioSchema(BaseModel):
         from_attributes = True
 
 
-# ScenarioRunResult schemas - DOC C C4.2
+# ScenarioRunResult Schema（DOC C C4.2）
 class ScenarioCheck(BaseModel):
     """Single check result in scenario run - DOC C C4.2."""
     name: str = Field(..., description="Check name")
@@ -86,7 +86,7 @@ class ScenarioRunResultSchema(BaseModel):
         from_attributes = True
 
 
-# Create scenario request - DOC C C6.9
+# 创建 scenario 请求 - DOC C C6.9
 class CreateScenarioRequest(BaseModel):
     """Request for POST /scenarios - DOC C C6.9."""
     name: str = Field(..., description="Scenario name")
@@ -96,7 +96,7 @@ class CreateScenarioRequest(BaseModel):
     tags: list[str] = Field(default_factory=list, description="Tags")
 
 
-# Scenario query params
+# Scenario 查询参数
 class ScenarioQueryParams(BaseModel):
     """Query parameters for GET /scenarios."""
     limit: int = Field(default=50, ge=1, le=1000, description="Max results")

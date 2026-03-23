@@ -78,7 +78,7 @@ from app.schemas.dashboard import (
 )
 
 __all__ = [
-    # Common
+    # 通用
     "ApiResponse",
     "ErrorDetail",
     "PaginationParams",

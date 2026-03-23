@@ -1,6 +1,6 @@
 """
-Parsing service.
-PCAP -> Flow aggregation.
+解析服务。
+将 PCAP 聚合为 Flow。
 """
 
 from datetime import datetime
@@ -14,10 +14,10 @@ logger = get_logger(__name__)
 
 class ParsingService:
     """
-    Service for parsing PCAP files and extracting flows.
-    
-    Follows DOC B B4.2 specification.
-    """
+用于解析 PCAP 文件并提取流记录的服务。
+
+遵循 DOC B B4.2 规范。
+"""
 
     def __init__(self):
         pass
@@ -28,32 +28,32 @@ class ParsingService:
         window_sec: int = 60,
     ) -> list[dict]:
         """
-        Parse PCAP file and aggregate packets into bidirectional sessions.
+解析 PCAP 并将报文聚合为双向会话。
 
-        Args:
-            pcap_path: Path to the PCAP file
-            window_sec: Time window for session aggregation in seconds
+        参数：
+            pcap_path: PCAP 文件路径
+            window_sec: 会话聚合时间窗（秒）
 
-        Returns:
-            List of flow dictionaries ready for database insertion
+        返回：
+            可直接入库的 flow 字典列表
 
-        Note:
-            Session key: (canon_ip1, canon_port1, canon_ip2, canon_port2, proto, bucket_start)
-            where canon = sorted endpoints. src/dst in output = initiator/responder.
+        说明：
+            会话键为 (canon_ip1, canon_port1, canon_ip2, canon_port2, proto, bucket_start)
+            其中 canon 为排序后的端点；输出中的 src/dst 对应发起方/响应方。
         """
         logger.info(f"Parsing PCAP: {pcap_path}, window={window_sec}s")
         
         flows = {}
         
         try:
-            # Use dpkt for PCAP parsing
+            # 使用 dpkt 解析 PCAP
             import dpkt
             
             with open(pcap_path, 'rb') as f:
                 try:
                     pcap = dpkt.pcap.Reader(f)
                 except ValueError:
-                    # Try pcapng format
+                    # 尝试 pcapng 格式
                     f.seek(0)
                     pcap = dpkt.pcapng.Reader(f)
                 
@@ -62,13 +62,13 @@ class ParsingService:
         
         except ImportError:
             logger.warning("dpkt not installed, using stub data")
-            # Return empty if dpkt not available
+            # 若未安装 dpkt，则返回空结果
             return []
         except Exception as e:
             logger.error(f"Error parsing PCAP: {e}")
             raise
         
-        # Convert flow dict to list
+        # 将 flow 字典转换为列表
         flow_list = self._finalize_flows(flows)
         logger.info(f"Extracted {len(flow_list)} flows from PCAP")
         
@@ -87,7 +87,7 @@ class ParsingService:
             
             eth = dpkt.ethernet.Ethernet(buf)
             
-            # Only process IP packets
+            # 仅处理 IP 报文
             if not isinstance(eth.data, dpkt.ip.IP):
                 return
             
@@ -95,7 +95,7 @@ class ParsingService:
             src_ip = self._ip_to_str(ip.src)  # type: ignore[attr-defined]
             dst_ip = self._ip_to_str(ip.dst)  # type: ignore[attr-defined]
             
-            # Determine protocol and ports
+            # 识别协议与端口
             proto = "OTHER"
             src_port = 0
             dst_port = 0
@@ -115,7 +115,7 @@ class ParsingService:
             elif isinstance(ip.data, dpkt.icmp.ICMP):
                 proto = "ICMP"
             
-            # Canonical session key: sort endpoints so A->B and B->A share the same key
+            # 规范化会话键：对端点排序，使 A->B 与 B->A 共享同一键
             endpoint_a = (src_ip, src_port)
             endpoint_b = (dst_ip, dst_port)
             if endpoint_a <= endpoint_b:
@@ -126,9 +126,9 @@ class ParsingService:
             bucket_start = int(timestamp) // window_sec * window_sec
             session_key = (*canon, proto, bucket_start)
 
-            # Create or update bidirectional session
+            # 创建或更新双向会话
             if session_key not in flows:
-                # First packet defines the initiator (forward direction)
+                # 首包定义发起方（正向方向）
                 flows[session_key] = {
                     "_initiator": (src_ip, src_port),
                     "src_ip": src_ip,
@@ -150,12 +150,12 @@ class ParsingService:
             flow = flows[session_key]
             pkt_len = len(buf)
 
-            # Update timestamps
+            # 更新时间戳
             flow["ts_start"] = min(flow["ts_start"], timestamp)
             flow["ts_end"] = max(flow["ts_end"], timestamp)
             flow["packet_timestamps"].append(timestamp)
 
-            # Direction: forward = same as initiator (first packet sender)
+            # 方向判定：与发起方（首包发送者）一致即为正向
             is_forward = (src_ip, src_port) == flow["_initiator"]
 
             if is_forward:
@@ -165,7 +165,7 @@ class ParsingService:
                 flow["packets_bwd"] += 1
                 flow["bytes_bwd"] += pkt_len
 
-            # Update TCP flags
+            # 更新 TCP 标志统计
             for flag, count in tcp_flags.items():
                 flow["tcp_flags"][flag] = flow["tcp_flags"].get(flag, 0) + count
                 
@@ -202,7 +202,7 @@ class ParsingService:
         now = utc_now()
         
         for flow_key, flow in flows.items():
-            # Create flow record
+            # 生成 flow 记录
             record = {
                 "id": generate_uuid(),
                 "version": "1.1",
@@ -218,7 +218,7 @@ class ParsingService:
                 "packets_bwd": flow["packets_bwd"],
                 "bytes_fwd": flow["bytes_fwd"],
                 "bytes_bwd": flow["bytes_bwd"],
-                "features": {},  # Will be filled by features service
+                "features": {},  # 由 features 服务后续填充
                 "anomaly_score": None,
                 "label": None,
                 "_tcp_flags": flow["tcp_flags"],

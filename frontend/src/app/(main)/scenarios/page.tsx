@@ -17,7 +17,7 @@ export default function ScenariosPage() {
   const [selectedScenario, setSelectedScenario] = useState<Scenario | null>(null);
   const [runningScenarioId, setRunningScenarioId] = useState<string | undefined>();
 
-  // Create dialog state
+  // 创建弹窗状态
   const [showCreate, setShowCreate] = useState(false);
   const [pcaps, setPcaps] = useState<PcapFile[]>([]);
   const [creating, setCreating] = useState(false);
@@ -95,7 +95,7 @@ export default function ScenariosPage() {
         </button>
       </div>
 
-      {/* Create Scenario Dialog */}
+      {/* 创建场景弹窗 */}
       {showCreate && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={() => setShowCreate(false)}>
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
@@ -166,7 +166,7 @@ export default function ScenariosPage() {
         </div>
       ) : (
         <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 h-full min-h-0">
-          {/* Left: List */}
+          {/* 左侧：场景列表 */}
           <div className="lg:col-span-1 flex flex-col min-h-0">
             <ScenarioList 
               scenarios={scenarios} 
@@ -176,7 +176,7 @@ export default function ScenariosPage() {
             />
           </div>
           
-          {/* Right: Panel */}
+          {/* 右侧：运行面板 */}
           <div className="lg:col-span-2 flex flex-col min-h-0">
             <ScenarioRunPanel 
               scenario={selectedScenario}

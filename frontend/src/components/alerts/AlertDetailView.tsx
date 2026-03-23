@@ -29,22 +29,22 @@ export default function AlertDetailView({ alert, evidenceChain, onAlertUpdate, o
   const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
   const [actionPlan, setActionPlan] = useState<ActionPlan | null>(null);
 
-  // Backfill state for existing agent results
+  // 回填已有智能体结果对应的状态
   const [initialTriage, setInitialTriage] = useState<string | null>(null);
   const [initialInvestigation, setInitialInvestigation] = useState<Investigation | null>(null);
   const [initialRecommendation, setInitialRecommendation] = useState<Recommendation | null>(null);
 
-  // Fetch existing agent results on mount
+  // 组件挂载时拉取已有智能体结果
   useEffect(() => {
     const agentInfo = alert.agent;
     if (!agentInfo) return;
 
-    // Triage summary is inline in the alert — no extra request needed
+    // Triage 摘要已内嵌在 alert 中，无需额外请求
     if (agentInfo.triage_summary) {
       setInitialTriage(agentInfo.triage_summary);
     }
 
-    // Investigation & Recommendation need separate fetches by ID
+    // Investigation 与 Recommendation 需按 ID 分别拉取
     const fetchAgentResults = async () => {
       const promises: Promise<void>[] = [];
 
@@ -61,7 +61,7 @@ export default function AlertDetailView({ alert, evidenceChain, onAlertUpdate, o
           api.getRecommendation(agentInfo.recommendation_id)
             .then((rec) => {
               setInitialRecommendation(rec);
-              setRecommendation(rec); // Also feed ActionBuilder
+              setRecommendation(rec); // 同步喂给 ActionBuilder
             })
             .catch((e) => console.error('Failed to fetch recommendation:', e))
         );
@@ -179,7 +179,7 @@ export default function AlertDetailView({ alert, evidenceChain, onAlertUpdate, o
           </div>
         </div>
 
-        {/* Aggregation info (from DOC C) */}
+        {/* 聚合信息（来自 DOC C） */}
         {alert.aggregation && (
           <div className="mt-4 pt-4 border-t border-gray-100">
             <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">{t('aggregation')}</h3>
@@ -192,10 +192,10 @@ export default function AlertDetailView({ alert, evidenceChain, onAlertUpdate, o
         )}
       </div>
 
-      {/* Evidence Section */}
+      {/* 证据区 */}
       <AlertEvidenceSection alert={alert} />
 
-      {/* Evidence Chain */}
+      {/* 证据链 */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">

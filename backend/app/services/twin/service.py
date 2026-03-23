@@ -61,10 +61,10 @@ class TwinService:
         plan_id = generate_uuid()
         now = utc_now()
         
-        # Serialize actions
+        # 序列化 actions
         actions_json = json.dumps([a.model_dump() for a in actions])
         
-        # Create database record
+        # 创建数据库记录
         plan_model = TwinPlan(
             id=plan_id,
             created_at=now,
@@ -75,7 +75,7 @@ class TwinService:
         )
         self.db.add(plan_model)
         
-        # Update alert's twin field
+        # 更新 alert 的 twin 字段
         alert = self.db.query(Alert).filter(Alert.id == alert_id).first()
         if alert:
             twin_data = json.loads(alert.twin) if isinstance(alert.twin, str) else alert.twin
@@ -118,34 +118,34 @@ class TwinService:
         """
         logger.info(f"Running dry-run for plan {plan.id}")
         
-        # Build original graph
+        # 构建原始图
         graph_before = self.topology_service.build_graph(start, end, mode)
         hash_before = self.topology_service.compute_graph_hash(graph_before)
         
-        # Parse actions
+        # 解析 actions
         actions = json.loads(plan.actions) if isinstance(plan.actions, str) else plan.actions
         
-        # Simulate actions on graph
+        # 在图上模拟执行 actions
         graph_after, impact_data = self._simulate_actions(graph_before, actions)
         hash_after = self.topology_service.compute_graph_hash(graph_after)
         
-        # Calculate impact metrics
+        # 计算影响指标
         impact = self._calculate_impact(
             graph_before,
             graph_after,
             impact_data,
         )
         
-        # Find alternative paths
+        # 查找替代路径
         alt_paths = self._find_alternative_paths(
             graph_after,
             impact_data.get("blocked_sources", []),
         )
         
-        # Build explanation
+        # 构建解释文本
         explain = self._build_explanation(actions, impact)
         
-        # Create dry-run record
+        # 创建 dry-run 记录
         dry_run_id = generate_uuid()
         now = utc_now()
         
@@ -169,7 +169,7 @@ class TwinService:
             explain=explain,
         )
         
-        # Save to database
+        # 写入数据库
         dry_run_model = DryRun(
             id=dry_run_id,
             created_at=now,
@@ -179,7 +179,7 @@ class TwinService:
         )
         self.db.add(dry_run_model)
         
-        # Update alert's twin field
+        # 更新 alert 的 twin 字段
         alert = self.db.query(Alert).filter(Alert.id == plan.alert_id).first()
         if alert:
             twin_data = json.loads(alert.twin) if isinstance(alert.twin, str) else alert.twin
@@ -202,7 +202,7 @@ class TwinService:
         Returns modified graph and impact data.
         """
         
-        # Copy graph data
+        # 复制图数据
         nodes = {n.id: n for n in graph.nodes}
         edges = list(graph.edges)
         
@@ -219,7 +219,7 @@ class TwinService:
             target_value = target.get("value", "")
             
             if action_type == "block_ip":
-                # Remove edges involving this IP
+                # 移除涉及该 IP 的边
                 node_id = f"ip:{target_value}"
                 impact_data["blocked_sources"].append(node_id)
                 
@@ -233,7 +233,7 @@ class TwinService:
                 edges = new_edges
                 
             elif action_type == "isolate_host":
-                # Remove all edges for this host
+                # 移除该主机相关的所有边
                 node_id = f"ip:{target_value}"
                 impact_data["removed_nodes"].add(node_id)
                 
@@ -249,7 +249,7 @@ class TwinService:
                     del nodes[node_id]
                     
             elif action_type == "segment_subnet":
-                # Remove edges crossing subnet boundary
+                # 移除跨网段边界的边
                 subnet = target_value
                 
                 new_edges = []
@@ -265,7 +265,7 @@ class TwinService:
                 edges = new_edges
                 
             elif action_type == "rate_limit_service":
-                # Mark affected edges (don't remove, just flag)
+                # 标记受影响的边（不删除，仅标记）
                 proto_port = target_value.split("/")
                 if len(proto_port) == 2:
                     proto, port = proto_port[0].upper(), int(proto_port[1])
@@ -273,7 +273,7 @@ class TwinService:
                         if edge.proto == proto and edge.dst_port == port:
                             impact_data["affected_services"].add(f"{proto}/{port}")
         
-        # Create modified graph
+        # 创建修改后的图
         modified = GraphResponseSchema(
             version=graph.version,
             nodes=list(nodes.values()),
@@ -298,13 +298,13 @@ class TwinService:
         impacted_nodes = nodes_before - nodes_after
         impacted_edges = edges_before - edges_after
         
-        # Calculate reachability drop (simplified: ratio of removed edges)
+        # 计算可达性下降（简化为被移除边占比）
         if edges_before > 0:
             reachability_drop = impacted_edges / edges_before
         else:
             reachability_drop = 0
         
-        # Calculate service disruption risk
+        # 计算服务中断风险
         affected_services = list(impact_data.get("affected_services", []))
         critical_services = ["tcp/22", "tcp/443", "tcp/80", "tcp/3389"]
         
@@ -317,7 +317,7 @@ class TwinService:
         
         service_risk = min(service_risk, 1.0)
         
-        # Generate warnings
+        # 生成告警提示
         warnings = []
         if impacted_nodes > 5:
             warnings.append(f"High impact: {impacted_nodes} nodes will be isolated")
@@ -346,7 +346,7 @@ class TwinService:
         if not blocked_sources or len(graph.nodes) < 3:
             return alt_paths
         
-        # Build adjacency list
+        # 构建邻接表
         adj = {}
         for node in graph.nodes:
             adj[node.id] = []
@@ -355,16 +355,16 @@ class TwinService:
             if edge.source in adj:
                 adj[edge.source].append(edge.target)
         
-        # Find paths for blocked sources
+        # 为被阻断源查找路径
         for blocked in blocked_sources[:2]:  # Limit to 2
-            # Pick a random target
+            # 选择一个目标节点
             targets = [n.id for n in graph.nodes if n.id != blocked]
             if not targets:
                 continue
             
             target = targets[0]
             
-            # BFS to find path avoiding blocked node
+            # 使用 BFS 查找避开阻断节点的路径
             path = self._bfs_path(adj, blocked, target, set(blocked_sources))
             
             if path and len(path) > 2:

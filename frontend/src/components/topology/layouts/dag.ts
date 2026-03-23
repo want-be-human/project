@@ -2,9 +2,9 @@ import type { LayoutConfig, LayoutResult } from './types';
 import { forceLayout } from './force';
 
 /**
- * DAG (directed acyclic graph) layout using Kahn topological sort.
- * X axis = layer depth, Y axis = risk, Z axis = spread within layer.
- * Falls back to force layout when a cycle is detected.
+ * 使用 Kahn 拓扑排序实现的 DAG（有向无环图）布局。
+ * X 轴表示层深，Y 轴表示风险，Z 轴表示层内展开。
+ * 检测到环时回退到 force 布局。
  */
 export function dagLayout(config: LayoutConfig): LayoutResult {
   const { nodes, edges } = config;
@@ -12,7 +12,7 @@ export function dagLayout(config: LayoutConfig): LayoutResult {
 
   const nodeSet = new Set(nodes.map((n) => n.id));
 
-  // Build adjacency & in-degree
+  // 构建邻接表与入度
   const adj = new Map<string, string[]>();
   const inDeg = new Map<string, number>();
   for (const n of nodes) {
@@ -26,7 +26,7 @@ export function dagLayout(config: LayoutConfig): LayoutResult {
     inDeg.set(e.target, (inDeg.get(e.target) ?? 0) + 1);
   }
 
-  // Kahn's algorithm
+  // Kahn 算法
   const queue: string[] = [];
   for (const [id, deg] of inDeg) {
     if (deg === 0) queue.push(id);
@@ -47,12 +47,12 @@ export function dagLayout(config: LayoutConfig): LayoutResult {
     }
   }
 
-  // Cycle detected — fall back to force
+  // 检测到环，回退到 force 布局
   if (order.length < nodes.length) {
     return forceLayout(config);
   }
 
-  // Group nodes by layer
+  // 按层分组节点
   const riskMap = new Map(nodes.map((n) => [n.id, n.risk]));
   const layers = new Map<number, string[]>();
   let maxDepth = 0;

@@ -6,8 +6,8 @@ import { describe, it, expect } from 'vitest';
 import * as fc from 'fast-check';
 import { getStatusStyle } from '../PipelineStageTimeline';
 
-// Feature: pipeline-observability-panel, Property 1: 状态样式映射完备性
-// **Validates: Requirements 1.1, 1.2, 1.4**
+// 功能：pipeline-observability-panel，属性 1：状态样式映射完备性
+// **验证需求：1.1、1.2、1.4**
 describe('属性 1：状态样式映射完备性', () => {
   it('对所有有效状态值调用 getStatusStyle，应返回包含 badge、icon、overallBg 三个非空字段的有效样式对象', () => {
     const validStatuses = ['pending', 'running', 'completed', 'failed', 'skipped'] as const;
@@ -39,8 +39,8 @@ describe('属性 1：状态样式映射完备性', () => {
   });
 });
 
-// Feature: pipeline-observability-panel, Property 5: 旧版 success 状态向后兼容
-// **Validates: Requirements 6.5**
+// 功能：pipeline-observability-panel，属性 5：旧版 success 状态向后兼容
+// **验证需求：6.5**
 describe('属性 5：旧版 success 状态向后兼容', () => {
   it('对 success 状态调用样式映射，应返回与 completed 相同的有效样式对象', () => {
     fc.assert(
@@ -70,8 +70,8 @@ describe('属性 5：旧版 success 状态向后兼容', () => {
   });
 });
 
-// Feature: pipeline-observability-panel, Property 2: 国际化键值对等性
-// **Validates: Requirements 2.2, 2.3**
+// 功能：pipeline-observability-panel，属性 2：国际化键值对等性
+// **验证需求：2.2、2.3**
 describe('属性 2：国际化键值对等性', () => {
   // 直接导入 zh.json 和 en.json 的 pipeline 命名空间
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -124,8 +124,8 @@ describe('属性 2：国际化键值对等性', () => {
 // 导入任务 4 新增的辅助函数
 import { computeStageStats, formatDateTime } from '../PipelineStageTimeline';
 
-// Feature: pipeline-observability-panel, Property 3: 阶段统计不变量
-// **Validates: Requirements 3.4**
+// 功能：pipeline-observability-panel，属性 3：阶段统计不变量
+// **验证需求：3.4**
 describe('属性 3：阶段统计不变量', () => {
   it('对随机 stages 数组，completed + failed + skipped + pending + running 应等于 stages.length', () => {
     const validStatuses = ['pending', 'running', 'completed', 'failed', 'skipped'] as const;
@@ -167,8 +167,8 @@ describe('属性 3：阶段统计不变量', () => {
   });
 });
 
-// Feature: pipeline-observability-panel, Property 6: 时间格式化一致性
-// **Validates: Requirements 3.2**
+// 功能：pipeline-observability-panel，属性 6：时间格式化一致性
+// **验证需求：3.2**
 describe('属性 6：时间格式化一致性', () => {
   it('对随机有效日期，格式化输出应匹配 yyyy-MM-dd HH:mm:ss 模式', () => {
     // 使用时间戳生成器，确保生成的都是有效日期
@@ -214,8 +214,8 @@ describe('属性 6：时间格式化一致性', () => {
   });
 });
 
-// Feature: pipeline-observability-panel, Property 4: 阶段元数据渲染完整性
-// **Validates: Requirements 4.6, 4.7**
+// 功能：pipeline-observability-panel，属性 4：阶段元数据渲染完整性
+// **验证需求：4.6、4.7**
 describe('属性 4：阶段元数据渲染完整性', () => {
   /**
    * 模拟组件中 key_metrics 渲染逻辑的纯函数

@@ -27,31 +27,31 @@ from app.services.stream import (
 )
 
 __all__ = [
-    # B4.1 Ingestion
+    # B4.1 数据摄取
     "IngestionService",
-    # B4.2 Parsing
+    # B4.2 解析
     "ParsingService",
-    # B4.3 Features
+    # B4.3 特征提取
     "FeaturesService",
-    # B4.4 Detection
+    # B4.4 检测
     "DetectionService",
-    # B4.5 Alerting
+    # B4.5 告警
     "AlertingService",
-    # B4.6 Topology
+    # B4.6 拓扑
     "TopologyService",
-    # B4.7 Agent
+    # B4.7 智能体
     "AgentService",
-    # B4.8 Evidence
+    # B4.8 证据
     "EvidenceService",
-    # B4.9 Twin
+    # B4.9 数字孪生
     "TwinService",
-    # B4.9b Plan Compiler
+    # B4.9b 方案编译器
     "PlanCompilerService",
-    # B4.10 Scenarios
+    # B4.10 场景
     "ScenariosService",
-    # B4.12 Threat Enrichment (Module E)
+    # B4.12 威胁增强（模块 E）
     "ThreatEnrichmentService",
-    # B4.11 Stream & EventBus
+    # B4.11 流式处理与事件总线
     "get_connection_manager",
     "broadcast_pcap_progress",
     "broadcast_pcap_done",

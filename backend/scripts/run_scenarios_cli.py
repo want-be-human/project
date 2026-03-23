@@ -27,7 +27,7 @@ import sys
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
-# Bootstrap: 确保 backend/ 在 sys.path
+# 引导：确保 backend/ 在 sys.path 中
 # ---------------------------------------------------------------------------
 _BACKEND_DIR = Path(__file__).resolve().parent.parent
 if str(_BACKEND_DIR) not in sys.path:
@@ -37,7 +37,7 @@ from app.core.database import SessionLocal, engine  # noqa: E402
 from app.services.scenarios.service import ScenariosService  # noqa: E402
 from app.schemas.scenario import ScenarioExpectations  # noqa: E402
 
-# Import all models so Base.metadata knows about every table
+# 导入所有模型，让 Base.metadata 感知全部数据表
 import app.models.pcap  # noqa: F401, E402
 import app.models.flow  # noqa: F401, E402
 import app.models.alert  # noqa: F401, E402
@@ -49,7 +49,7 @@ from app.models.base import Base  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
-# Helpers
+# 辅助函数
 # ---------------------------------------------------------------------------
 
 def _get_db():
@@ -74,7 +74,7 @@ def _print_run_result(result):
 
 
 # ---------------------------------------------------------------------------
-# Commands
+# 命令
 # ---------------------------------------------------------------------------
 
 def cmd_list(args):
@@ -99,7 +99,7 @@ def cmd_run(args):
     db = _get_db()
     try:
         svc = ScenariosService(db)
-        # 先按 ID 查，查不到按 name 查
+        # 先按 ID 查询，查不到再按 name 查询
         model = svc.get_scenario(args.target)
         if model is None:
             from app.models.scenario import Scenario
@@ -175,7 +175,7 @@ def cmd_create(args):
 
 
 # ---------------------------------------------------------------------------
-# Main
+# 主入口
 # ---------------------------------------------------------------------------
 
 def main():

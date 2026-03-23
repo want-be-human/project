@@ -1,7 +1,7 @@
 """
-Core events package — unified internal event bus.
+核心事件包：统一内部事件总线。
 
-Usage::
+用法::
 
     from app.core.events import get_event_bus, DomainEvent, make_event
 
@@ -27,13 +27,13 @@ from app.core.events.models import (
     ALL_EVENT_TYPES,
 )
 
-# ── singleton ────────────────────────────────────────────────────
+# ── 单例 ─────────────────────────────────────────────────────────
 
 _bus_instance: EventBus | None = None
 
 
 def get_event_bus() -> EventBus:
-    """Return the global EventBus singleton (lazily created)."""
+    """返回全局 EventBus 单例（按需懒加载）。"""
     global _bus_instance
     if _bus_instance is None:
         _bus_instance = InMemoryEventBus()
@@ -41,7 +41,7 @@ def get_event_bus() -> EventBus:
 
 
 def reset_event_bus() -> None:
-    """Reset the singleton — useful for tests."""
+    """重置单例（便于测试）。"""
     global _bus_instance
     _bus_instance = None
 
