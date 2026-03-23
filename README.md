@@ -90,7 +90,7 @@ Proprietary - For competition/academic use only.
 cd backend
 pip install -r requirements.txt
 # 生成演示 PCAP（可选）
-python scripts/gen_demo_pcap.py
+python -m scripts.generate_demo_pcaps
 # 启动
 set PYTHONPATH=.
 uvicorn app.main:app --host 127.0.0.1 --port 8000

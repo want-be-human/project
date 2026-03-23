@@ -48,16 +48,6 @@ def ensure_training_pcap(pcap_path: Path) -> None:
     generate_training_pcap(pcap_path)
 
 
-def build_feature_matrix(flows: list[dict], feature_names: list[str]) -> np.ndarray:
-    """从 flow 字典列表中提取特征矩阵，特征顺序与 feature_names 一致。"""
-    rows = []
-    for flow in flows:
-        features = flow.get("features", {})
-        row = [float(features.get(name, 0)) for name in feature_names]
-        rows.append(row)
-    return np.array(rows)
-
-
 def train(pcap_path: Path, contamination: float, n_estimators: int) -> None:
     """执行完整的训练流程。"""
     from sklearn.ensemble import IsolationForest
@@ -80,9 +70,10 @@ def train(pcap_path: Path, contamination: float, n_estimators: int) -> None:
     flows = feat_svc.extract_features_batch(flows)
 
     # ── 3. 构建特征矩阵 ──
-    # 使用 DetectionService 定义的 18 个核心特征
-    feature_names = list(DetectionService.DEFAULT_FEATURE_NAMES)
-    X = build_feature_matrix(flows, feature_names)
+    # 复用 DetectionService._flows_to_matrix，保证训练与推理的特征编码一致
+    det_svc = DetectionService(mode="runtime")
+    feature_names = list(det_svc.feature_names)
+    X = det_svc._flows_to_matrix(flows)
     print(f"[3/5] 特征矩阵: {X.shape[0]} 样本 × {X.shape[1]} 特征")
 
     # ── 4. 训练 IsolationForest ──
