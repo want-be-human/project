@@ -1,6 +1,6 @@
 """
-Ingestion service.
-Handles PCAP file upload, storage, and management.
+数据摄取服务。
+负责 PCAP 文件上传、存储与管理。
 """
 
 from typing import BinaryIO
@@ -28,24 +28,24 @@ logger = get_logger(__name__)
 
 
 class IngestionService:
-    """Service for PCAP file ingestion and management."""
+    """PCAP 文件摄取与管理服务。"""
 
     def __init__(self, db: Session):
         self.db = db
 
     def save_pcap(self, file: BinaryIO, filename: str) -> PcapFileSchema:
         """
-        Save uploaded PCAP file.
-        
-        Args:
-            file: File-like object containing PCAP data
-            filename: Original filename
-            
-        Returns:
-            PcapFileSchema with file metadata
-            
-        Raises:
-            UnsupportedMediaError: If file is not a valid PCAP
+        保存上传的 PCAP 文件。
+
+        参数：
+            file: 包含 PCAP 数据的类文件对象
+            filename: 原始文件名
+
+        返回：
+            包含文件元数据的 PcapFileSchema
+
+        异常：
+            UnsupportedMediaError: 当文件不是有效 PCAP 时抛出
         """
         # 校验文件名
         if not is_valid_pcap_filename(filename):
@@ -97,16 +97,16 @@ class IngestionService:
 
     def get_pcap(self, pcap_id: str) -> PcapFileSchema:
         """
-        Get PCAP file by ID.
-        
-        Args:
-            pcap_id: UUID of the PCAP file
-            
-        Returns:
+        根据 ID 获取 PCAP 文件。
+
+        参数：
+            pcap_id: PCAP 文件 UUID
+
+        返回：
             PcapFileSchema
-            
-        Raises:
-            NotFoundError: If PCAP not found
+
+        异常：
+            NotFoundError: 当 PCAP 不存在时抛出
         """
         pcap = self.db.query(PcapFile).filter(PcapFile.id == pcap_id).first()
         if not pcap:
@@ -118,14 +118,14 @@ class IngestionService:
 
     def list_pcaps(self, limit: int = 50, offset: int = 0) -> list[PcapFileSchema]:
         """
-        List PCAP files with pagination.
-        
-        Args:
-            limit: Maximum number of results
-            offset: Number of records to skip
-            
-        Returns:
-            List of PcapFileSchema
+        分页列出 PCAP 文件。
+
+        参数：
+            limit: 最大返回数量
+            offset: 跳过的记录数
+
+        返回：
+            PcapFileSchema 列表
         """
         pcaps = (
             self.db.query(PcapFile)
@@ -138,16 +138,16 @@ class IngestionService:
 
     def get_pcap_model(self, pcap_id: str) -> PcapFile:
         """
-        Get raw PcapFile model for internal use.
-        
-        Args:
-            pcap_id: UUID of the PCAP file
-            
-        Returns:
-            PcapFile model
-            
-        Raises:
-            NotFoundError: If PCAP not found
+        获取内部使用的原始 PcapFile 模型。
+
+        参数：
+            pcap_id: PCAP 文件 UUID
+
+        返回：
+            PcapFile 模型
+
+        异常：
+            NotFoundError: 当 PCAP 不存在时抛出
         """
         pcap = self.db.query(PcapFile).filter(PcapFile.id == pcap_id).first()
         if not pcap:
@@ -167,18 +167,18 @@ class IngestionService:
         error_message: str | None = None,
     ) -> PcapFileSchema:
         """
-        Update PCAP processing status.
-        
-        Args:
-            pcap_id: UUID of the PCAP file
-            status: New status
-            progress: Processing progress (0-100)
-            flow_count: Number of flows extracted
-            alert_count: Number of alerts generated
-            error_message: Error message if failed
-            
-        Returns:
-            Updated PcapFileSchema
+        更新 PCAP 处理状态。
+
+        参数：
+            pcap_id: PCAP 文件 UUID
+            status: 新状态
+            progress: 处理进度（0-100）
+            flow_count: 提取到的流数量
+            alert_count: 生成的告警数量
+            error_message: 失败时的错误信息
+
+        返回：
+            更新后的 PcapFileSchema
         """
         pcap = self.get_pcap_model(pcap_id)
 
@@ -198,7 +198,7 @@ class IngestionService:
         return self._to_schema(pcap)
 
     def _to_schema(self, pcap: PcapFile) -> PcapFileSchema:
-        """Convert ORM model to Pydantic schema."""
+        """将 ORM 模型转换为 Pydantic Schema。"""
         return PcapFileSchema(
             version=pcap.version,
             id=pcap.id,
@@ -214,9 +214,9 @@ class IngestionService:
 
     def _is_valid_pcap_magic(self, content: bytes) -> bool:
         """
-        Check if content starts with valid PCAP magic number.
-        
-        PCAP: 0xa1b2c3d4 or 0xd4c3b2a1 (little/big endian)
+        检查内容是否以有效的 PCAP 魔数开头。
+
+        PCAP: 0xa1b2c3d4 或 0xd4c3b2a1（小端/大端）
         PCAPNG: 0x0a0d0d0a
         """
         if len(content) < 4:

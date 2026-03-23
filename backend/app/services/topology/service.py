@@ -183,7 +183,7 @@ class TopologyService:
 
     @staticmethod
     def _merge_intervals(intervals: list[list[str]]) -> list[list[str]]:
-        """Sort intervals chronologically and merge overlapping ones."""
+        """按时间顺序排序区间并合并重叠区间。"""
         if not intervals:
             return []
         # 按开始时间排序（ISO8601 字符串可按字典序排序）
@@ -199,7 +199,7 @@ class TopologyService:
         return merged
 
     def compute_graph_hash(self, graph: GraphResponseSchema) -> str:
-        """Compute SHA256 hash of graph state."""
+        """计算图状态的 SHA256 哈希。"""
         # 构建确定性表示
         data = {
             "nodes": sorted([n.model_dump() for n in graph.nodes], key=lambda x: x["id"]),
@@ -211,7 +211,7 @@ class TopologyService:
 
     @staticmethod
     def _ip_to_subnet(ip: str) -> str:
-        """Convert IP to /24 subnet."""
+        """将 IP 转换为 /24 子网。"""
         parts = ip.split(".")
         if len(parts) == 4:
             return f"{parts[0]}.{parts[1]}.{parts[2]}.0/24"

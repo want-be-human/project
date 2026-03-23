@@ -1,10 +1,9 @@
 """
-Redis Stream event bus — placeholder for future implementation.
+Redis Stream 事件总线（未来实现占位）。
 
-This module mirrors the EventBus interface but delegates to Redis Streams
-(XADD / XREADGROUP), enabling multi-process fan-out.  The implementation
-is intentionally left as a skeleton; calling any method will raise
-``NotImplementedError``.
+该模块对齐 EventBus 接口，后续将基于 Redis Streams
+（XADD / XREADGROUP）实现多进程扇出。当前仅保留骨架，
+调用任意方法都会抛出 ``NotImplementedError``。
 """
 
 from app.core.events.base import EventBus, EventHandler
@@ -12,7 +11,7 @@ from app.core.events.models import DomainEvent
 
 
 class RedisEventBus(EventBus):
-    """Redis Stream backed event bus (not yet implemented)."""
+    """基于 Redis Stream 的事件总线（尚未实现）。"""
 
     async def publish(self, event: DomainEvent) -> None:  # noqa: D401
         raise NotImplementedError(

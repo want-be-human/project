@@ -1,6 +1,6 @@
 """
-Investigation ORM Model.
-Follows 附录F Section 5 - investigations table.
+Investigation ORM 模型。
+遵循附录F第 5 节（investigations 表）。
 """
 
 from sqlalchemy import String, Text, ForeignKey, Index
@@ -11,9 +11,9 @@ from app.models.base import BaseModel
 
 class Investigation(BaseModel):
     """
-    Agent investigation result.
-    
-    Maps to DOC C C1.4 Investigation schema.
+    智能体调查结果。
+
+    对应 DOC C C1.4 Investigation schema。
     """
 
     __tablename__ = "investigations"

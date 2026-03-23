@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """
-Seed samples script.
+示例数据维护脚本。
 
-Validates and regenerates contract/samples/*.json files to ensure
-they match the backend Pydantic schemas.
+用于校验并重建 contract/samples/*.json 文件，
+确保其与后端 Pydantic 模式一致。
 
-Usage:
+用法：
     python -m scripts.seed_samples
 
-This script:
-1. Loads existing samples from contract/samples/
-2. Validates them against Pydantic schemas
-3. Reports any validation errors
-4. Optionally regenerates samples with correct structure
+本脚本会：
+1. 从 contract/samples/ 读取现有示例
+2. 按 Pydantic 模式执行校验
+3. 输出校验错误
+4. 按需重建为正确结构的示例文件
 """
 
 import json
@@ -119,10 +119,10 @@ SAMPLES = {
 
 def validate_sample(file_path: Path) -> tuple[bool, list[str]]:
     """
-    Validate a sample JSON file against expected structure.
-    
-    Returns:
-        (is_valid, list_of_errors)
+    按预期结构校验单个 JSON 示例文件。
+
+    返回：
+        (是否有效, 错误列表)
     """
     errors = []
     
@@ -157,7 +157,7 @@ def validate_sample(file_path: Path) -> tuple[bool, list[str]]:
 
 
 def validate_all_samples(samples_dir: Path) -> bool:
-    """Validate all sample files."""
+    """校验全部示例文件。"""
     required_files = [
         "flow.sample.json",
         "alert.sample.json",
@@ -199,7 +199,7 @@ def validate_all_samples(samples_dir: Path) -> bool:
 
 
 def regenerate_samples(samples_dir: Path, force: bool = False):
-    """Regenerate sample files from SAMPLES dict."""
+    """根据 SAMPLES 字典重建示例文件。"""
     print(f"Regenerating samples in: {samples_dir}")
     
     samples_dir.mkdir(parents=True, exist_ok=True)
@@ -218,7 +218,7 @@ def regenerate_samples(samples_dir: Path, force: bool = False):
 
 
 def main():
-    """Main entry point."""
+    """主入口函数。"""
     # 定位 contract/samples 目录
     script_dir = Path(__file__).parent
     project_root = script_dir.parent.parent

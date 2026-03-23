@@ -1,6 +1,6 @@
 """
-Common schemas for API responses.
-Follows DOC C C0.2 Unified Response Envelope.
+API 响应通用 Schema。
+遵循 DOC C C0.2 统一响应信封规范。
 """
 
 from typing import Any, Generic, TypeVar
@@ -10,33 +10,33 @@ T = TypeVar("T")
 
 
 class ErrorDetail(BaseModel):
-    """Error detail structure per DOC C C0.2."""
+    """DOC C C0.2 定义的错误详情结构。"""
 
-    code: str = Field(..., description="Error code from DOC C C0.3")
-    message: str = Field(..., description="Human-readable error message")
-    details: dict[str, Any] = Field(default_factory=dict, description="Additional error details")
+    code: str = Field(..., description="DOC C C0.3 定义的错误码")
+    message: str = Field(..., description="面向人的错误信息")
+    details: dict[str, Any] = Field(default_factory=dict, description="附加错误详情")
 
 
 class ApiResponse(BaseModel, Generic[T]):
     """
-    Unified API response envelope per DOC C C0.2.
-    
-    Success: { "ok": true, "data": {...}, "error": null }
-    Failure: { "ok": false, "data": null, "error": {...} }
+    DOC C C0.2 定义的统一 API 响应信封。
+
+    成功: { "ok": true, "data": {...}, "error": null }
+    失败: { "ok": false, "data": null, "error": {...} }
     """
 
-    ok: bool = Field(..., description="Whether the request succeeded")
-    data: T | None = Field(default=None, description="Response data on success")
-    error: ErrorDetail | None = Field(default=None, description="Error details on failure")
+    ok: bool = Field(..., description="请求是否成功")
+    data: T | None = Field(default=None, description="成功时的响应数据")
+    error: ErrorDetail | None = Field(default=None, description="失败时的错误详情")
 
     @classmethod
     def success(cls, data: T) -> "ApiResponse[T]":
-        """Create a success response."""
+        """创建成功响应。"""
         return cls(ok=True, data=data, error=None)
 
     @classmethod
     def failure(cls, code: str, message: str, details: dict[str, Any] | None = None) -> "ApiResponse[None]":
-        """Create a failure response."""
+        """创建失败响应。"""
         return cls(  # type: ignore[return-value]
             ok=False,
             data=None,
@@ -45,13 +45,13 @@ class ApiResponse(BaseModel, Generic[T]):
 
 
 class PaginationParams(BaseModel):
-    """Common pagination parameters."""
+    """通用分页参数。"""
 
-    limit: int = Field(default=50, ge=1, le=1000, description="Maximum number of items to return")
-    offset: int = Field(default=0, ge=0, description="Number of items to skip")
+    limit: int = Field(default=50, ge=1, le=1000, description="最大返回条目数")
+    offset: int = Field(default=0, ge=0, description="跳过的条目数")
 
 
 class HealthStatus(BaseModel):
-    """Health check response data."""
+    """健康检查响应数据。"""
 
-    status: str = Field(default="ok", description="Service status")
+    status: str = Field(default="ok", description="服务状态")

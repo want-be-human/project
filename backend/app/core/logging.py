@@ -1,5 +1,5 @@
 """
-Logging configuration.
+日志配置。
 """
 
 import json
@@ -12,13 +12,13 @@ from app.core.config import settings
 
 class StructuredLogFormatter(logging.Formatter):
     """
-    JSON-line log formatter for pipeline observability.
+    面向流水线可观测性的 JSON 行日志格式化器。
 
-    Produces one JSON object per log line with fields:
-    ``timestamp``, ``level``, ``logger``, ``message``, and any
-    extra keys attached via ``logger.info("msg", extra={...})``.
+    每行日志输出一个 JSON 对象，包含字段：
+    ``timestamp``、``level``、``logger``、``message``，以及
+    通过 ``logger.info("msg", extra={...})`` 传入的扩展字段。
 
-    Activated only when ``settings.STRUCTURED_LOG_ENABLED = True``.
+    仅当 ``settings.STRUCTURED_LOG_ENABLED = True`` 时启用。
     """
 
     def format(self, record: logging.LogRecord) -> str:
@@ -39,7 +39,7 @@ class StructuredLogFormatter(logging.Formatter):
 
 
 def setup_logging() -> None:
-    """Configure application logging."""
+    """配置应用日志。"""
     log_level = logging.DEBUG if settings.DEBUG else logging.INFO
 
     handler = logging.StreamHandler(sys.stdout)
@@ -66,12 +66,12 @@ def setup_logging() -> None:
 
 
 def get_logger(name: str) -> logging.Logger:
-    """Get a logger instance with the given name."""
+    """获取指定名称的 logger 实例。"""
     return logging.getLogger(name)
 
 
 class LoggerMixin:
-    """Mixin class to add logging capability to any class."""
+    """为任意类提供日志能力的 Mixin。"""
 
     @property
     def logger(self) -> logging.Logger:

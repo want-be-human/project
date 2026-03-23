@@ -1,10 +1,10 @@
-"""add workflow_executions table
+"""新增 workflow_executions 表
 
 Revision ID: 0002
 Revises: 0001
 Create Date: 2024-01-01 00:01:00.000000
 
-New table for Agent Workflow Engine execution traces.
+用于保存智能体工作流引擎执行轨迹的新表。
 """
 from typing import Sequence, Union
 

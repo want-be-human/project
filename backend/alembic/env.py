@@ -1,5 +1,5 @@
 """
-Alembic Environment Configuration for NetTwin-SOC.
+NetTwin-SOC 的 Alembic 环境配置。
 """
 
 from logging.config import fileConfig
@@ -35,15 +35,10 @@ target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
-    """Run migrations in 'offline' mode.
+    """以“离线”模式执行迁移。
 
-    This configures the context with just a URL
-    and not an Engine, though an Engine is acceptable
-    here as well.  By skipping the Engine creation
-    we don't even need a DBAPI to be available.
-
-    Calls to context.execute() here emit the given string to the
-    script output.
+    该模式只使用 URL 配置上下文，不创建 Engine。
+    因此即使没有可用 DBAPI，也可以生成迁移脚本输出。
     """
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
@@ -59,10 +54,9 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    """Run migrations in 'online' mode.
+    """以“在线”模式执行迁移。
 
-    In this scenario we need to create an Engine
-    and associate a connection with the context.
+    该模式会创建 Engine，并将连接绑定到迁移上下文。
     """
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),

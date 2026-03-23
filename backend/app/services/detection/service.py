@@ -1,6 +1,6 @@
 """
-Detection service.
-Baseline anomaly detection using IsolationForest.
+检测服务。
+使用 IsolationForest 实现基线异常检测。
 """
 
 import numpy as np
@@ -12,10 +12,10 @@ logger = get_logger(__name__)
 
 class DetectionService:
     """
-    Service for anomaly detection.
-    
-    Follows DOC B B4.4 specification.
-    Uses IsolationForest for baseline detection.
+    异常检测服务。
+
+    遵循 DOC B B4.4 规范。
+    使用 IsolationForest 进行基线检测。
     """
 
     def __init__(self, model_params: dict | None = None):
@@ -46,13 +46,13 @@ class DetectionService:
 
     def score_flows(self, flows: list[dict]) -> list[dict]:
         """
-        Calculate anomaly scores for flows.
-        
-        Args:
-            flows: List of flow dictionaries with features
-            
-        Returns:
-            Same flows with anomaly_score populated
+        计算流量的异常分数。
+
+        参数：
+            flows: 包含特征字段的流字典列表
+
+        返回：
+            已填充 anomaly_score 的原始流列表
         """
         if not flows:
             return flows
@@ -121,7 +121,7 @@ class DetectionService:
         return flows
 
     def _flows_to_matrix(self, flows: list[dict]) -> np.ndarray:
-        """Convert flows to feature matrix."""
+        """将流量列表转换为特征矩阵。"""
         rows = []
         
         for flow in flows:
@@ -146,15 +146,15 @@ class DetectionService:
         limit: int = 10,
     ) -> list[dict]:
         """
-        Get top anomalous flows above threshold.
-        
-        Args:
-            flows: List of scored flows
-            threshold: Minimum anomaly score
-            limit: Maximum number of flows to return
-            
-        Returns:
-            List of anomalous flows sorted by score descending
+        获取超过阈值的高异常流量。
+
+        参数：
+            flows: 已打分的流列表
+            threshold: 最小异常分数阈值
+            limit: 返回的最大流数量
+
+        返回：
+            按分数降序排列的异常流列表
         """
         anomalous = [f for f in flows if (f.get("anomaly_score") or 0) >= threshold]
         anomalous.sort(key=lambda x: x.get("anomaly_score", 0), reverse=True)

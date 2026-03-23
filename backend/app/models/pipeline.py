@@ -1,6 +1,6 @@
 """
-ORM model for pipeline run observability records.
-Stores structured stage-level tracking for PCAP processing pipelines.
+用于 pipeline run 可观测性记录的 ORM 模型。
+保存 PCAP 处理流水线的结构化阶段跟踪数据。
 """
 
 from datetime import datetime
@@ -13,7 +13,7 @@ from app.models.base import BaseModel
 
 
 class PipelineRunModel(BaseModel):
-    """Tracks a full pipeline execution across all stages for a PCAP."""
+    """记录单个 PCAP 在所有阶段上的完整流水线执行。"""
 
     __tablename__ = "pipeline_runs"
 
@@ -21,7 +21,7 @@ class PipelineRunModel(BaseModel):
         String(36),
         nullable=False,
         index=True,
-        comment="PCAP file id this run belongs to",
+        comment="该运行记录所属的 PCAP 文件 ID",
     )
     status: Mapped[str] = mapped_column(
         String(20),
@@ -36,12 +36,12 @@ class PipelineRunModel(BaseModel):
     total_latency_ms: Mapped[Optional[float]] = mapped_column(
         Float,
         nullable=True,
-        comment="Total pipeline duration in milliseconds",
+        comment="流水线总耗时（毫秒）",
     )
     stages_log: Mapped[Optional[str]] = mapped_column(
         Text,
         nullable=True,
-        comment="JSON list of StageRecord dicts",
+        comment="StageRecord 字典的 JSON 列表",
     )
 
     __table_args__ = (

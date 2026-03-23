@@ -1,6 +1,6 @@
 """
-Pipeline observability router.
-GET /pipeline/{pcap_id} — retrieve pipeline run for a PCAP.
+Pipeline 可观测性路由。
+GET /pipeline/{pcap_id}：获取指定 PCAP 的流水线运行记录。
 """
 
 import json
@@ -21,7 +21,7 @@ router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 
 
 def _model_to_schema(model: PipelineRunModel) -> PipelineRunSchema:
-    """Convert ORM model to API schema."""
+    """将 ORM 模型转换为 API Schema。"""
     stages_raw: list[dict[str, Any]] = json.loads(model.stages_log or "[]")
     stages = [StageRecordSchema(**s) for s in stages_raw]
     return PipelineRunSchema(
@@ -46,7 +46,7 @@ async def get_pipeline_run(
     pcap_id: str,
     db: Session = Depends(get_db),
 ) -> ApiResponse[PipelineRunSchema]:
-    """Return the latest pipeline run for a given PCAP."""
+    """返回指定 PCAP 的最新一次 pipeline run。"""
     if not settings.PIPELINE_OBSERVABILITY_ENABLED:
         raise NotFoundError(
             message="Pipeline observability is disabled",
@@ -78,7 +78,7 @@ async def get_pipeline_stages(
     pcap_id: str,
     db: Session = Depends(get_db),
 ) -> ApiResponse[list[StageRecordSchema]]:
-    """Return stage details for the latest pipeline run."""
+    """返回最新 pipeline run 的阶段明细。"""
     if not settings.PIPELINE_OBSERVABILITY_ENABLED:
         raise NotFoundError(
             message="Pipeline observability is disabled",

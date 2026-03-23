@@ -1,8 +1,8 @@
 """
-Domain event models for the internal event bus.
+内部事件总线的领域事件模型。
 
-Defines event types matching existing WebSocket event names (DOC C C7.2)
-and a DomainEvent base model compatible with the current WS JSON envelope.
+定义与现有 WebSocket 事件名（DOC C C7.2）一致的事件类型，
+以及与当前 WS JSON 包装格式兼容的 DomainEvent 基础模型。
 """
 
 from datetime import datetime, timezone
@@ -45,10 +45,10 @@ ALL_EVENT_TYPES = [
 
 class DomainEvent(BaseModel):
     """
-    Base domain event.
+    领域事件基类。
 
-    The ``event_type`` + ``data`` pair is intentionally compatible with
-    the existing WebSocket JSON envelope ``{"event": str, "data": dict}``.
+    其中 ``event_type`` + ``data`` 组合与现有
+    WebSocket JSON 包装格式 ``{"event": str, "data": dict}`` 保持兼容。
     """
 
     event_id: str = Field(default_factory=generate_uuid)
@@ -60,5 +60,5 @@ class DomainEvent(BaseModel):
 
 
 def make_event(event_type: str, data: dict[str, Any]) -> DomainEvent:
-    """Convenience factory for creating a DomainEvent."""
+    """用于创建 DomainEvent 的便捷工厂函数。"""
     return DomainEvent(event_type=event_type, data=data)

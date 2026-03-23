@@ -1,6 +1,6 @@
 """
-PCAP router.
-POST /pcaps/upload, GET /pcaps, GET /pcaps/{id}/status, POST /pcaps/{id}/process
+PCAP 路由。
+POST /pcaps/upload、GET /pcaps、GET /pcaps/{id}/status、POST /pcaps/{id}/process
 """
 
 import asyncio
@@ -36,8 +36,8 @@ router = APIRouter(prefix="/pcaps", tags=["pcaps"])
 
 def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
     """
-    Synchronous PCAP processing task.
-    Runs inside FastAPI BackgroundTasks (thread-pool).
+    同步 PCAP 处理任务。
+    在 FastAPI BackgroundTasks（线程池）中运行。
     """
     db = SessionLocal()
     tracker = None
@@ -270,7 +270,7 @@ async def upload_pcap(
     file: UploadFile = File(..., description="PCAP file to upload"),
     db: Session = Depends(get_db),
 ) -> ApiResponse[PcapFileSchema]:
-    """Upload a PCAP file."""
+    """上传 PCAP 文件。"""
     service = IngestionService(db)
     pcap = service.save_pcap(file.file, file.filename or "unknown.pcap")
     return ApiResponse.success(pcap)
@@ -287,7 +287,7 @@ async def list_pcaps(
     offset: int = Query(default=0, ge=0, description="Skip count"),
     db: Session = Depends(get_db),
 ) -> ApiResponse[list[PcapFileSchema]]:
-    """List PCAP files ordered by created_at descending."""
+    """按 created_at 倒序列出 PCAP 文件。"""
     service = IngestionService(db)
     pcaps = service.list_pcaps(limit=limit, offset=offset)
     return ApiResponse.success(pcaps)
@@ -303,7 +303,7 @@ async def get_pcap_status(
     pcap_id: str,
     db: Session = Depends(get_db),
 ) -> ApiResponse[PcapFileSchema]:
-    """Get PCAP file status by ID."""
+    """按 ID 获取 PCAP 文件状态。"""
     service = IngestionService(db)
     pcap = service.get_pcap(pcap_id)
     return ApiResponse.success(pcap)
@@ -321,7 +321,7 @@ async def process_pcap(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ) -> ApiResponse[PcapProcessResponse]:
-    """Start processing a PCAP file."""
+    """启动 PCAP 处理任务。"""
     pcap = db.query(PcapFile).filter(PcapFile.id == pcap_id).first()
     if not pcap:
         raise NotFoundError(

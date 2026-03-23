@@ -1,9 +1,8 @@
 """
-PipelineTracker — context-manager based tracker for pipeline stage execution.
+PipelineTracker：基于上下文管理器的流水线阶段执行跟踪器。
 
-Wraps each stage in a timing context, records metrics, and persists
-the full PipelineRun to the database.  Publishes events via EventBus
-for real-time observability through WebSocket.
+将每个阶段包裹在计时上下文中，记录指标并将完整 PipelineRun 持久化到数据库。
+同时通过 EventBus 发布事件，以支持 WebSocket 实时可观测。
 """
 
 from __future__ import annotations
@@ -29,13 +28,13 @@ logger = get_logger(__name__)
 
 
 class _StageContext:
-    """Mutable handle passed into a ``with tracker.stage(...)`` block."""
+    """传入 ``with tracker.stage(...)`` 代码块的可变句柄。"""
 
     def __init__(self, record: StageRecord) -> None:
         self._record = record
 
     def record_metrics(self, metrics: dict[str, Any]) -> None:
-        """Merge *metrics* into the stage's key_metrics dict."""
+        """将 *metrics* 合并到阶段的 key_metrics 字典中。"""
         self._record.key_metrics.update(metrics)
 
     def record_input(self, summary: dict[str, Any]) -> None:
@@ -45,7 +44,7 @@ class _StageContext:
         self._record.output_summary.update(summary)
 
     def skip(self, reason: str = "") -> None:
-        """Mark stage as skipped (e.g. mode != flows_and_detect)."""
+        """将阶段标记为跳过（例如 mode != flows_and_detect）。"""
         self._record.status = "skipped"
         if reason:
             self._record.error_summary = reason
@@ -53,9 +52,9 @@ class _StageContext:
 
 class PipelineTracker(LoggerMixin):
     """
-    Track a PCAP processing pipeline run across all stages.
+    跟踪一次 PCAP 处理流水线在各阶段的执行情况。
 
-    Usage::
+    用法::
 
         tracker = PipelineTracker(pcap_id, db)
         with tracker.stage(PipelineStage.PARSE) as stg:
@@ -87,10 +86,9 @@ class PipelineTracker(LoggerMixin):
     @contextmanager
     def stage(self, stage: PipelineStage | str) -> Generator[_StageContext, None, None]:
         """
-        Context manager that records timing and status for a stage.
+        记录阶段耗时与状态的上下文管理器。
 
-        If the body raises, the stage is marked *failed* and the
-        exception is re-raised without suppression.
+        若代码块抛出异常，则该阶段标记为 *failed*，并将异常继续抛出。
         """
         name = stage.value if isinstance(stage, PipelineStage) else stage
         record = StageRecord(
@@ -125,16 +123,16 @@ class PipelineTracker(LoggerMixin):
 
     def append_stage_record(self, record: StageRecord) -> None:
         """
-        Append an externally-built StageRecord (e.g. from WorkflowEngine).
-        Used when agent stages are executed outside the tracker context.
+        追加外部构建的 StageRecord（例如来自 WorkflowEngine）。
+        用于智能体阶段在跟踪器上下文外执行的场景。
         """
         self._stage_map[record.stage_name] = record
         self._sync_stages()
 
     def finish(self) -> PipelineRun:
         """
-        Mark the run as complete and persist to the database.
-        Returns the finalised PipelineRun.
+        将运行标记为完成并持久化到数据库。
+        返回最终的 PipelineRun。
         """
         total = (time.monotonic() - self._t0) * 1000
         # 确定整体状态
@@ -160,7 +158,7 @@ class PipelineTracker(LoggerMixin):
 
     def fail(self, error: str) -> PipelineRun:
         """
-        Mark the entire run as failed (e.g. unrecoverable error).
+        将整个运行标记为失败（例如不可恢复错误）。
         """
         self._run.status = "failed"
         self._run.completed_at = datetime_to_iso(utc_now())
@@ -178,7 +176,7 @@ class PipelineTracker(LoggerMixin):
 
     @property
     def run(self) -> PipelineRun:
-        """Current snapshot of the pipeline run (read-only)."""
+        """当前流水线运行快照（只读）。"""
         self._sync_stages()
         return self._run
 
@@ -191,7 +189,7 @@ class PipelineTracker(LoggerMixin):
     # ------------------------------------------------------------------
 
     def _sync_stages(self) -> None:
-        """Rebuild ``self._run.stages`` from the mutable map, preserving stage order."""
+        """从可变映射重建 ``self._run.stages``，并保持阶段顺序。"""
         ordered: list[StageRecord] = []
         for ps in PIPELINE_STAGE_ORDER:
             if ps.value in self._stage_map:
@@ -203,7 +201,7 @@ class PipelineTracker(LoggerMixin):
         self._run.stages = ordered
 
     def _persist(self) -> None:
-        """Persist the PipelineRun to the database."""
+        """将 PipelineRun 持久化到数据库。"""
         from app.models.pipeline import PipelineRunModel
 
         existing = (
@@ -235,7 +233,7 @@ class PipelineTracker(LoggerMixin):
             self.logger.warning("Failed to persist pipeline run %s", self._run.id, exc_info=True)
 
     def _publish_stage_event(self, record: StageRecord) -> None:
-        """Fire-and-forget stage event via the EventBus."""
+        """通过 EventBus 以 fire-and-forget 方式发布阶段事件。"""
         try:
             import asyncio
             from app.core.events import get_event_bus
@@ -263,7 +261,7 @@ class PipelineTracker(LoggerMixin):
             pass  # 非关键路径 — 不因事件发布失败而中断 pipeline
 
     def _publish_run_event(self) -> None:
-        """Fire-and-forget run completion event."""
+        """以 fire-and-forget 方式发布运行完成事件。"""
         try:
             import asyncio
             from app.core.events import get_event_bus

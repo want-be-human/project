@@ -1,5 +1,5 @@
 """
-Twin router (ActionPlan & DryRun).
+孪生路由（ActionPlan 与 DryRun）。
 POST /twin/plans
 POST /twin/plans/{plan_id}/dry-run
 GET /twin/dry-runs

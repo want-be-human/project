@@ -81,7 +81,7 @@ class ParsingService:
         window_sec: int,
         flows: dict,
     ):
-        """Process a single packet and update flow aggregation."""
+        """处理单个报文并更新流聚合状态。"""
         try:
             import dpkt
             
@@ -173,7 +173,7 @@ class ParsingService:
             logger.debug(f"Error processing packet: {e}")
 
     def _extract_tcp_flags(self, tcp) -> dict:
-        """Extract TCP flags from packet."""
+        """从报文中提取 TCP 标志位。"""
         flags = {}
         if tcp.flags & 0x02:  # SYN
             flags["syn"] = 1
@@ -188,16 +188,16 @@ class ParsingService:
         return flags
 
     def _ip_to_str(self, ip_bytes: bytes) -> str:
-        """Convert IP bytes to string."""
+        """将 IP 字节转换为字符串。"""
         if len(ip_bytes) == 4:
             return ".".join(str(b) for b in ip_bytes)
         elif len(ip_bytes) == 16:
-            # IPv6
+            # IPv6 地址
             return ":".join(f"{ip_bytes[i]:02x}{ip_bytes[i+1]:02x}" for i in range(0, 16, 2))
         return "0.0.0.0"
 
     def _finalize_flows(self, flows: dict) -> list[dict]:
-        """Convert flow dictionary to list of flow records."""
+        """将流字典转换为流记录列表。"""
         result = []
         now = utc_now()
         

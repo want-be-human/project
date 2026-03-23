@@ -195,7 +195,7 @@ class AgentService:
         return recommendation
 
     def _type_to_zh(self, alert_type: str) -> str:
-        """Translate alert type to Chinese."""
+        """将告警类型翻译为中文。"""
         mapping = {
             "anomaly": "异常",
             "scan": "扫描",
@@ -207,7 +207,7 @@ class AgentService:
         return mapping.get(alert_type, alert_type)
 
     def _run_enrichment(self, alert: Alert, evidence: dict) -> ThreatContext | None:
-        """Run threat enrichment if enabled. Returns None on failure or when disabled."""
+        """在启用时执行威胁增强；失败或关闭时返回 None。"""
         if not settings.THREAT_ENRICHMENT_ENABLED:
             return None
         top_features = evidence.get("top_features", [])
@@ -219,7 +219,7 @@ class AgentService:
         )
 
     def _build_hypothesis(self, alert: Alert, language: str = "en", threat_context: ThreatContext | None = None) -> str:
-        """Build investigation hypothesis."""
+        """构建调查假设。"""
         if language == "zh":
             self._type_to_zh(alert.type)
             hypotheses = {
@@ -257,7 +257,7 @@ class AgentService:
         language: str = "en",
         threat_context: ThreatContext | None = None,
     ) -> list[str]:
-        """Build reasoning for hypothesis."""
+        """构建支撑假设的推理依据。"""
         reasons = []
         
         flow_count = aggregation.get("count_flows", 0)
@@ -300,7 +300,7 @@ class AgentService:
         return reasons
 
     def _assess_impact(self, alert: Alert, evidence: dict) -> dict:
-        """Assess impact scope and confidence."""
+        """评估影响范围与置信度。"""
         scope = [
             f"dst_ip:{alert.primary_dst_ip}",
             f"service:{alert.primary_proto}/{alert.primary_dst_port}",
@@ -324,7 +324,7 @@ class AgentService:
         return {"scope": scope, "confidence": round(confidence, 2)}
 
     def _suggest_next_steps(self, alert: Alert, language: str = "en") -> list[str]:
-        """Suggest investigation next steps."""
+        """给出调查下一步建议。"""
         if language == "zh":
             steps = [
                 f"查看 {alert.primary_src_ip} 的详细流量记录",
@@ -358,7 +358,7 @@ class AgentService:
         language: str = "en",
         threat_context: ThreatContext | None = None,
     ) -> list[RecommendedAction]:
-        """Build recommended actions based on alert."""
+        """基于告警构建推荐动作。"""
         actions = []
         
         if alert.type in ["scan", "bruteforce"]:

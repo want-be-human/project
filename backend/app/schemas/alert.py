@@ -1,6 +1,6 @@
 """
-Alert schemas.
-Strictly follows DOC C C1.3 Alert schema.
+告警 Schema。
+严格遵循 DOC C C1.3 告警规范。
 """
 
 from typing import Any, Literal
@@ -9,104 +9,104 @@ from pydantic import BaseModel, Field
 
 # Alert schema 的嵌套对象
 class TimeWindow(BaseModel):
-    """Time window for alert - DOC C C1.3."""
-    start: str = Field(..., description="Start time ISO8601 UTC")
-    end: str = Field(..., description="End time ISO8601 UTC")
+    """告警时间窗口 - DOC C C1.3。"""
+    start: str = Field(..., description="开始时间（ISO8601 UTC）")
+    end: str = Field(..., description="结束时间（ISO8601 UTC）")
 
 
 class PrimaryService(BaseModel):
-    """Primary service info - DOC C C1.3."""
-    proto: str = Field(..., description="Protocol")
-    dst_port: int = Field(..., description="Destination port")
+    """主要服务信息 - DOC C C1.3。"""
+    proto: str = Field(..., description="协议")
+    dst_port: int = Field(..., description="目标端口")
 
 
 class AlertEntities(BaseModel):
-    """Alert entities - DOC C C1.3."""
-    primary_src_ip: str = Field(..., description="Primary source IP")
-    primary_dst_ip: str = Field(..., description="Primary destination IP")
-    primary_service: PrimaryService = Field(..., description="Primary service")
+    """告警实体 - DOC C C1.3。"""
+    primary_src_ip: str = Field(..., description="主要源 IP")
+    primary_dst_ip: str = Field(..., description="主要目的 IP")
+    primary_service: PrimaryService = Field(..., description="主要服务")
 
 
 class TopFlowSummary(BaseModel):
-    """Top flow summary in evidence - DOC C C1.3."""
-    flow_id: str = Field(..., description="Flow ID")
-    anomaly_score: float = Field(..., description="Anomaly score")
-    summary: str = Field(..., description="Brief description")
+    """证据中的高优先级流摘要 - DOC C C1.3。"""
+    flow_id: str = Field(..., description="流 ID")
+    anomaly_score: float = Field(..., description="异常分数")
+    summary: str = Field(..., description="简要描述")
 
 
 class TopFeature(BaseModel):
-    """Top feature in evidence - DOC C C1.3."""
-    name: str = Field(..., description="Feature name")
-    value: Any = Field(..., description="Feature value")
-    direction: Literal["high", "low"] = Field(..., description="Anomaly direction")
+    """证据中的高贡献特征 - DOC C C1.3。"""
+    name: str = Field(..., description="特征名")
+    value: Any = Field(..., description="特征值")
+    direction: Literal["high", "low"] = Field(..., description="异常方向")
 
 
 class PcapRef(BaseModel):
-    """PCAP reference in evidence - DOC C C1.3."""
+    """证据中的 PCAP 引用 - DOC C C1.3。"""
     pcap_id: str = Field(..., description="PCAP ID")
-    offset_hint: int | None = Field(default=None, description="Byte offset hint")
+    offset_hint: int | None = Field(default=None, description="字节偏移提示")
 
 
 class AlertEvidence(BaseModel):
-    """Alert evidence - DOC C C1.3."""
-    flow_ids: list[str] = Field(default_factory=list, description="Related flow IDs")
-    top_flows: list[TopFlowSummary] = Field(default_factory=list, description="Top anomalous flows")
-    top_features: list[TopFeature] = Field(default_factory=list, description="Top contributing features")
-    pcap_ref: PcapRef | None = Field(default=None, description="PCAP reference")
+    """告警证据 - DOC C C1.3。"""
+    flow_ids: list[str] = Field(default_factory=list, description="关联流 ID 列表")
+    top_flows: list[TopFlowSummary] = Field(default_factory=list, description="高异常流列表")
+    top_features: list[TopFeature] = Field(default_factory=list, description="主要贡献特征")
+    pcap_ref: PcapRef | None = Field(default=None, description="PCAP 引用")
 
 
 class AlertAggregation(BaseModel):
-    """Alert aggregation info - DOC C C1.3."""
-    rule: str = Field(..., description="Aggregation rule")
-    group_key: str = Field(..., description="Group key")
-    count_flows: int = Field(..., description="Number of flows in group")
+    """告警聚合信息 - DOC C C1.3。"""
+    rule: str = Field(..., description="聚合规则")
+    group_key: str = Field(..., description="分组键")
+    count_flows: int = Field(..., description="组内流数量")
 
 
 class AlertAgent(BaseModel):
-    """Alert agent info - DOC C C1.3."""
-    triage_summary: str | None = Field(default=None, description="Triage summary")
-    investigation_id: str | None = Field(default=None, description="Investigation ID")
-    recommendation_id: str | None = Field(default=None, description="Recommendation ID")
+    """告警智能体信息 - DOC C C1.3。"""
+    triage_summary: str | None = Field(default=None, description="分诊摘要")
+    investigation_id: str | None = Field(default=None, description="调查 ID")
+    recommendation_id: str | None = Field(default=None, description="建议 ID")
 
 
 class AlertTwin(BaseModel):
-    """Alert twin info - DOC C C1.3."""
-    plan_id: str | None = Field(default=None, description="Action plan ID")
-    dry_run_id: str | None = Field(default=None, description="Latest dry run ID")
+    """告警数字孪生信息 - DOC C C1.3。"""
+    plan_id: str | None = Field(default=None, description="动作计划 ID")
+    dry_run_id: str | None = Field(default=None, description="最新 dry run ID")
 
 
 class AlertSchema(BaseModel):
     """
-    Alert output schema - DOC C C1.3.
-    
-    All field names MUST match DOC C exactly.
+    告警输出 Schema - DOC C C1.3。
+
+    所有字段名必须与 DOC C 完全一致。
     """
 
-    version: str = Field(default="1.1", description="Schema version")
-    id: str = Field(..., description="UUID of the alert")
-    created_at: str = Field(..., description="ISO8601 UTC timestamp")
-    severity: Literal["low", "medium", "high", "critical"] = Field(..., description="Alert severity")
+    version: str = Field(default="1.1", description="Schema 版本")
+    id: str = Field(..., description="告警 UUID")
+    created_at: str = Field(..., description="ISO8601 UTC 时间戳")
+    severity: Literal["low", "medium", "high", "critical"] = Field(..., description="告警严重等级")
     status: Literal["new", "triaged", "investigating", "resolved", "false_positive"] = Field(
-        default="new", description="Alert status"
+        default="new", description="告警状态"
     )
     type: Literal["anomaly", "scan", "dos", "bruteforce", "exfil", "unknown"] = Field(
-        default="anomaly", description="Alert type"
+        default="anomaly", description="告警类型"
     )
-    time_window: TimeWindow = Field(..., description="Time window")
-    entities: AlertEntities = Field(..., description="Primary entities")
-    evidence: AlertEvidence = Field(..., description="Evidence")
-    aggregation: AlertAggregation = Field(..., description="Aggregation info")
-    agent: AlertAgent = Field(default_factory=AlertAgent, description="Agent info")
-    twin: AlertTwin = Field(default_factory=AlertTwin, description="Twin info")
-    tags: list[str] = Field(default_factory=list, description="Tags")
-    notes: str = Field(default="", description="Notes")
+    time_window: TimeWindow = Field(..., description="时间窗口")
+    entities: AlertEntities = Field(..., description="主要实体")
+    evidence: AlertEvidence = Field(..., description="证据")
+    aggregation: AlertAggregation = Field(..., description="聚合信息")
+    agent: AlertAgent = Field(default_factory=AlertAgent, description="智能体信息")
+    twin: AlertTwin = Field(default_factory=AlertTwin, description="数字孪生信息")
+    tags: list[str] = Field(default_factory=list, description="标签")
+    notes: str = Field(default="", description="备注")
 
     class Config:
         from_attributes = True
 
 
 class AlertUpdateRequest(BaseModel):
-    """Request for PATCH /alerts/{id} - DOC C C6.4."""
+    """PATCH /alerts/{id} 请求体 - DOC C C6.4。"""
     status: Literal["new", "triaged", "investigating", "resolved", "false_positive"] | None = None
     severity: Literal["low", "medium", "high", "critical"] | None = None
     tags: list[str] | None = None
@@ -114,11 +114,11 @@ class AlertUpdateRequest(BaseModel):
 
 
 class AlertQueryParams(BaseModel):
-    """Query parameters for GET /alerts - DOC C C6.4."""
-    status: str | None = Field(default=None, description="Filter by status")
-    severity: str | None = Field(default=None, description="Filter by severity")
-    type: str | None = Field(default=None, description="Filter by type")
-    start: str | None = Field(default=None, description="Start time filter ISO8601")
-    end: str | None = Field(default=None, description="End time filter ISO8601")
-    limit: int = Field(default=50, ge=1, le=1000, description="Max results")
-    offset: int = Field(default=0, ge=0, description="Offset for pagination")
+    """GET /alerts 查询参数 - DOC C C6.4。"""
+    status: str | None = Field(default=None, description="按状态过滤")
+    severity: str | None = Field(default=None, description="按严重等级过滤")
+    type: str | None = Field(default=None, description="按类型过滤")
+    start: str | None = Field(default=None, description="开始时间过滤（ISO8601）")
+    end: str | None = Field(default=None, description="结束时间过滤（ISO8601）")
+    limit: int = Field(default=50, ge=1, le=1000, description="最大结果数")
+    offset: int = Field(default=0, ge=0, description="分页偏移量")

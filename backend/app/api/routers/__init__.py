@@ -1,6 +1,6 @@
 """
-API Routers.
-All routers follow DOC C v1.1 specifications.
+API 路由集合。
+所有路由均遵循 DOC C v1.1 规范。
 """
 
 from app.api.routers import health

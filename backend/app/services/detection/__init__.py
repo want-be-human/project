@@ -1,4 +1,4 @@
-"""Detection service module."""
+"""检测服务模块。"""
 
 from app.services.detection.service import DetectionService
 

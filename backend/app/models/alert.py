@@ -1,6 +1,6 @@
 """
-Alert ORM Model and AlertFlow association table.
-Follows 附录F Section 3 & 4 - alerts and alert_flows tables.
+告警 ORM 模型与 AlertFlow 关联表。
+遵循附录F第 3、4 节（alerts 与 alert_flows 表）。
 """
 
 from datetime import datetime
@@ -24,9 +24,9 @@ alert_flows = Table(
 
 class Alert(BaseModel):
     """
-    Security alert generated from anomaly detection.
-    
-    Maps to DOC C C1.3 Alert schema.
+    由异常检测生成的安全告警。
+
+    对应 DOC C C1.3 Alert schema。
     """
 
     __tablename__ = "alerts"

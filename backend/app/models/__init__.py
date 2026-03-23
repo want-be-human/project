@@ -1,6 +1,6 @@
 """
-SQLAlchemy ORM Models.
-All models follow 附录F Data Dictionary specifications.
+SQLAlchemy ORM 模型集合。
+所有模型遵循附录F数据字典规范。
 """
 
 from app.models.base import Base, BaseModel

@@ -1,17 +1,17 @@
 """
-WebSocket stream router.
+WebSocket 流式路由。
 WS /api/v1/stream
 
-Broadcasting now goes through the internal EventBus:
+当前广播链路统一经过内部 EventBus：
 
     broadcast_* helper  →  EventBus.publish(DomainEvent)
                                 ↓
-                    WebSocketEventConsumer (subscriber)
+                    WebSocketEventConsumer（订阅者）
                                 ↓
-                    ConnectionManager.broadcast()  →  WS clients
+                    ConnectionManager.broadcast()  →  WS 客户端
 
-Existing helper function signatures are 100 % unchanged so that
-callers (pcaps.py, alerts.py, twin.py, scenarios.py) need zero edits.
+现有辅助函数签名保持 100% 不变，
+因此调用方（pcaps.py、alerts.py、twin.py、scenarios.py）无需改动。
 """
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -41,22 +41,22 @@ router = APIRouter(tags=["stream"])
 # ── WebSocket 连接管理器（保持不变） ──────────────────────────────
 
 class ConnectionManager:
-    """Manage WebSocket connections."""
+    """管理 WebSocket 连接。"""
 
     def __init__(self):
         self.active_connections: Set[WebSocket] = set()
 
     async def connect(self, websocket: WebSocket):
-        """Accept and track new connection."""
+        """接受并跟踪新连接。"""
         await websocket.accept()
         self.active_connections.add(websocket)
 
     def disconnect(self, websocket: WebSocket):
-        """Remove connection from tracking."""
+        """从跟踪集合中移除连接。"""
         self.active_connections.discard(websocket)
 
     async def broadcast(self, event: str, data: dict):
-        """Broadcast event to all connected clients."""
+        """向所有已连接客户端广播事件。"""
         message = json.dumps({"event": event, "data": data})
         disconnected = set()
 
@@ -70,7 +70,7 @@ class ConnectionManager:
         self.active_connections -= disconnected
 
     async def send_to(self, websocket: WebSocket, event: str, data: dict):
-        """Send event to specific client."""
+        """向指定客户端发送事件。"""
         message = json.dumps({"event": event, "data": data})
         await websocket.send_text(message)
 
@@ -80,7 +80,7 @@ manager = ConnectionManager()
 
 
 def get_connection_manager() -> ConnectionManager:
-    """Get the connection manager instance."""
+    """获取连接管理器实例。"""
     return manager
 
 
@@ -88,27 +88,27 @@ def get_connection_manager() -> ConnectionManager:
 
 class WebSocketEventConsumer:
     """
-    Bridges the EventBus to WebSocket clients.
+    连接 EventBus 与 WebSocket 客户端。
 
-    Subscribes to **all** domain events (wildcard ``*``) and forwards
-    each one to ``ConnectionManager.broadcast()``, preserving the
-    existing ``{"event": str, "data": dict}`` JSON envelope.
+    订阅 **所有** 领域事件（通配符 ``*``），并将每条事件转发到
+    ``ConnectionManager.broadcast()``，保持现有
+    ``{"event": str, "data": dict}`` JSON 包装格式不变。
     """
 
     def __init__(self, connection_manager: ConnectionManager) -> None:
         self._manager = connection_manager
 
     async def handle(self, event: DomainEvent) -> None:
-        """Forward a domain event to all connected WS clients."""
+        """将领域事件转发给所有已连接 WS 客户端。"""
         await self._manager.broadcast(event.event_type, event.data)
 
     async def register(self) -> None:
-        """Subscribe to every event type on the global bus."""
+        """在全局总线上订阅全部事件类型。"""
         bus = get_event_bus()
         await bus.subscribe(WILDCARD, self.handle)
 
     async def unregister(self) -> None:
-        """Unsubscribe from the global bus."""
+        """从全局总线取消订阅。"""
         bus = get_event_bus()
         await bus.unsubscribe(WILDCARD, self.handle)
 
@@ -123,9 +123,9 @@ ws_consumer = WebSocketEventConsumer(manager)
 @router.websocket("/ws")
 async def websocket_stream(websocket: WebSocket):
     """
-    WebSocket endpoint for real-time events.
+    实时事件 WebSocket 端点。
 
-    Events (DOC C C7.2):
+    事件（DOC C C7.2）：
     - pcap.process.progress: { pcap_id, percent }
     - pcap.process.done: { pcap_id, flow_count, alert_count }
     - alert.created: { alert_id, severity }
@@ -168,37 +168,37 @@ async def websocket_stream(websocket: WebSocket):
 # WebSocketEventConsumer 转发到 WS 客户端。
 
 async def broadcast_pcap_progress(pcap_id: str, percent: int):
-    """Broadcast PCAP processing progress."""
+    """广播 PCAP 处理进度。"""
     bus = get_event_bus()
     await bus.publish(make_event(PCAP_PROCESS_PROGRESS, {"pcap_id": pcap_id, "percent": percent}))
 
 
 async def broadcast_pcap_done(pcap_id: str, flow_count: int, alert_count: int):
-    """Broadcast PCAP processing completion."""
+    """广播 PCAP 处理完成事件。"""
     bus = get_event_bus()
     await bus.publish(make_event(PCAP_PROCESS_DONE, {"pcap_id": pcap_id, "flow_count": flow_count, "alert_count": alert_count}))
 
 
 async def broadcast_alert_created(alert_id: str, severity: str):
-    """Broadcast new alert creation."""
+    """广播新告警创建事件。"""
     bus = get_event_bus()
     await bus.publish(make_event(ALERT_CREATED, {"alert_id": alert_id, "severity": severity}))
 
 
 async def broadcast_alert_updated(alert_id: str, status: str):
-    """Broadcast alert status update."""
+    """广播告警状态更新事件。"""
     bus = get_event_bus()
     await bus.publish(make_event(ALERT_UPDATED, {"alert_id": alert_id, "status": status}))
 
 
 async def broadcast_dryrun_created(dry_run_id: str, alert_id: str, risk: float):
-    """Broadcast dry-run creation."""
+    """广播 dry-run 创建事件。"""
     bus = get_event_bus()
     await bus.publish(make_event(TWIN_DRYRUN_CREATED, {"dry_run_id": dry_run_id, "alert_id": alert_id, "risk": risk}))
 
 
 async def broadcast_scenario_done(scenario_id: str, status: str):
-    """Broadcast scenario run completion."""
+    """广播场景运行完成事件。"""
     bus = get_event_bus()
     await bus.publish(make_event(SCENARIO_RUN_DONE, {"scenario_id": scenario_id, "status": status}))
     await manager.broadcast(

@@ -1,4 +1,4 @@
-"""Scenarios service module."""
+"""场景服务模块。"""
 
 from app.services.scenarios.service import ScenariosService
 

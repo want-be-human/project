@@ -1,6 +1,6 @@
 """
-Services module.
-Export all service classes per DOC B B4.
+服务模块。
+按 DOC B B4 导出全部服务类。
 """
 
 from app.services.ingestion.service import IngestionService

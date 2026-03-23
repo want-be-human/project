@@ -1,6 +1,6 @@
 """
-PcapFile ORM Model.
-Follows 附录F Section 1 - pcap_files table.
+PcapFile ORM 模型。
+遵循附录F第 1 节（pcap_files 表）。
 """
 
 from typing import Optional
@@ -12,9 +12,9 @@ from app.models.base import BaseModel
 
 class PcapFile(BaseModel):
     """
-    PCAP file record.
-    
-    Maps to DOC C C1.1 PcapFile schema.
+    PCAP 文件记录。
+
+    对应 DOC C C1.1 PcapFile schema。
     """
 
     __tablename__ = "pcap_files"
@@ -35,8 +35,8 @@ class PcapFile(BaseModel):
 
     # 内部字段（不在 DOC C 中对外暴露）
     storage_path: Mapped[str] = mapped_column(String(512), nullable=False)
-    sha256: Mapped[Optional[str]] = mapped_column(String(72), nullable=True)  # "sha256:..." format
-    meta: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)  # Optional metadata
+    sha256: Mapped[Optional[str]] = mapped_column(String(72), nullable=True)  # "sha256:..." 格式
+    meta: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)  # 可选元数据
 
     def __repr__(self) -> str:
         return f"<PcapFile(id={self.id}, filename={self.filename}, status={self.status})>"

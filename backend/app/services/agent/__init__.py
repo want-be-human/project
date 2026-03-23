@@ -1,4 +1,4 @@
-"""Agent service module."""
+"""智能体服务模块。"""
 
 from app.services.agent.service import AgentService
 

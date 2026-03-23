@@ -1,6 +1,6 @@
 """
-EvidenceChain ORM Model.
-Follows 附录F Section 9 - evidence_chains table (optional cache).
+EvidenceChain ORM 模型。
+遵循附录F第 9 节（evidence_chains 表，可选缓存）。
 """
 
 from sqlalchemy import String, Text, ForeignKey, Index
@@ -11,10 +11,10 @@ from app.models.base import BaseModel
 
 class EvidenceChain(BaseModel):
     """
-    Evidence chain cache for alert.
-    
-    Maps to DOC C C3.1 EvidenceChain schema.
-    Can be computed on-the-fly, but caching improves performance.
+    告警证据链缓存。
+
+    对应 DOC C C3.1 EvidenceChain schema。
+    也可实时计算，但缓存能提升性能。
     """
 
     __tablename__ = "evidence_chains"

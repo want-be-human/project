@@ -30,7 +30,7 @@ __all__ = [
     "broadcast_alert_updated",
     "broadcast_dryrun_created",
     "broadcast_scenario_done",
-    # EventBus
+    # 事件总线
     "get_event_bus",
     "DomainEvent",
     "make_event",

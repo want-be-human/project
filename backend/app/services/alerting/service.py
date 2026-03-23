@@ -106,7 +106,7 @@ class AlertingService:
         flows: list[dict],
         pcap_id: str,
     ) -> dict:
-        """Create an alert from a group of flows."""
+        """根据一组流量创建告警。"""
         now = utc_now()
         
         # 计算时间窗口
@@ -178,19 +178,19 @@ class AlertingService:
         return alert
 
     def _score_to_severity(self, score: float) -> str:
-        """Map anomaly score to severity level."""
+        """将异常分数映射为严重等级。"""
         for severity, threshold in self.severity_thresholds.items():
             if score >= threshold:
                 return severity
         return "low"
 
     def _determine_type(self, flows: list[dict]) -> str:
-        """Determine alert type based on flow patterns."""
+        """根据流量模式判定告警类型。"""
         # 统计唯一目标
         dst_ips = set(f.get("dst_ip") for f in flows)
         dst_ports = set(f.get("dst_port") for f in flows)
         
-        # SYN 数高且目标多 -> scan
+        # SYN 数高且目标多 -> 扫描（scan）
         total_syn = sum(f.get("features", {}).get("syn_count", 0) for f in flows)
         total_packets = sum(f.get("features", {}).get("total_packets", 0) for f in flows)
         
@@ -215,7 +215,7 @@ class AlertingService:
         return "anomaly"
 
     def _get_top_flows(self, flows: list[dict]) -> list[dict]:
-        """Get top flow summaries for evidence."""
+        """获取用于证据展示的高优先级流摘要。"""
         result = []
         for flow in flows:
             summary = f"{flow.get('proto', 'TCP')}/{flow.get('dst_port', 0)}"
@@ -230,7 +230,7 @@ class AlertingService:
         return result
 
     def _get_top_features(self, flows: list[dict]) -> list[dict]:
-        """Get top contributing features across flows."""
+        """获取跨流量的主要贡献特征。"""
         # 聚合特征
         feature_values = {}
         
@@ -273,7 +273,7 @@ class AlertingService:
             })
 
         # --- 低阈值补充候选特征 ---
-        # bytes_per_packet
+        # bytes_per_packet 特征
         bpp = feature_values.get("bytes_per_packet", [])
         if bpp and max(bpp) > 0:
             top_features.append({

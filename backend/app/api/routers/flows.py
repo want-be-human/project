@@ -1,6 +1,6 @@
 """
-Flows router.
-GET /flows, GET /flows/{flow_id}
+流记录路由。
+GET /flows、GET /flows/{flow_id}
 """
 
 import json
@@ -21,7 +21,7 @@ router = APIRouter(prefix="/flows", tags=["flows"])
 
 
 def _flow_to_schema(flow: Flow) -> FlowRecordSchema:
-    """Convert ORM Flow to Pydantic schema."""
+    """将 ORM Flow 转换为 Pydantic Schema。"""
     # features 在 SQLite 中以 TEXT（JSON 字符串）存储
     features = flow.features
     if isinstance(features, str):
@@ -69,7 +69,7 @@ async def list_flows(
     offset: int = Query(default=0, ge=0, description="Skip count"),
     db: Session = Depends(get_db),
 ) -> ApiResponse[list[FlowRecordSchema]]:
-    """List flow records with optional filters."""
+    """按可选筛选条件列出流记录。"""
     stmt = select(Flow)
 
     if pcap_id:
@@ -102,7 +102,7 @@ async def get_flow(
     flow_id: str = Path(..., description="Flow ID"),
     db: Session = Depends(get_db),
 ) -> ApiResponse[FlowRecordSchema]:
-    """Get flow record by ID."""
+    """按 ID 获取流记录。"""
     flow = db.get(Flow, flow_id)
     if not flow:
         raise NotFoundError(

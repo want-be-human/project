@@ -1,5 +1,5 @@
 """
-Topology router.
+拓扑路由。
 GET /topology/graph — DOC C C6.7
 """
 
@@ -29,14 +29,14 @@ async def get_topology_graph(
     db: Session = Depends(get_db),
 ) -> ApiResponse[GraphResponseSchema]:
     """
-    Build and return topology graph for the specified time window.
-    
-    Parameters:
-    - start: ISO8601 timestamp for query start (omit to use earliest flow)
-    - end: ISO8601 timestamp for query end (omit to use latest flow)
-    - mode: 'ip' for host-level, 'subnet' for subnet-level grouping
-    
-    Returns GraphResponse with nodes, edges, and metadata.
+    按指定时间窗口构建并返回拓扑图。
+
+    参数：
+    - start: 查询开始时间（ISO8601，不传则使用最早 flow）
+    - end: 查询结束时间（ISO8601，不传则使用最晚 flow）
+    - mode: 'ip' 表示主机级，'subnet' 表示子网级聚合
+
+    返回包含 nodes、edges 和 meta 的 GraphResponse。
     """
     from app.services.topology import TopologyService
 

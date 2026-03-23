@@ -1,7 +1,7 @@
 """
-Alerts router.
-GET /alerts, GET /alerts/{alert_id}, PATCH /alerts/{alert_id}
-Implements DOC C C6.4.
+告警路由。
+GET /alerts、GET /alerts/{alert_id}、PATCH /alerts/{alert_id}
+实现 DOC C C6.4。
 """
 
 import asyncio
@@ -37,7 +37,7 @@ router = APIRouter(prefix="/alerts", tags=["alerts"])
 # ---------- 辅助方法：ORM → Pydantic ----------
 
 def _parse_json(text: str, fallback=None):
-    """Safely parse a JSON TEXT column."""
+    """安全解析 JSON 文本列。"""
     if not text:
         return fallback if fallback is not None else {}
     try:
@@ -47,7 +47,7 @@ def _parse_json(text: str, fallback=None):
 
 
 def _alert_to_schema(alert: Alert) -> AlertSchema:
-    """Convert Alert ORM to AlertSchema (DOC C C1.3)."""
+    """将 Alert ORM 转换为 AlertSchema（DOC C C1.3）。"""
     evidence_raw = _parse_json(alert.evidence, {})
     aggregation_raw = _parse_json(alert.aggregation, {})
     agent_raw = _parse_json(alert.agent, {})
@@ -136,7 +136,7 @@ async def list_alerts(
     offset: int = Query(default=0, ge=0, description="Skip count"),
     db: Session = Depends(get_db),
 ) -> ApiResponse[list[AlertSchema]]:
-    """List alert records with optional filters."""
+    """按可选筛选条件列出告警记录。"""
     stmt = select(Alert)
 
     if status:
@@ -165,7 +165,7 @@ async def get_alert(
     alert_id: str = Path(..., description="Alert ID"),
     db: Session = Depends(get_db),
 ) -> ApiResponse[AlertSchema]:
-    """Get alert by ID with full evidence/top_flows/top_features."""
+    """按 ID 获取告警及完整 evidence/top_flows/top_features。"""
     alert = db.get(Alert, alert_id)
     if not alert:
         raise NotFoundError(
@@ -187,8 +187,8 @@ async def update_alert(
     db: Session = Depends(get_db),
 ) -> ApiResponse[AlertSchema]:
     """
-    Partial update of alert fields.
-    Broadcasts WS alert.updated on success.
+    对告警字段进行部分更新。
+    成功后广播 WS 事件 alert.updated。
     """
     alert = db.get(Alert, alert_id)
     if not alert:

@@ -1,6 +1,6 @@
 """
-Recommendation ORM Model.
-Follows 附录F Section 6 - recommendations table.
+Recommendation ORM 模型。
+遵循附录F第 6 节（recommendations 表）。
 """
 
 from sqlalchemy import String, Text, ForeignKey, Index
@@ -11,9 +11,9 @@ from app.models.base import BaseModel
 
 class Recommendation(BaseModel):
     """
-    Agent recommendation result.
-    
-    Maps to DOC C C1.5 Recommendation schema.
+    智能体建议结果。
+
+    对应 DOC C C1.5 Recommendation schema。
     """
 
     __tablename__ = "recommendations"

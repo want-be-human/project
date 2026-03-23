@@ -1,6 +1,6 @@
 """
-FlowRecord ORM Model.
-Follows 附录F Section 2 - flows table.
+FlowRecord ORM 模型。
+遵循附录F第 2 节（flows 表）。
 """
 
 from datetime import datetime
@@ -13,9 +13,9 @@ from app.models.base import BaseModel
 
 class Flow(BaseModel):
     """
-    Flow record representing aggregated network traffic.
-    
-    Maps to DOC C C1.2 FlowRecord schema.
+    表示聚合网络流量的流记录。
+
+    对应 DOC C C1.2 FlowRecord schema。
     """
 
     __tablename__ = "flows"

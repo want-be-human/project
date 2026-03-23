@@ -1,5 +1,5 @@
 """
-SQLAlchemy Base and common mixins.
+SQLAlchemy 基类与通用混入。
 """
 
 from datetime import datetime
@@ -10,12 +10,12 @@ from app.core.utils import generate_uuid, utc_now
 
 
 class Base(DeclarativeBase):
-    """SQLAlchemy declarative base."""
+    """SQLAlchemy 声明式基类。"""
     pass
 
 
 class BaseModel(Base):
-    """Abstract base model with id, version, and created_at."""
+    """包含 id、version、created_at 的抽象模型基类。"""
 
     __abstract__ = True
 

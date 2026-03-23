@@ -1,12 +1,12 @@
 """
-PlanCompiler – core compilation logic.
-Transforms RecommendedAction[] into PlanAction[] with traceability.
+PlanCompiler 核心编译逻辑。
+将 RecommendedAction[] 转换为可追溯的 PlanAction[]。
 
-Design inspired by agentic-soc-platform's modular approach:
-  each analysis capability produces structured, actionable output
-  that downstream modules (playbooks / simulations) can consume directly.
+设计借鉴 agentic-soc-platform 的模块化思路：
+    每个分析能力产出结构化、可执行的结果，
+    供下游模块（剧本/仿真）直接消费。
 
-This compiler is a pure function with no DB side effects.
+该编译器为纯函数，不产生数据库副作用。
 """
 
 from app.core.logging import get_logger
@@ -26,11 +26,10 @@ logger = get_logger(__name__)
 
 class PlanCompiler:
     """
-    Compiles Agent recommendation actions into Twin-consumable PlanActions.
+    将 Agent recommendation 动作编译为 Twin 可消费的 PlanAction。
 
-    All compilation rules are deterministic, keyword-based, and traceable
-    back to evidence nodes. Non-compilable actions (e.g. monitoring
-    suggestions) are silently skipped with a count returned.
+    所有编译规则均为确定性、基于关键词且可追溯到证据节点。
+    不可编译动作（如纯监控建议）会被静默跳过，并返回跳过数量。
     """
 
     def compile(
@@ -42,16 +41,16 @@ class PlanCompiler:
         language: str = "en",
     ) -> tuple[list[PlanAction], int]:
         """
-        Compile recommendation actions into PlanActions.
+        将 recommendation 动作编译为 PlanAction 列表。
 
-        Args:
-            alert: Source alert
-            recommendation: Recommendation with actions to compile
-            investigation: Optional investigation for confidence blending
-            evidence_chain: Optional evidence chain for traceability
+        参数：
+            alert: 源告警
+            recommendation: 待编译动作所在的 recommendation
+            investigation: 可选的 investigation（用于融合置信度）
+            evidence_chain: 可选的 evidence chain（用于追溯）
 
-        Returns:
-            Tuple of (compiled PlanAction list, number of skipped actions)
+        返回：
+            元组（编译后的 PlanAction 列表, 被跳过动作数量）
         """
         compiled: list[PlanAction] = []
         skipped = 0
@@ -94,7 +93,7 @@ class PlanCompiler:
         evidence_chain: EvidenceChainSchema | None,
         language: str,
     ) -> PlanAction | None:
-        """Compile a single RecommendedAction or return None if not compilable."""
+        """编译单个 RecommendedAction；若不可编译则返回 None。"""
         action_type = match_action_type(action.title)
         if action_type is None:
             logger.debug("Skipping non-compilable action: %s", action.title)
@@ -127,7 +126,7 @@ class PlanCompiler:
         )
 
     def _resolve_target(self, action_type: str, alert: Alert) -> ActionTarget:
-        """Determine target from alert entities based on action type."""
+        """根据动作类型从告警实体中确定目标。"""
         if action_type in ("block_ip", "isolate_host"):
             return ActionTarget(type="ip", value=alert.primary_src_ip or "0.0.0.0")
 
@@ -149,7 +148,7 @@ class PlanCompiler:
         return ActionTarget(type="ip", value=alert.primary_src_ip or "0.0.0.0")
 
     def _build_params(self, action_type: str, alert: Alert) -> dict:
-        """Build action parameters using defaults and alert context."""
+        """结合默认值与告警上下文构建动作参数。"""
         params = dict(PARAMS_DEFAULTS.get(action_type, {}))
 
         if action_type == "block_ip":
@@ -165,7 +164,7 @@ class PlanCompiler:
     def _build_rollback(
         self, action_type: str, alert: Alert, target: ActionTarget
     ) -> RollbackAction | None:
-        """Build rollback action for the given action type."""
+        """为给定动作类型构建回滚动作。"""
         mapping = ROLLBACK_MAPPING.get(action_type)
         if not mapping:
             return None
@@ -186,7 +185,7 @@ class PlanCompiler:
     def _trace_evidence(
         self, action_type: str, evidence_chain: EvidenceChainSchema | None
     ) -> list[str]:
-        """Return evidence node IDs this action traces to."""
+        """返回该动作可追溯到的证据节点 ID 列表。"""
         if not evidence_chain:
             return []
 
@@ -207,7 +206,7 @@ class PlanCompiler:
         confidence: float,
         language: str,
     ) -> str:
-        """Build a human-readable explanation of why this action was compiled."""
+        """构建该动作被编译的可读解释。"""
         if language == "zh":
             return (
                 f"基于推荐动作 \"{action.title}\"（优先级: {action.priority}），"

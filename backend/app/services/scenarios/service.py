@@ -42,17 +42,17 @@ class ScenariosService:
         tags: list[str],
     ) -> ScenarioSchema:
         """
-        Create a new scenario.
-        
-        Args:
-            name: Scenario name (unique)
-            description: Scenario description
-            pcap_id: Reference PCAP ID
-            expectations: Expected outcomes
-            tags: Tags for categorization
-            
-        Returns:
-            Scenario schema
+        创建新场景。
+
+        参数：
+            name: 场景名称（唯一）
+            description: 场景描述
+            pcap_id: 关联的 PCAP ID
+            expectations: 期望结果
+            tags: 分类标签
+
+        返回：
+            场景 Schema
         """
         scenario_id = generate_uuid()
         now = utc_now()
@@ -94,7 +94,7 @@ class ScenariosService:
         limit: int = 50,
         offset: int = 0,
     ) -> list[ScenarioSchema]:
-        """List all scenarios."""
+        """列出所有场景。"""
         scenarios = self.db.query(Scenario).order_by(
             Scenario.created_at.desc()
         ).offset(offset).limit(limit).all()
@@ -102,18 +102,18 @@ class ScenariosService:
         return [self._model_to_schema(s) for s in scenarios]
 
     def get_scenario(self, scenario_id: str) -> Scenario | None:
-        """Get scenario by ID."""
+        """根据 ID 获取场景。"""
         return self.db.query(Scenario).filter(Scenario.id == scenario_id).first()
 
     def run_scenario(self, scenario: Scenario) -> ScenarioRunResultSchema:
         """
-        Execute a scenario and check expectations.
-        
-        Args:
-            scenario: Scenario model
-            
-        Returns:
-            ScenarioRunResult schema
+        执行场景并校验期望结果。
+
+        参数：
+            scenario: 场景模型
+
+        返回：
+            ScenarioRunResult Schema
         """
         logger.info(f"Running scenario {scenario.id}: {scenario.name}")
         
@@ -287,7 +287,7 @@ class ScenariosService:
         return result
 
     def _model_to_schema(self, model: Scenario) -> ScenarioSchema:
-        """Convert Scenario model to schema."""
+        """将 Scenario 模型转换为 Schema。"""
         payload = json.loads(model.payload) if isinstance(model.payload, str) else model.payload
         
         return ScenarioSchema(

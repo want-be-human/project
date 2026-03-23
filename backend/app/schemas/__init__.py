@@ -1,6 +1,6 @@
 """
-Pydantic Schemas for API responses.
-All schemas strictly follow DOC C v1.1 specifications.
+API 响应的 Pydantic Schema 集合。
+所有 Schema 严格遵循 DOC C v1.1 规范。
 """
 
 from app.schemas.common import (

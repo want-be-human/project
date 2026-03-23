@@ -1,7 +1,7 @@
 """
-PlanCompilerService – orchestration layer.
-Fetches required data from DB, invokes PlanCompiler, and persists the result
-via TwinService.create_plan().
+PlanCompilerService 编排层。
+从数据库获取所需数据，调用 PlanCompiler，并通过
+TwinService.create_plan() 持久化结果。
 """
 
 import json
@@ -27,9 +27,9 @@ logger = get_logger(__name__)
 
 class PlanCompilerService:
     """
-    Orchestrates recommendation → plan compilation.
+    负责编排 recommendation 到 plan 的编译流程。
 
-    Usage:
+    用法：
         service = PlanCompilerService(db)
         response = service.compile_for_alert(alert_id)
     """
@@ -45,18 +45,18 @@ class PlanCompilerService:
         language: str = "en",
     ) -> CompilePlanResponse:
         """
-        Compile a recommendation into a Twin ActionPlan.
+        将 recommendation 编译为 Twin ActionPlan。
 
-        Args:
-            alert_id: Alert to compile for.
-            recommendation_id: Specific recommendation (latest if None).
-            language: Language for reasoning summaries.
+        参数：
+            alert_id: 要编译的告警 ID。
+            recommendation_id: 指定 recommendation（为空时取最新）。
+            language: 推理摘要语言。
 
-        Returns:
-            CompilePlanResponse with the created plan and compilation metadata.
+        返回：
+            包含已创建计划及编译元数据的 CompilePlanResponse。
 
-        Raises:
-            ValueError: If alert or recommendation not found.
+        异常：
+            ValueError: 当 alert 或 recommendation 不存在时抛出。
         """
         # 获取 alert
         alert = self.db.query(Alert).filter(Alert.id == alert_id).first()
@@ -114,7 +114,7 @@ class PlanCompilerService:
     def _load_recommendation(
         self, alert_id: str, recommendation_id: str | None
     ) -> RecommendationSchema:
-        """Load a specific or the latest recommendation for the alert."""
+        """加载指定或最新的 recommendation。"""
         if recommendation_id:
             rec = (
                 self.db.query(Recommendation)
@@ -139,7 +139,7 @@ class PlanCompilerService:
         return RecommendationSchema(**payload)
 
     def _load_investigation(self, alert_id: str) -> InvestigationSchema | None:
-        """Load latest investigation for the alert (optional)."""
+        """加载该告警的最新 investigation（可选）。"""
         inv = (
             self.db.query(Investigation)
             .filter(Investigation.alert_id == alert_id)
@@ -153,7 +153,7 @@ class PlanCompilerService:
         return InvestigationSchema(**payload)
 
     def _load_evidence_chain(self, alert_id: str) -> EvidenceChainSchema | None:
-        """Load latest evidence chain for the alert (optional)."""
+        """加载该告警的最新 evidence chain（可选）。"""
         ec = (
             self.db.query(EvidenceChain)
             .filter(EvidenceChain.alert_id == alert_id)

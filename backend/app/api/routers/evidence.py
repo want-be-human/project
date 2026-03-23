@@ -1,5 +1,5 @@
 """
-Evidence Chain router.
+证据链路由。
 GET /alerts/{alert_id}/evidence-chain — DOC C C6.6
 """
 
@@ -26,10 +26,10 @@ async def get_evidence_chain(
     db: Session = Depends(get_db),
 ) -> ApiResponse[EvidenceChainSchema]:
     """
-    Build and return the evidence chain for an alert.
-    
-    Always returns at least alert + flow + feature nodes
-    per DOC F Week-5 DoD requirement.
+    为指定告警构建并返回证据链。
+
+    按 DOC F Week-5 DoD 要求，至少返回
+    alert + flow + feature 三类节点。
     """
     alert = db.get(Alert, alert_id)
     if not alert:

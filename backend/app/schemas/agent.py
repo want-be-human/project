@@ -1,6 +1,6 @@
 """
-Agent schemas: Investigation and Recommendation.
-Strictly follows DOC C C1.4 and C1.5 schemas.
+智能体 Schema：Investigation 与 Recommendation。
+严格遵循 DOC C C1.4 与 C1.5 规范。
 """
 
 from __future__ import annotations
@@ -12,52 +12,52 @@ from pydantic import BaseModel, Field
 # ---------- 威胁增强 Schema（模块 E） ----------
 
 class ThreatTechnique(BaseModel):
-    """Single MITRE ATT&CK technique matched by enrichment."""
-    technique_id: str = Field(..., description="MITRE technique ID, e.g. T1595")
-    technique_name: str = Field(..., description="Technique name")
-    tactic_id: str = Field(..., description="MITRE tactic ID, e.g. TA0043")
-    tactic_name: str = Field(..., description="Tactic name")
-    confidence: float = Field(..., ge=0.0, le=1.0, description="Match confidence")
-    description: str = Field(default="", description="Brief description")
-    intel_refs: list[str] = Field(default_factory=list, description="Reference URLs")
+    """增强流程匹配到的单个 MITRE ATT&CK 技术。"""
+    technique_id: str = Field(..., description="MITRE 技术 ID，例如 T1595")
+    technique_name: str = Field(..., description="技术名称")
+    tactic_id: str = Field(..., description="MITRE 战术 ID，例如 TA0043")
+    tactic_name: str = Field(..., description="战术名称")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="匹配置信度")
+    description: str = Field(default="", description="简要描述")
+    intel_refs: list[str] = Field(default_factory=list, description="参考链接")
 
 
 class ThreatContext(BaseModel):
-    """Threat intelligence enrichment result."""
-    techniques: list[ThreatTechnique] = Field(default_factory=list, description="Matched MITRE techniques")
-    tactics: list[str] = Field(default_factory=list, description="De-duplicated tactic names")
-    enrichment_confidence: float = Field(default=0.0, ge=0.0, le=1.0, description="Overall enrichment confidence")
-    enrichment_source: str = Field(default="local_mitre_v1", description="Enrichment data source identifier")
+    """威胁情报增强结果。"""
+    techniques: list[ThreatTechnique] = Field(default_factory=list, description="匹配到的 MITRE 技术")
+    tactics: list[str] = Field(default_factory=list, description="去重后的战术名称")
+    enrichment_confidence: float = Field(default=0.0, ge=0.0, le=1.0, description="整体增强置信度")
+    enrichment_source: str = Field(default="local_mitre_v1", description="增强数据来源标识")
 
 
 # ---------- Investigation Schema - DOC C C1.4 ----------
 
 class InvestigationImpact(BaseModel):
-    """Impact assessment in Investigation."""
-    scope: list[str] = Field(default_factory=list, description="Affected scope")
-    confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score")
+    """调查中的影响评估。"""
+    scope: list[str] = Field(default_factory=list, description="受影响范围")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="置信分数")
 
 
 class InvestigationSchema(BaseModel):
     """
-    Investigation output schema - DOC C C1.4.
+    Investigation 输出 Schema - DOC C C1.4。
     """
 
-    version: str = Field(default="1.1", description="Schema version")
-    id: str = Field(..., description="UUID of the investigation")
-    created_at: str = Field(..., description="ISO8601 UTC timestamp")
-    alert_id: str = Field(..., description="Related alert ID")
-    hypothesis: str = Field(..., description="Investigation hypothesis")
-    why: list[str] = Field(default_factory=list, description="Reasons supporting hypothesis")
-    impact: InvestigationImpact = Field(..., description="Impact assessment")
-    next_steps: list[str] = Field(default_factory=list, description="Recommended next steps")
+    version: str = Field(default="1.1", description="Schema 版本")
+    id: str = Field(..., description="调查 UUID")
+    created_at: str = Field(..., description="ISO8601 UTC 时间戳")
+    alert_id: str = Field(..., description="关联告警 ID")
+    hypothesis: str = Field(..., description="调查假设")
+    why: list[str] = Field(default_factory=list, description="支撑假设的理由")
+    impact: InvestigationImpact = Field(..., description="影响评估")
+    next_steps: list[str] = Field(default_factory=list, description="推荐下一步")
     safety_note: str = Field(
         default="Advisory only; no actions executed.",
-        description="Safety disclaimer"
+        description="安全免责声明"
     )
     threat_context: ThreatContext | None = Field(
         default=None,
-        description="Optional MITRE ATT&CK threat enrichment context",
+        description="可选的 MITRE ATT&CK 威胁增强上下文",
     )
 
     class Config:
@@ -66,27 +66,27 @@ class InvestigationSchema(BaseModel):
 
 # Recommendation Schema（DOC C C1.5）
 class RecommendedAction(BaseModel):
-    """Single action in Recommendation - DOC C C1.5."""
-    title: str = Field(..., description="Action title")
-    priority: Literal["high", "medium", "low"] = Field(..., description="Action priority")
-    steps: list[str] = Field(default_factory=list, description="Action steps")
-    rollback: list[str] = Field(default_factory=list, description="Rollback steps")
-    risk: str = Field(default="", description="Risk description")
+    """Recommendation 中的单个动作 - DOC C C1.5。"""
+    title: str = Field(..., description="动作标题")
+    priority: Literal["high", "medium", "low"] = Field(..., description="动作优先级")
+    steps: list[str] = Field(default_factory=list, description="执行步骤")
+    rollback: list[str] = Field(default_factory=list, description="回滚步骤")
+    risk: str = Field(default="", description="风险描述")
 
 
 class RecommendationSchema(BaseModel):
     """
-    Recommendation output schema - DOC C C1.5.
+    Recommendation 输出 Schema - DOC C C1.5。
     """
 
-    version: str = Field(default="1.1", description="Schema version")
-    id: str = Field(..., description="UUID of the recommendation")
-    created_at: str = Field(..., description="ISO8601 UTC timestamp")
-    alert_id: str = Field(..., description="Related alert ID")
-    actions: list[RecommendedAction] = Field(default_factory=list, description="Recommended actions")
+    version: str = Field(default="1.1", description="Schema 版本")
+    id: str = Field(..., description="建议 UUID")
+    created_at: str = Field(..., description="ISO8601 UTC 时间戳")
+    alert_id: str = Field(..., description="关联告警 ID")
+    actions: list[RecommendedAction] = Field(default_factory=list, description="推荐动作列表")
     threat_context: ThreatContext | None = Field(
         default=None,
-        description="Optional MITRE ATT&CK threat enrichment context",
+        description="可选的 MITRE ATT&CK 威胁增强上下文",
     )
 
     class Config:
@@ -101,9 +101,9 @@ class TriageRequest(BaseModel):
 
 class TriageResponse(BaseModel):
     """POST /alerts/{id}/triage 的响应体 - DOC C C6.5。"""
-    triage_summary: str = Field(..., description="Triage summary text")
+    triage_summary: str = Field(..., description="分诊摘要文本")
 
 
 class LanguageRequest(BaseModel):
     """investigate/recommend 的可选语言请求体。"""
-    language: Literal["zh", "en"] = Field(default="en", description="Output language")
+    language: Literal["zh", "en"] = Field(default="en", description="输出语言")

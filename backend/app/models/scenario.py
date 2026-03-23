@@ -1,6 +1,6 @@
 """
-Scenario Models: Scenario and ScenarioRun.
-Follows 附录F Section 10 & 11 - scenarios and scenario_runs tables.
+场景模型：Scenario 与 ScenarioRun。
+遵循附录F第 10、11 节（scenarios 与 scenario_runs 表）。
 """
 
 from sqlalchemy import String, Text, ForeignKey, Index, UniqueConstraint
@@ -11,9 +11,9 @@ from app.models.base import BaseModel
 
 class Scenario(BaseModel):
     """
-    Scenario definition for regression testing.
-    
-    Maps to DOC C C4.1 Scenario schema.
+    回归测试场景定义。
+
+    对应 DOC C C4.1 Scenario schema。
     """
 
     __tablename__ = "scenarios"
@@ -48,9 +48,9 @@ class Scenario(BaseModel):
 
 class ScenarioRun(BaseModel):
     """
-    Scenario execution result.
-    
-    Maps to DOC C C4.2 ScenarioRunResult schema.
+    场景执行结果。
+
+    对应 DOC C C4.2 ScenarioRunResult schema。
     """
 
     __tablename__ = "scenario_runs"

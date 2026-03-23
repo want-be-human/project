@@ -1,6 +1,6 @@
 """
-Workflow Engine – orchestrates stage execution with tracing.
-Delegates actual analysis to existing AgentService via stage wrappers.
+工作流引擎：负责编排阶段执行并记录轨迹。
+通过阶段包装器将实际分析委托给既有 AgentService。
 """
 
 import json
@@ -34,9 +34,9 @@ _STAGE_REGISTRY: dict[str, type[BaseStage]] = {
 
 class WorkflowEngine:
     """
-    Orchestrates agent workflow stages with execution trace recording.
+    编排智能体工作流阶段并记录执行轨迹。
 
-    Usage:
+    用法：
         engine = WorkflowEngine(db)
         result = engine.run_stage("triage", alert, language="en")
     """
@@ -56,9 +56,9 @@ class WorkflowEngine:
         **kwargs: Any,
     ) -> Any:
         """
-        Execute a single stage and record its execution trace.
+        执行单个阶段并记录执行轨迹。
 
-        Returns the stage output (compatible with the original service return type).
+        返回阶段输出（与原服务返回类型兼容）。
         """
         stage_cls = _STAGE_REGISTRY.get(stage_name)
         if stage_cls is None:
@@ -137,9 +137,9 @@ class WorkflowEngine:
         language: str = "en",
     ) -> dict[str, Any]:
         """
-        Run multiple stages sequentially, passing outputs forward.
+        顺序执行多个阶段，并将输出逐级传递。
 
-        Returns a dict mapping stage_name → stage output.
+        返回字典：stage_name → stage_output。
         """
         execution = self._create_execution(alert.id, "full_pipeline")
         previous_outputs: dict[str, Any] = {}
@@ -215,7 +215,7 @@ class WorkflowEngine:
     # ------------------------------------------------------------------
 
     def _create_execution(self, alert_id: str, workflow_type: str) -> WorkflowExecution:
-        """Create and persist a new WorkflowExecution record."""
+        """创建并持久化一条新的 WorkflowExecution 记录。"""
         execution = WorkflowExecution(
             id=generate_uuid(),
             alert_id=alert_id,
@@ -228,7 +228,7 @@ class WorkflowEngine:
 
     @staticmethod
     def _build_output_snapshot(stage_name: str, output: Any) -> dict[str, Any]:
-        """Build a compact output snapshot for the execution log."""
+        """构建用于执行日志的精简输出快照。"""
         if stage_name == "triage":
             return {"triage_summary_length": len(output) if isinstance(output, str) else 0}
         if hasattr(output, "id"):
@@ -241,7 +241,7 @@ class WorkflowEngine:
 
     # 将工作流阶段名映射到 PipelineStage 枚举值
     _STAGE_TO_PIPELINE = {
-        "triage": "investigate",       # triage is part of the investigate phase
+        "triage": "investigate",       # triage 属于 investigate 阶段的一部分
         "investigate": "investigate",
         "recommend": "recommend",
         "compile_plan": "compile_plan",
@@ -249,8 +249,8 @@ class WorkflowEngine:
 
     def _bridge_to_pipeline(self, alert: Alert, stage_log: StageExecutionLog) -> None:
         """
-        If pipeline observability is enabled, append the stage record
-        to the corresponding PipelineRun (looked up by alert's pcap_id).
+        若启用流水线可观测性，将阶段记录追加到对应的 PipelineRun。
+        对应关系通过 alert 的 pcap_id 间接查找。
         """
         if not settings.PIPELINE_OBSERVABILITY_ENABLED:
             return

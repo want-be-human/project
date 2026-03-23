@@ -289,7 +289,7 @@ class TwinService:
         after,
         impact_data: dict,
     ) -> dict:
-        """Calculate impact metrics from graph comparison."""
+        """根据图对比结果计算影响指标。"""
         nodes_before = len(before.nodes)
         nodes_after = len(after.nodes)
         edges_before = len(before.edges)
@@ -340,7 +340,7 @@ class TwinService:
         graph,
         blocked_sources: list[str],
     ) -> list[AlternativePath]:
-        """Find alternative paths avoiding blocked sources."""
+        """为被阻断源查找绕行替代路径。"""
         alt_paths = []
         
         if not blocked_sources or len(graph.nodes) < 3:
@@ -383,7 +383,7 @@ class TwinService:
         end: str,
         blocked: set,
     ) -> list[str]:
-        """BFS to find path avoiding blocked nodes."""
+        """使用 BFS 查找避开阻断节点的路径。"""
         if start not in adj or end not in adj:
             return []
         
@@ -404,7 +404,7 @@ class TwinService:
         return []
 
     def _build_explanation(self, actions: list[dict], impact: dict) -> list[str]:
-        """Build explanation text for dry-run results."""
+        """为 dry-run 结果构建说明文本。"""
         explain = []
         
         for action in actions:
@@ -427,7 +427,7 @@ class TwinService:
         return explain
 
     def _ip_to_subnet_from_id(self, node_id: str) -> str:
-        """Extract subnet from node ID."""
+        """从节点 ID 中提取子网。"""
         if node_id.startswith("ip:"):
             ip = node_id[3:]
             parts = ip.split(".")

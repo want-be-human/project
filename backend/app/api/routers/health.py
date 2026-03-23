@@ -1,5 +1,5 @@
 """
-Health check router.
+健康检查路由。
 GET /api/v1/health
 """
 
@@ -18,9 +18,9 @@ router = APIRouter(tags=["health"])
 )
 async def health_check() -> ApiResponse[HealthStatus]:
     """
-    Health check endpoint.
-    
-    Returns:
+    健康检查端点。
+
+    返回：
         { ok: true, data: { status: "ok" } }
     """
     return ApiResponse.success(HealthStatus(status="ok"))

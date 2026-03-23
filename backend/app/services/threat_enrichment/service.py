@@ -1,7 +1,7 @@
 """
-Threat enrichment service.
-Provides lightweight MITRE ATT&CK mapping and threat-context augmentation
-using local static knowledge files. No external dependencies required.
+威胁增强服务。
+基于本地静态知识文件提供轻量级 MITRE ATT&CK 映射与威胁上下文增强。
+无需外部依赖。
 """
 
 import json
@@ -21,7 +21,7 @@ _port_protocol_rules: dict | None = None
 
 
 def _load_json(path: Path) -> dict:
-    """Load a JSON file with utf-8 encoding."""
+    """使用 UTF-8 编码加载 JSON 文件。"""
     with open(path, encoding="utf-8") as f:
         return json.load(f)
 
@@ -42,11 +42,9 @@ def _get_port_protocol_rules() -> dict:
 
 class ThreatEnrichmentService:
     """
-    Lightweight threat-intelligence enrichment based on local MITRE ATT&CK
-    mapping and port/protocol heuristics.
+    基于本地 MITRE ATT&CK 映射与端口/协议启发规则的轻量威胁情报增强服务。
 
-    This service is stateless and does NOT depend on a database session,
-    external APIs, or heavy infrastructure.
+    该服务无状态，不依赖数据库会话、外部 API 或重型基础设施。
     """
 
     def enrich(
@@ -58,10 +56,9 @@ class ThreatEnrichmentService:
         evidence_keywords: list[str] | None = None,
     ) -> ThreatContext | None:
         """
-        Produce a ThreatContext for the given alert parameters.
+        基于给定告警参数生成 ThreatContext。
 
-        Returns ``None`` (silent degradation) when enrichment cannot be
-        performed or an unexpected error occurs.
+        当无法执行增强或出现意外错误时返回 ``None``（静默降级）。
         """
         try:
             return self._do_enrich(

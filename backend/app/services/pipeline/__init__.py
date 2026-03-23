@@ -1,7 +1,7 @@
 """
-Pipeline observability — stage-level tracking for the PCAP analysis pipeline.
+流水线可观测性模块：为 PCAP 分析流水线提供阶段级跟踪能力。
 
-Usage::
+用法::
 
     from app.services.pipeline import PipelineTracker, PipelineStage
 

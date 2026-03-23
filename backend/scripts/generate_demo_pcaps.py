@@ -29,7 +29,7 @@ PCAP_LINKTYPE_ETHERNET = 1
 
 
 def write_pcap_header(f):
-    """Write PCAP global header."""
+    """写入 PCAP 全局头。"""
     f.write(struct.pack(
         '<IHHIIII',
         PCAP_MAGIC,
@@ -43,7 +43,7 @@ def write_pcap_header(f):
 
 
 def write_packet(f, timestamp: float, packet_data: bytes):
-    """Write a single packet with header."""
+    """写入单个报文及其报文头。"""
     ts_sec = int(timestamp)
     ts_usec = int((timestamp - ts_sec) * 1000000)
     caplen = len(packet_data)
@@ -56,12 +56,12 @@ def write_packet(f, timestamp: float, packet_data: bytes):
 
 
 def build_ethernet_header(src_mac: bytes, dst_mac: bytes, ethertype: int = 0x0800) -> bytes:
-    """Build Ethernet header."""
+    """构造以太网头。"""
     return dst_mac + src_mac + struct.pack('>H', ethertype)
 
 
 def build_ip_header(src_ip: str, dst_ip: str, proto: int, payload_len: int) -> bytes:
-    """Build IPv4 header."""
+    """构造 IPv4 头。"""
     version_ihl = (4 << 4) | 5
     tos = 0
     total_len = 20 + payload_len
@@ -95,7 +95,7 @@ def build_ip_header(src_ip: str, dst_ip: str, proto: int, payload_len: int) -> b
 
 
 def ip_checksum(header: bytes) -> int:
-    """Calculate IP header checksum."""
+    """计算 IP 头校验和。"""
     if len(header) % 2 == 1:
         header += b'\x00'
     
@@ -111,7 +111,7 @@ def ip_checksum(header: bytes) -> int:
 
 
 def build_tcp_header(src_port: int, dst_port: int, flags: int, seq: int = 0, ack: int = 0) -> bytes:
-    """Build TCP header with specified flags."""
+    """按指定标志位构造 TCP 头。"""
     data_offset = (5 << 4)  # 5 * 4 = 20 字节，无选项
     window = 65535
     checksum = 0  # 简化处理
@@ -128,7 +128,7 @@ def build_tcp_header(src_port: int, dst_port: int, flags: int, seq: int = 0, ack
 
 def build_tcp_syn_packet(src_mac: bytes, dst_mac: bytes, src_ip: str, dst_ip: str, 
                           src_port: int, dst_port: int) -> bytes:
-    """Build a TCP SYN packet."""
+    """构造 TCP SYN 报文。"""
     tcp_flags = 0x02  # SYN
     tcp_header = build_tcp_header(src_port, dst_port, tcp_flags)
     ip_header = build_ip_header(src_ip, dst_ip, 6, len(tcp_header))  # 6 表示 TCP
@@ -139,7 +139,7 @@ def build_tcp_syn_packet(src_mac: bytes, dst_mac: bytes, src_ip: str, dst_ip: st
 
 def build_tcp_syn_ack_packet(src_mac: bytes, dst_mac: bytes, src_ip: str, dst_ip: str,
                               src_port: int, dst_port: int) -> bytes:
-    """Build a TCP SYN-ACK packet."""
+    """构造 TCP SYN-ACK 报文。"""
     tcp_flags = 0x12  # SYN + ACK
     tcp_header = build_tcp_header(src_port, dst_port, tcp_flags)
     ip_header = build_ip_header(src_ip, dst_ip, 6, len(tcp_header))
@@ -150,7 +150,7 @@ def build_tcp_syn_ack_packet(src_mac: bytes, dst_mac: bytes, src_ip: str, dst_ip
 
 def build_tcp_rst_packet(src_mac: bytes, dst_mac: bytes, src_ip: str, dst_ip: str,
                           src_port: int, dst_port: int) -> bytes:
-    """Build a TCP RST packet."""
+    """构造 TCP RST 报文。"""
     tcp_flags = 0x04  # RST
     tcp_header = build_tcp_header(src_port, dst_port, tcp_flags)
     ip_header = build_ip_header(src_ip, dst_ip, 6, len(tcp_header))
@@ -161,9 +161,9 @@ def build_tcp_rst_packet(src_mac: bytes, dst_mac: bytes, src_ip: str, dst_ip: st
 
 def generate_scan_pcap(output_path: Path):
     """
-    Generate a port scan PCAP.
-    
-    Pattern: Single source IP scanning multiple ports on target.
+    生成端口扫描场景 PCAP。
+
+    模式：单源 IP 对目标多个端口进行扫描。
     """
     print(f"Generating port scan PCAP: {output_path}")
     
@@ -214,9 +214,9 @@ def generate_scan_pcap(output_path: Path):
 
 def generate_bruteforce_pcap(output_path: Path):
     """
-    Generate an SSH brute-force PCAP.
-    
-    Pattern: Rapid connection attempts to SSH port 22.
+    生成 SSH 暴力破解场景 PCAP。
+
+    模式：对 SSH 22 端口进行高频连接尝试。
     """
     print(f"Generating SSH brute-force PCAP: {output_path}")
     

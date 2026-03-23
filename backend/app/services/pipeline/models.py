@@ -1,8 +1,8 @@
 """
-Pipeline stage definitions and data models.
+流水线阶段定义与数据模型。
 
-Defines the 9-stage pipeline used by PipelineTracker to record
-structured observability data for each PCAP processing run.
+定义 PipelineTracker 使用的 9 个阶段，
+用于记录每次 PCAP 处理运行的结构化可观测数据。
 """
 
 from __future__ import annotations
@@ -17,11 +17,11 @@ from app.core.utils import generate_uuid
 
 class PipelineStage(str, Enum):
     """
-    Named stages of the PCAP analysis pipeline.
+    PCAP 分析流水线的命名阶段。
 
-    Stages 1-4 execute during background PCAP processing.
-    Stages 5-8 execute on-demand when the user triggers agent analysis.
-    Stage 9 executes when the topology/evidence API is called.
+    阶段 1-4 在后台 PCAP 处理时执行。
+    阶段 5-8 在用户触发智能体分析时按需执行。
+    阶段 9 在调用拓扑/证据 API 时执行。
     """
 
     PARSE = "parse"
@@ -43,7 +43,7 @@ RunStatus = Literal["pending", "running", "completed", "failed"]
 
 
 class StageRecord(BaseModel):
-    """Record for a single pipeline stage execution."""
+    """单个流水线阶段执行记录。"""
 
     stage_name: str = Field(..., description="Stage identifier (PipelineStage value)")
     status: StageStatus = Field("pending", description="Execution status")
@@ -57,7 +57,7 @@ class StageRecord(BaseModel):
 
 
 class PipelineRun(BaseModel):
-    """Complete pipeline run covering all stages for a single PCAP."""
+    """覆盖单个 PCAP 全部阶段的完整流水线运行记录。"""
 
     version: str = Field(default="1.1")
     id: str = Field(default_factory=generate_uuid)

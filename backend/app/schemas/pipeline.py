@@ -1,5 +1,5 @@
 """
-Pydantic schemas for pipeline observability API responses.
+流水线可观测性 API 响应的 Pydantic Schema。
 """
 
 from typing import Any
@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 
 class StageRecordSchema(BaseModel):
-    """API-facing schema for a single pipeline stage record."""
+    """面向 API 的单阶段流水线记录 Schema。"""
 
     stage_name: str
     status: str
@@ -22,7 +22,7 @@ class StageRecordSchema(BaseModel):
 
 
 class PipelineRunSchema(BaseModel):
-    """API-facing schema for a complete pipeline run."""
+    """面向 API 的完整流水线运行 Schema。"""
 
     version: str = "1.1"
     id: str

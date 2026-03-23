@@ -1,6 +1,6 @@
 """
-Twin Models: ActionPlan and DryRun.
-Follows 附录F Section 7 & 8 - twin_plans and dry_runs tables.
+孪生模型：ActionPlan 与 DryRun。
+遵循附录F第 7、8 节（twin_plans 与 dry_runs 表）。
 """
 
 from sqlalchemy import String, Text, ForeignKey, Index
@@ -11,9 +11,9 @@ from app.models.base import BaseModel
 
 class TwinPlan(BaseModel):
     """
-    Action plan for twin dry-run simulation.
-    
-    Maps to DOC C C2.1 ActionPlan schema.
+    用于孪生 dry-run 仿真的动作方案。
+
+    对应 DOC C C2.1 ActionPlan schema。
     """
 
     __tablename__ = "twin_plans"
@@ -48,9 +48,9 @@ class TwinPlan(BaseModel):
 
 class DryRun(BaseModel):
     """
-    Dry-run simulation result.
-    
-    Maps to DOC C C2.2 DryRunResult schema.
+    dry-run 仿真结果。
+
+    对应 DOC C C2.2 DryRunResult schema。
     """
 
     __tablename__ = "dry_runs"

@@ -1,10 +1,12 @@
 """
-Agent router.
+智能体路由。
 POST /alerts/{alert_id}/triage
 POST /alerts/{alert_id}/investigate
 POST /alerts/{alert_id}/recommend
-POST /alerts/{alert_id}/compile-planGET  /investigations/{investigation_id}
-GET  /recommendations/{recommendation_id}"""
+POST /alerts/{alert_id}/compile-plan
+GET  /investigations/{investigation_id}
+GET  /recommendations/{recommendation_id}
+"""
 
 from fastapi import APIRouter, Depends, Path
 from sqlalchemy.orm import Session
@@ -35,7 +37,7 @@ lookup_router = APIRouter(tags=["agent"])
 
 
 def _get_alert_or_404(alert_id: str, db: Session) -> Alert:
-    """Fetch alert or raise NotFoundError."""
+    """获取告警；不存在则抛出 NotFoundError。"""
     alert = db.query(Alert).filter(Alert.id == alert_id).first()
     if not alert:
         raise NotFoundError(message=f"Alert {alert_id} not found")

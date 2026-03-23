@@ -1,5 +1,5 @@
 """
-Scenarios router.
+场景路由。
 POST /scenarios
 GET /scenarios
 POST /scenarios/{scenario_id}/run
@@ -39,13 +39,13 @@ async def create_scenario(
     db: Session = Depends(get_db),
 ) -> ApiResponse[ScenarioSchema]:
     """
-    Create a new scenario for regression testing.
-    
-    A scenario defines:
-    - PCAP reference
-    - Expected alerts (min_alerts, must_have types)
-    - Evidence chain requirements
-    - Whether dry-run is required
+    创建用于回归测试的新场景。
+
+    一个场景定义了：
+    - PCAP 引用
+    - 期望告警（min_alerts、must_have 类型）
+    - 证据链要求
+    - 是否要求 dry-run
     """
     # 校验 PCAP 是否存在
     pcap = db.query(PcapFile).filter(PcapFile.id == request.pcap_ref.pcap_id).first()
@@ -75,7 +75,7 @@ async def list_scenarios(
     db: Session = Depends(get_db),
 ) -> ApiResponse[list[ScenarioSchema]]:
     """
-    List all scenarios with pagination.
+    分页列出所有场景。
     """
     svc = ScenariosService(db)
     scenarios = svc.list_scenarios(limit=limit, offset=offset)
@@ -93,18 +93,18 @@ async def run_scenario(
     db: Session = Depends(get_db),
 ) -> ApiResponse[ScenarioRunResultSchema]:
     """
-    Run a scenario and check expectations.
-    
-    The run:
-    1. Checks min_alerts expectation
-    2. Checks must_have patterns
-    3. Checks evidence_chain_contains
-    4. If dry_run_required, verifies dry-run exists
-    
-    Returns ScenarioRunResult with:
+    运行场景并校验期望结果。
+
+    运行过程：
+    1. 校验 min_alerts
+    2. 校验 must_have 模式
+    3. 校验 evidence_chain_contains
+    4. 若 dry_run_required 为真，验证 dry-run 是否存在
+
+    返回 ScenarioRunResult，包含：
     - status: pass/fail
-    - checks: Individual check results
-    - metrics: Aggregate metrics
+    - checks: 各项检查结果
+    - metrics: 聚合指标
     """
     svc = ScenariosService(db)
     scenario = svc.get_scenario(scenario_id)
