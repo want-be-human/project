@@ -3,6 +3,7 @@ NetTwin-SOC Backend Application.
 FastAPI main entry point.
 """
 
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -13,6 +14,7 @@ from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.core.logging import setup_logging, get_logger
 from app.core.errors import AppException
+from app.core.loop import set_main_loop
 from app.api.deps import init_db
 from app.api.routers import (
     health,
@@ -48,6 +50,11 @@ async def lifespan(app: FastAPI):
     get_event_bus()  # ensure singleton is created
     await ws_consumer.register()
     logger.info("EventBus initialised, WebSocket consumer registered")
+
+    # 保存主事件循环引用，供后台线程安全调度异步广播
+    loop = asyncio.get_running_loop()
+    set_main_loop(loop)
+    logger.info("主事件循环引用已保存")
 
     yield
 

@@ -60,11 +60,22 @@ export default function PcapListTable({ pcaps, onProcess, processingId, onSelect
                 <td className="px-6 py-3">
                   <div className="flex items-center gap-2">
                     {getStatusIcon(pcap.status)}
-                    <span className="capitalize text-gray-700">{pcap.status}</span>
+                    {/* failed 状态使用 i18n 翻译文案，其他状态保持原样 */}
+                    {pcap.status === 'failed' ? (
+                      <span className="text-red-600 font-medium">{t('statusFailed')}</span>
+                    ) : (
+                      <span className="capitalize text-gray-700">{pcap.status}</span>
+                    )}
                     {pcap.status === 'processing' && pcap.progress && (
                       <span className="text-xs text-blue-600">({pcap.progress}%)</span>
                     )}
                   </div>
+                  {/* 失败时展示错误信息 */}
+                  {pcap.status === 'failed' && pcap.error_message && (
+                    <p className="mt-1 text-xs text-red-500" title={pcap.error_message}>
+                      {t('errorTooltip')}：{pcap.error_message}
+                    </p>
+                  )}
                 </td>
                 <td className="px-6 py-3 text-gray-600">{pcap.flow_count || '-'}</td>
                 <td className="px-6 py-3 text-gray-600">{pcap.alert_count || '-'}</td>

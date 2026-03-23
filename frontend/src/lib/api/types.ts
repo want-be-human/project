@@ -11,6 +11,8 @@ export interface PcapFile {
   progress?: number; // 0-100
   flow_count?: number;
   alert_count?: number;
+  /** 处理失败时的错误信息 */
+  error_message?: string;
 }
 
 export interface FlowRecord {
@@ -284,7 +286,7 @@ export interface ScenarioRunResult {
     };
 }
 
-export type PipelineStageStatus = 'pending' | 'running' | 'success' | 'failed' | 'skipped';
+export type PipelineStageStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
 
 export interface StageRecord {
     stage_name: string;

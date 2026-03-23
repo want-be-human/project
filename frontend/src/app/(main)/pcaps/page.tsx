@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { PcapFile, PipelineRun } from '@/lib/api/types';
 import { wsClient } from '@/lib/ws';
@@ -12,6 +12,8 @@ import PipelineStageTimeline from '@/components/pipeline/PipelineStageTimeline';
 
 export default function PcapsPage() {
   const t = useTranslations('pcaps');
+  // 引入 pipeline 命名空间的国际化翻译
+  const tPipeline = useTranslations('pipeline');
   const [pcaps, setPcaps] = useState<PcapFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -22,6 +24,8 @@ export default function PcapsPage() {
   const [pipelineLoading, setPipelineLoading] = useState(false);
   const [pipelineError, setPipelineError] = useState<string | null>(null);
   const [pipelineRefreshToken, setPipelineRefreshToken] = useState(0);
+  // Pipeline 可观测性功能是否被禁用（API 返回 404 时设置）
+  const [featureDisabled, setFeatureDisabled] = useState(false);
 
   const fetchPcaps = async () => {
     try {
@@ -55,13 +59,17 @@ export default function PcapsPage() {
     setPipelineLoading(true);
     setPipelineError(null);
     setPipelineRun(null);
+    // 每次重新获取时重置 featureDisabled 状态
+    setFeatureDisabled(false);
 
     api.getPipelineRun(selectedPcap.id)
       .then(run => { if (!cancelled) setPipelineRun(run); })
       .catch((err: Error) => {
         if (!cancelled) {
-          // 404 means feature flag is off — show graceful empty state, not an error
-          if (!err.message.includes('404')) {
+          if (err.message.includes('404')) {
+            // 404 表示 Pipeline 可观测性功能未启用，设置特定状态标识
+            setFeatureDisabled(true);
+          } else {
             setPipelineError(err.message);
           }
         }
@@ -95,11 +103,65 @@ export default function PcapsPage() {
       }
     });
 
+    // 订阅处理失败事件，更新对应 PCAP 状态为 failed
+    const unsubFailed = wsClient.onEvent('pcap.process.failed', (data: { pcap_id: string; error?: string }) => {
+      setPcaps(prev => prev.map(p =>
+        p.id === data.pcap_id
+          ? { ...p, status: 'failed' as const, progress: 0, error_message: data.error }
+          : p
+      ));
+    });
+
     return () => {
       unsubProgress();
       unsubDone();
+      unsubFailed();
     };
   }, [selectedPcap?.id]);
+
+  // 轮询兜底机制：当存在 processing 状态的 PCAP 时，启动 3 秒间隔轮询
+  // 确保即使 WebSocket 广播失败，前端也能最终获取正确状态
+  useEffect(() => {
+    const hasProcessing = pcaps.some(p => p.status === 'processing');
+    if (!hasProcessing) return;
+
+    const timer = setInterval(async () => {
+      try {
+        const data = await api.listPcaps();
+        setPcaps(data);
+      } catch (e) {
+        console.error('轮询 PCAP 列表失败', e);
+      }
+    }, 3000);
+
+    return () => clearInterval(timer);
+  }, [pcaps]);
+
+  // 用 useRef 跟踪 selectedPcap 的上一次状态，用于检测 processing → done 的转换
+  const prevSelectedStatusRef = useRef<string | undefined>(selectedPcap?.status);
+
+  // 同步 selectedPcap 状态：当 pcaps 列表更新时，保持 selectedPcap 数据最新
+  useEffect(() => {
+    if (!selectedPcap) {
+      prevSelectedStatusRef.current = undefined;
+      return;
+    }
+
+    const updated = pcaps.find(p => p.id === selectedPcap.id);
+    if (!updated) return;
+
+    // 用列表中的最新数据同步 selectedPcap
+    setSelectedPcap(updated);
+
+    // 检测 processing → done 的状态转换，自动触发 Pipeline 面板刷新
+    const prevStatus = prevSelectedStatusRef.current;
+    if (prevStatus === 'processing' && updated.status === 'done') {
+      setPipelineRefreshToken(t => t + 1);
+    }
+
+    // 更新 ref 为当前最新状态
+    prevSelectedStatusRef.current = updated.status;
+  }, [pcaps]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleProcess = async (id: string) => {
     setProcessingId(id);
@@ -108,7 +170,7 @@ export default function PcapsPage() {
       // WS events (pcap.process.progress / pcap.process.done) will handle updates
       // Do an initial optimistic status change
       setPcaps(prev => prev.map(p =>
-        p.id === id ? { ...p, status: 'processing' as const, progress: 0 } : p
+        p.id === id ? { ...p, status: 'processing' as const, progress: 10 } : p
       ));
     } catch (e) {
       console.error(e);
@@ -173,21 +235,35 @@ export default function PcapsPage() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
               <Activity className="w-4 h-4 text-indigo-600" />
-              Pipeline
+              {tPipeline('title')}
               <span className="font-mono text-sm text-gray-500 font-normal">{selectedPcap.filename}</span>
             </h2>
             <button
               onClick={() => setSelectedPcap(null)}
               className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
             >
-              Dismiss
+              {tPipeline('dismiss')}
             </button>
           </div>
-          <PipelineStageTimeline
-            pipelineRun={pipelineRun}
-            loading={pipelineLoading}
-            error={pipelineError}
-          />
+          {/* 处理中提示：PCAP 正在处理时显示 */}
+          {selectedPcap.status === 'processing' && (
+            <div className="mb-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-700">
+              {tPipeline('processingHint')}
+            </div>
+          )}
+          {/* Pipeline 可观测性功能未启用提示 */}
+          {featureDisabled && (
+            <div className="mb-3 px-3 py-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-700">
+              {tPipeline('featureDisabled')}
+            </div>
+          )}
+          {!featureDisabled && (
+            <PipelineStageTimeline
+              pipelineRun={pipelineRun}
+              loading={pipelineLoading}
+              error={pipelineError}
+            />
+          )}
         </div>
       )}
     </div>

@@ -14,6 +14,7 @@ from app.api.deps import get_db, SessionLocal
 from app.core.config import settings
 from app.core.errors import ConflictError, NotFoundError
 from app.core.logging import get_logger
+from app.core.loop import get_main_loop
 from app.models.flow import Flow
 from app.models.pcap import PcapFile
 from app.schemas.common import ApiResponse
@@ -51,13 +52,17 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
 
         def _broadcast(event: str, data: dict):
             try:
-                loop = asyncio.get_event_loop()
+                # 使用保存的主事件循环引用，而非 asyncio.get_event_loop()
+                # 后者在 BackgroundTasks 线程池中无法获取主循环
+                loop = get_main_loop()
+                if loop is None:
+                    return  # 循环未初始化（如单元测试场景），静默跳过
                 if loop.is_running():
                     asyncio.run_coroutine_threadsafe(
                         manager.broadcast(event, data), loop
                     )
             except RuntimeError:
-                pass  # no event loop available (e.g. unit test)
+                pass  # 兜底：防止其他运行时异常
 
         # --- pipeline tracker (observability) ---
         tracker = None

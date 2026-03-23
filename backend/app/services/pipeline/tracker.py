@@ -16,6 +16,7 @@ from typing import Any, Generator
 from sqlalchemy.orm import Session
 
 from app.core.logging import LoggerMixin, get_logger
+from app.core.loop import get_main_loop
 from app.core.utils import generate_uuid, utc_now, datetime_to_iso
 from app.services.pipeline.models import (
     PipelineRun,
@@ -252,11 +253,14 @@ class PipelineTracker(LoggerMixin):
                 "status": record.status,
                 "latency_ms": record.latency_ms,
             })
-            loop = asyncio.get_event_loop()
+            # 使用保存的主事件循环引用，避免后台线程中 asyncio.get_event_loop() 失败
+            loop = get_main_loop()
+            if loop is None:
+                return
             if loop.is_running():
                 asyncio.run_coroutine_threadsafe(get_event_bus().publish(event), loop)
         except Exception:
-            pass  # non-critical — don't break pipeline for event failures
+            pass  # 非关键路径 — 不因事件发布失败而中断 pipeline
 
     def _publish_run_event(self) -> None:
         """Fire-and-forget run completion event."""
@@ -272,8 +276,11 @@ class PipelineTracker(LoggerMixin):
                 "total_latency_ms": self._run.total_latency_ms,
                 "stage_count": len(self._run.stages),
             })
-            loop = asyncio.get_event_loop()
+            # 使用保存的主事件循环引用，避免后台线程中 asyncio.get_event_loop() 失败
+            loop = get_main_loop()
+            if loop is None:
+                return
             if loop.is_running():
                 asyncio.run_coroutine_threadsafe(get_event_bus().publish(event), loop)
         except Exception:
-            pass
+            pass  # 非关键路径 — 不因事件发布失败而中断 pipeline
