@@ -30,7 +30,7 @@ export interface FlowRecord {
   bytes_fwd: number;
   bytes_bwd: number;
   features: Record<string, any>;
-  anomaly_score: number;
+  anomaly_score: number | null;
   label?: string | null;
 }
 

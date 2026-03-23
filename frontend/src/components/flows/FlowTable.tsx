@@ -39,7 +39,8 @@ export default function FlowTable({ flows, onSelect, selectedId }: FlowTableProp
         <tbody className="bg-white divide-y divide-gray-200">
           {flows.map((flow) => {
             const isSelected = selectedId === flow.id;
-            const scoreColor = 
+            const scoreColor =
+              flow.anomaly_score == null ? 'text-gray-400' :
               flow.anomaly_score > 0.8 ? 'text-red-600 font-bold' :
               flow.anomaly_score > 0.5 ? 'text-orange-500' :
               'text-green-600';
@@ -78,7 +79,7 @@ export default function FlowTable({ flows, onSelect, selectedId }: FlowTableProp
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm">
                   <span className={scoreColor}>
-                    {flow.anomaly_score.toFixed(2)}
+                    {flow.anomaly_score != null ? flow.anomaly_score.toFixed(3) : '--'}
                   </span>
                 </td>
               </tr>

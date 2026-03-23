@@ -44,8 +44,11 @@ export default function FlowDetailDrawer({ flow, onClose }: FlowDetailDrawerProp
               </div>
               <div>
                 <span className="block text-xs text-gray-500">{t('score')}</span>
-                <span className={`font-medium text-sm ${flow.anomaly_score > 0.5 ? 'text-red-600' : 'text-green-600'}`}>
-                  {flow.anomaly_score}
+                <span className={`font-medium text-sm ${
+                  flow.anomaly_score == null ? 'text-gray-400' :
+                  flow.anomaly_score > 0.5 ? 'text-red-600' : 'text-green-600'
+                }`}>
+                  {flow.anomaly_score != null ? flow.anomaly_score.toFixed(3) : '--'}
                 </span>
               </div>
             </div>

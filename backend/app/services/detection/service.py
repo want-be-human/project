@@ -81,24 +81,33 @@ class DetectionService:
             
             self.model.fit(X)
             
-            # Get scores (sklearn returns negative for outliers)
+            # 获取原始分数（sklearn 中越负 = 越异常）
             raw_scores = self.model.score_samples(X)
-            
-            # Normalize to 0-1 range (higher = more anomalous)
-            min_score = raw_scores.min()
-            max_score = raw_scores.max()
-            
-            if max_score > min_score:
-                # Invert so higher values are more anomalous
-                normalized = 1 - (raw_scores - min_score) / (max_score - min_score)
+
+            # 取反，使"越大 = 越异常"
+            neg_scores = -raw_scores
+
+            # 使用 5/95 分位数裁剪，防止单个极端离群点压缩整体分布
+            p5, p95 = np.percentile(neg_scores, [5, 95])
+            clipped = np.clip(neg_scores, p5, p95)
+
+            if p95 > p5:
+                normalized = (clipped - p5) / (p95 - p5)
             else:
+                # 所有分数相同时给默认值
                 normalized = np.full_like(raw_scores, 0.5)
-            
-            # Assign scores to flows
+
+            # TODO: 后续接入持久化模型时，使用全局分位数/分数映射表替代批次内分位数归一化
+            # 届时可在此处加载预训练的 scaler 或查分位数表，实现跨批次可比的分数
+
+            # 将归一化分数赋值给每条流
             for i, flow in enumerate(flows):
                 flow["anomaly_score"] = float(normalized[i])
-            
-            logger.info(f"Scored {len(flows)} flows, max_score={max(normalized):.3f}")
+
+            logger.info(
+                f"异常检测完成: {len(flows)} 条流, "
+                f"p5={p5:.4f}, p95={p95:.4f}, max={normalized.max():.3f}"
+            )
             
         except ImportError:
             logger.warning("sklearn not installed, using random scores")

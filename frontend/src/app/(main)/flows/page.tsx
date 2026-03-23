@@ -41,7 +41,7 @@ export default function FlowsPage() {
     if (filters.proto && f.proto !== filters.proto) return false;
     if (filters.min_score) {
       const min = parseFloat(filters.min_score);
-      if (!isNaN(min) && f.anomaly_score < min) return false;
+      if (!isNaN(min) && (f.anomaly_score == null || f.anomaly_score < min)) return false;
     }
     if (filters.time_start) {
       const start = new Date(filters.time_start).getTime();
