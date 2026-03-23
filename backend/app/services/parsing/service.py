@@ -28,17 +28,18 @@ class ParsingService:
         window_sec: int = 60,
     ) -> list[dict]:
         """
-        Parse PCAP file and aggregate packets into flows.
-        
+        Parse PCAP file and aggregate packets into bidirectional sessions.
+
         Args:
             pcap_path: Path to the PCAP file
-            window_sec: Time window for flow aggregation in seconds
-            
+            window_sec: Time window for session aggregation in seconds
+
         Returns:
             List of flow dictionaries ready for database insertion
-            
+
         Note:
-            Flow key: (src_ip, src_port, dst_ip, dst_port, proto, bucket_start)
+            Session key: (canon_ip1, canon_port1, canon_ip2, canon_port2, proto, bucket_start)
+            where canon = sorted endpoints. src/dst in output = initiator/responder.
         """
         logger.info(f"Parsing PCAP: {pcap_path}, window={window_sec}s")
         
@@ -114,18 +115,22 @@ class ParsingService:
             elif isinstance(ip.data, dpkt.icmp.ICMP):
                 proto = "ICMP"
             
-            # Calculate time bucket
+            # Canonical session key: sort endpoints so A->B and B->A share the same key
+            endpoint_a = (src_ip, src_port)
+            endpoint_b = (dst_ip, dst_port)
+            if endpoint_a <= endpoint_b:
+                canon = (src_ip, src_port, dst_ip, dst_port)
+            else:
+                canon = (dst_ip, dst_port, src_ip, src_port)
+
             bucket_start = int(timestamp) // window_sec * window_sec
-            
-            # Create flow key
-            flow_key = (src_ip, src_port, dst_ip, dst_port, proto, bucket_start)
-            
-            # Determine direction (forward = src < dst lexicographically)
-            is_forward = (src_ip, src_port) <= (dst_ip, dst_port)
-            
-            # Update or create flow
-            if flow_key not in flows:
-                flows[flow_key] = {
+            session_key = (*canon, proto, bucket_start)
+
+            # Create or update bidirectional session
+            if session_key not in flows:
+                # First packet defines the initiator (forward direction)
+                flows[session_key] = {
+                    "_initiator": (src_ip, src_port),
                     "src_ip": src_ip,
                     "src_port": src_port,
                     "dst_ip": dst_ip,
@@ -141,23 +146,25 @@ class ParsingService:
                     "tcp_flags": {"syn": 0, "ack": 0, "fin": 0, "rst": 0, "psh": 0},
                     "packet_timestamps": [],
                 }
-            
-            flow = flows[flow_key]
+
+            flow = flows[session_key]
             pkt_len = len(buf)
-            
+
             # Update timestamps
             flow["ts_start"] = min(flow["ts_start"], timestamp)
             flow["ts_end"] = max(flow["ts_end"], timestamp)
             flow["packet_timestamps"].append(timestamp)
-            
-            # Update packet/byte counts
+
+            # Direction: forward = same as initiator (first packet sender)
+            is_forward = (src_ip, src_port) == flow["_initiator"]
+
             if is_forward:
                 flow["packets_fwd"] += 1
                 flow["bytes_fwd"] += pkt_len
             else:
                 flow["packets_bwd"] += 1
                 flow["bytes_bwd"] += pkt_len
-            
+
             # Update TCP flags
             for flag, count in tcp_flags.items():
                 flow["tcp_flags"][flag] = flow["tcp_flags"].get(flag, 0) + count
