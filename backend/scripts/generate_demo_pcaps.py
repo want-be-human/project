@@ -7,7 +7,7 @@ Creates:
 - bruteforce_demo.pcap: SSH brute-force pattern
 
 Usage:
-    python -m scripts.generate_demo_pcaps
+    python -m scripts.generate_pcaps
 
 Requires: dpkt
 """
@@ -264,7 +264,7 @@ def generate_bruteforce_pcap(output_path: Path):
 def main():
     """Generate demo PCAP files."""
     # Create output directory
-    demo_dir = Path(__file__).parent.parent / "data" / "demo_pcaps"
+    demo_dir = Path(__file__).parent.parent / "data" / "pcaps"
     demo_dir.mkdir(parents=True, exist_ok=True)
     
     print("Generating demo PCAP files...")

@@ -23,15 +23,12 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY frontend/ ./
 
-# Contract samples needed by mock imports at build time.
-# Imports in src/lib/api/mock.ts resolve to /contract inside the container.
+# Contract samples needed by real API type imports at build time.
 COPY contract /contract
 
-ARG NEXT_PUBLIC_API_MODE=real
 ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 ARG NEXT_PUBLIC_WS_URL=ws://localhost:8000
 
-ENV NEXT_PUBLIC_API_MODE=$NEXT_PUBLIC_API_MODE
 ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 ENV NEXT_PUBLIC_WS_URL=$NEXT_PUBLIC_WS_URL
 ENV NEXT_TELEMETRY_DISABLED=1

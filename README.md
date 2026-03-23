@@ -62,7 +62,7 @@ uvicorn app.main:app --reload
 ### Generate Demo PCAPs
 ```bash
 cd backend
-python -m scripts.generate_demo_pcaps
+python -m scripts.generate_pcaps
 ```
 
 ### Run Tests

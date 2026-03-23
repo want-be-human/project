@@ -5,11 +5,6 @@ class WSClient {
   private ws: WebSocket | null = null;
   private reconnectTimer: any = null;
 
-  constructor() {
-    // In a real app, we'd connect here if mode === 'real'
-    // For mock mode, we just provide the pub/sub interface
-  }
-
   connect(url: string) {
     if (this.ws) return;
     
@@ -28,7 +23,7 @@ class WSClient {
 
     this.ws.onclose = () => {
       this.ws = null;
-      // Simple reconnect logic
+      // 简单重连逻辑
       this.reconnectTimer = setTimeout(() => this.connect(url), 5000);
     };
   }
@@ -47,17 +42,10 @@ class WSClient {
     }
     this.listeners[event].push(callback);
 
-    // Return unsubscribe function
+    // 返回取消订阅函数
     return () => {
       this.listeners[event] = this.listeners[event].filter(cb => cb !== callback);
     };
-  }
-
-  // Helper for mock mode to trigger events manually
-  simulateEvent(event: string, data: any) {
-    if (this.listeners[event]) {
-      this.listeners[event].forEach(cb => cb(data));
-    }
   }
 }
 

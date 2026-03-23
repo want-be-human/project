@@ -1,6 +1,4 @@
 
-export type API_MODE_TYPE = 'mock' | 'real';
-
 export interface PcapFile {
   version?: string;
   id: string; // uuid

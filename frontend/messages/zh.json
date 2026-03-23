@@ -3,8 +3,7 @@
     "loading": "加载中...",
     "error": "错误",
     "na": "暂无",
-    "all": "全部",
-    "mode": "{mode} 模式"
+    "all": "全部"
   },
   "nav": {
     "title": "NetTwin SOC",
@@ -26,9 +25,6 @@
     "heroStatusOnline": "在线",
     "heroStatusOffline": "离线",
     "heroLastUpdated": "最后更新",
-    "heroRunMode": "运行模式",
-    "heroModeReal": "真实",
-    "heroModeMock": "模拟",
     "heroPostureScore": "态势评分",
     "heroUptime": "运行时间",
     "heroLastAnalysis": "最后分析",
@@ -188,7 +184,6 @@
     "title": "安全告警",
     "description": "检测引擎生成的安全告警。",
     "loading": "正在加载告警...",
-    "simulateWs": "模拟 WS 事件",
     "toastCreated": "新增 {severity} 级别告警！",
     "toastUpdated": "告警状态已更新为 {status}",
     "statusLabel": "状态",

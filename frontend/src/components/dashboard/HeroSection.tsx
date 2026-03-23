@@ -71,7 +71,6 @@ export default function HeroSection({ overview, apiReachable }: HeroSectionProps
 
   const score = calcPostureScore(overview);
   const lastUpdated = getLastUpdated(overview);
-  const apiMode = process.env.NEXT_PUBLIC_API_MODE ?? 'mock';
 
   // 环形进度条参数（160px 尺寸）
   const radius = 68;
@@ -93,7 +92,7 @@ export default function HeroSection({ overview, apiReachable }: HeroSectionProps
 
       {/* 三栏布局：左侧项目信息 | 中间评分环形图 | 右侧关键上下文 */}
       <div className="flex flex-col lg:flex-row lg:items-center gap-6">
-        {/* 左侧：运行状态与模式 */}
+        {/* 左侧：运行状态 */}
         <div className="flex-1 min-w-0 space-y-3">
           {/* 运行状态 */}
           <div className="bg-gray-800/60 rounded-lg px-3 py-2">
@@ -103,14 +102,6 @@ export default function HeroSection({ overview, apiReachable }: HeroSectionProps
               <span className={`text-sm font-medium ${apiReachable ? 'text-green-400' : 'text-gray-400'}`}>
                 {apiReachable ? t('heroStatusOnline') : t('heroStatusOffline')}
               </span>
-            </span>
-          </div>
-
-          {/* 运行模式 */}
-          <div className="bg-gray-800/60 rounded-lg px-3 py-2">
-            <span className="text-xs text-gray-400 block">{t('heroRunMode')}</span>
-            <span className="text-sm font-medium text-cyan-400 mt-0.5 block">
-              {apiMode === 'real' ? t('heroModeReal') : t('heroModeMock')}
             </span>
           </div>
         </div>
