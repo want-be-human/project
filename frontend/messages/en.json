@@ -310,7 +310,12 @@
     "rollback": "Rollback",
     "compiledSource": "Compiled (Backend)",
     "params": "Params",
-    "compilationMeta": "Compilation Summary"
+    "compilationMeta": "Compilation Summary",
+    "compileErrorNoRecommendation": "No recommendation available. Please run the Recommendation step first.",
+    "compileErrorNotFound": "The linked recommendation has expired or was not found. Please re-generate before compiling.",
+    "compileErrorEmptyActions": "Compilation succeeded but produced no executable actions. Rules may not have matched or all actions were skipped.",
+    "compileErrorServer": "Internal server error. Please try again later or contact your administrator.",
+    "compileErrorDismiss": "Dismiss"
   },
   "topology": {
     "loading": "Loading topology data...",

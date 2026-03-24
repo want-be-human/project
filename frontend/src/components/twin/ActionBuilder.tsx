@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { api } from '@/lib/api';
 import { ActionPlan, Recommendation, CompilePlanResponse, CompiledAction } from '@/lib/api/types';
-import { Send, AlertTriangle, Zap, ChevronDown, ChevronUp, Shield, Check } from 'lucide-react';
+import { Send, AlertTriangle, Zap, ChevronDown, ChevronUp, Shield, Check, X } from 'lucide-react';
 import { useTranslations, useLocale } from 'next-intl';
 
 interface ActionBuilderProps {
@@ -20,19 +20,57 @@ export default function ActionBuilder({ alertId, initialRecommendation, onPlanCr
   const [compiledResult, setCompiledResult] = useState<CompilePlanResponse | null>(null);
   const [compiling, setCompiling] = useState(false);
   const [expandedActions, setExpandedActions] = useState<number[]>([]);
+  // 编译错误信息（null 表示无错误）
+  const [compileError, setCompileError] = useState<string | null>(null);
+
+  // ── 根据错误消息分类，返回对应的用户提示 ──
+  const classifyCompileError = (err: unknown): string => {
+    const msg = err instanceof Error ? err.message : String(err);
+    // fetchJson 抛出格式: "API Error: {status} {statusText} - {detail}"
+    const statusMatch = msg.match(/API Error:\s*(\d{3})/);
+    const status = statusMatch ? parseInt(statusMatch[1], 10) : 0;
+
+    // 422: 验证失败，通常是缺少 recommendation
+    if (status === 422 || /validation/i.test(msg)) {
+      return t('compileErrorNoRecommendation');
+    }
+    // 404: 建议不存在或已过期
+    if (status === 404 || /not found/i.test(msg)) {
+      return t('compileErrorNotFound');
+    }
+    // 5xx: 服务器内部错误
+    if (status >= 500) {
+      return t('compileErrorServer');
+    }
+    // 兜底：优先展示后端返回的原始详情
+    const detailMatch = msg.match(/- (.+)$/);
+    if (detailMatch) {
+      return `${t('compileFailed')} — ${detailMatch[1]}`;
+    }
+    return t('compileErrorServer');
+  };
 
   // ── 编译方案 ──
   const handleCompilePlan = async () => {
     setCompiling(true);
+    setCompileError(null); // 清除上次错误
     try {
       const result = await api.compilePlan(alertId, {
         recommendation_id: initialRecommendation?.id || null,
         language: locale === 'zh' ? 'zh' : 'en',
       });
+
+      // 编译成功但无可执行动作（逻辑空结果）
+      if (!result.plan.actions || result.plan.actions.length === 0) {
+        setCompileError(t('compileErrorEmptyActions'));
+        setCompiledResult(null);
+        return;
+      }
+
       setCompiledResult(result);
     } catch (e) {
       console.error(e);
-      alert(t('compileFailed'));
+      setCompileError(classifyCompileError(e));
     } finally {
       setCompiling(false);
     }
@@ -91,6 +129,21 @@ export default function ActionBuilder({ alertId, initialRecommendation, onPlanCr
             <AlertTriangle className="w-4 h-4 flex-shrink-0" />
             <span>{t('pleaseCompileFirst')}</span>
           </div>
+        </div>
+      )}
+
+      {/* ── 编译错误提示（红色内联块） ── */}
+      {compileError && (
+        <div className="mb-4 flex items-start gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">
+          <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5 text-red-500" />
+          <span className="flex-1">{compileError}</span>
+          <button
+            onClick={() => setCompileError(null)}
+            className="flex-shrink-0 text-red-400 hover:text-red-600"
+            aria-label={t('compileErrorDismiss')}
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 

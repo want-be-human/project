@@ -310,7 +310,12 @@
     "rollback": "回滚动作",
     "compiledSource": "已编译（后端）",
     "params": "参数",
-    "compilationMeta": "编译概要"
+    "compilationMeta": "编译概要",
+    "compileErrorNoRecommendation": "当前告警尚未生成行动建议，请先执行「行动建议」步骤",
+    "compileErrorNotFound": "关联的行动建议已过期或不存在，请重新生成建议后再编译",
+    "compileErrorEmptyActions": "编译成功但未生成任何可执行动作，可能是规则未匹配或动作均被跳过",
+    "compileErrorServer": "服务器内部错误，请稍后重试或联系管理员",
+    "compileErrorDismiss": "关闭"
   },
   "topology": {
     "loading": "正在加载拓扑数据...",
