@@ -303,6 +303,7 @@
     "compilePlan": "Compile Plan",
     "compiling": "Compiling...",
     "compileFailed": "Failed to compile plan",
+    "pleaseCompileFirst": "Only AI recommendations available. Please compile the plan first to generate executable actions.",
     "compiledActions": "Compiled Actions (Backend)",
     "confidence": "Confidence",
     "evidence": "Evidence",

@@ -303,6 +303,7 @@
     "compilePlan": "编译计划",
     "compiling": "编译中...",
     "compileFailed": "编译计划失败",
+    "pleaseCompileFirst": "当前仅有 AI 建议，请先编译计划以生成可执行动作",
     "compiledActions": "结构化动作（已编译）",
     "confidence": "置信度",
     "evidence": "关联证据",

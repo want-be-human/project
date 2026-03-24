@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { api } from '@/lib/api';
 import { ActionPlan, Recommendation, CompilePlanResponse, CompiledAction } from '@/lib/api/types';
 import { Plus, Trash2, Save, Send, AlertTriangle, Zap, ChevronDown, ChevronUp, CheckSquare, Square, Shield } from 'lucide-react';
@@ -26,43 +26,6 @@ export default function ActionBuilder({ alertId, initialRecommendation, onPlanCr
   const [compiling, setCompiling] = useState(false);
   const [selectedActions, setSelectedActions] = useState<number[]>([]);
   const [expandedActions, setExpandedActions] = useState<number[]>([]);
-
-  const allowedActionTypes = new Set([
-    'block_ip',
-    'isolate_host',
-    'segment_subnet',
-    'rate_limit_service',
-  ]);
-
-  // 从 recommendation 回填（兜底路径：仅在无编译结果时生效）
-  useEffect(() => {
-    if (compiledResult) return; // 不覆盖已存在的编译结果
-    if (initialRecommendation && initialRecommendation.actions.length > 0) {
-      const inferActionType = (title: string): string => {
-        const t = title.toLowerCase();
-        if (/isolat|隔离/.test(t)) return 'isolate_host';
-        if (/segment|分段/.test(t)) return 'segment_subnet';
-        if (/rate|限流|限速/.test(t)) return 'rate_limit_service';
-        return 'block_ip';
-      };
-
-      const normalized = initialRecommendation.actions.map((a: any) => {
-        const type = a?.action_type || a?.type || inferActionType(a?.title || '');
-        const target = a?.target || '';
-        return {
-          type,
-          target,
-          params: a?.params || {},
-          rollback: null,
-        };
-      });
-
-      if (normalized.length > 0) {
-        setActions(normalized);
-        setSource('agent');
-      }
-    }
-  }, [initialRecommendation, compiledResult]);
 
   // ── 编译方案 ──
   const handleCompilePlan = async () => {
@@ -181,6 +144,11 @@ export default function ActionBuilder({ alertId, initialRecommendation, onPlanCr
             <Zap className="w-4 h-4" />
             {compiling ? t('compiling') : t('compilePlan')}
           </button>
+          {/* 提示用户：需要先编译才能生成结构化动作 */}
+          <div className="mt-2 flex items-center gap-2 text-sm text-amber-600 bg-amber-50 rounded px-3 py-2 border border-amber-200">
+            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+            <span>{t('pleaseCompileFirst')}</span>
+          </div>
         </div>
       )}
 
