@@ -228,6 +228,7 @@ export default function AlertDetailView({ alert, evidenceChain, onAlertUpdate, o
       {/* Agent + Remediation */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="space-y-6">
+          {/* ① Recommendation —— 由 AgentPanel 提供 AI 建议 */}
           <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
             <ShieldAlert className="w-5 h-5 text-purple-600" />
             <span>{t('aiAnalyst')}</span>
@@ -247,13 +248,15 @@ export default function AlertDetailView({ alert, evidenceChain, onAlertUpdate, o
             <Activity className="w-5 h-5 text-indigo-600" />
             <span>{t('remediation')}</span>
           </h2>
-          
-          <ActionBuilder 
-            alertId={alert.id} 
-            initialRecommendation={recommendation} 
+
+          {/* ② Compiled Plan —— 基于 Recommendation 编译结构化动作 */}
+          <ActionBuilder
+            alertId={alert.id}
+            initialRecommendation={recommendation}
             onPlanCreated={setActionPlan}
           />
-          
+
+          {/* ③ Dry Run —— 仅对 compiled plan 生效 */}
           {actionPlan && (
             <DryRunPanel alertId={alert.id} planId={actionPlan.id} onDryRunCompleted={onRefresh} />
           )}

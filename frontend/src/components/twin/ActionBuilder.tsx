@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { api } from '@/lib/api';
 import { ActionPlan, Recommendation, CompilePlanResponse, CompiledAction } from '@/lib/api/types';
-import { Plus, Trash2, Save, Send, AlertTriangle, Zap, ChevronDown, ChevronUp, CheckSquare, Square, Shield } from 'lucide-react';
+import { Send, AlertTriangle, Zap, ChevronDown, ChevronUp, Shield, Check } from 'lucide-react';
 import { useTranslations, useLocale } from 'next-intl';
 
 interface ActionBuilderProps {
@@ -15,16 +15,10 @@ interface ActionBuilderProps {
 export default function ActionBuilder({ alertId, initialRecommendation, onPlanCreated }: ActionBuilderProps) {
   const t = useTranslations('twin');
   const locale = useLocale();
-  const [actions, setActions] = useState<any[]>([]);
-  const [source, setSource] = useState<'agent' | 'manual'>('manual');
-  const [loading, setLoading] = useState(false);
-  const [newActionType, setNewActionType] = useState('block_ip');
-  const [newActionTarget, setNewActionTarget] = useState('');
 
   // compile-plan 状态
   const [compiledResult, setCompiledResult] = useState<CompilePlanResponse | null>(null);
   const [compiling, setCompiling] = useState(false);
-  const [selectedActions, setSelectedActions] = useState<number[]>([]);
   const [expandedActions, setExpandedActions] = useState<number[]>([]);
 
   // ── 编译方案 ──
@@ -36,10 +30,6 @@ export default function ActionBuilder({ alertId, initialRecommendation, onPlanCr
         language: locale === 'zh' ? 'zh' : 'en',
       });
       setCompiledResult(result);
-      // 默认全选已编译动作
-      const compiledActions = result.plan.actions as CompiledAction[];
-      setSelectedActions(compiledActions.map((_, i) => i));
-      setSource('agent');
     } catch (e) {
       console.error(e);
       alert(t('compileFailed'));
@@ -48,64 +38,18 @@ export default function ActionBuilder({ alertId, initialRecommendation, onPlanCr
     }
   };
 
-  // ── 切换动作选中状态 ──
-  const toggleAction = (idx: number) => {
-    setSelectedActions(prev =>
-      prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]
-    );
+  // ── 确认编译计划，直接使用后端返回的 compiled plan ──
+  const handleConfirmPlan = () => {
+    if (compiledResult) {
+      onPlanCreated(compiledResult.plan);
+    }
   };
 
-  const toggleSelectAll = () => {
-    if (!compiledResult) return;
-    const all = (compiledResult.plan.actions as CompiledAction[]).map((_, i) => i);
-    setSelectedActions(prev => prev.length === all.length ? [] : all);
-  };
-
+  // ── 展开/折叠动作详情 ──
   const toggleExpand = (idx: number) => {
     setExpandedActions(prev =>
       prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]
     );
-  };
-
-  const addAction = () => {
-    setActions([...actions, {
-      type: newActionType,
-      target: newActionTarget,
-      params: {},
-    }]);
-    setNewActionTarget('');
-  };
-
-  const removeAction = (index: number) => {
-    const newActions = [...actions];
-    newActions.splice(index, 1);
-    setActions(newActions);
-  };
-
-  // ── 创建方案 ──
-  const handleCreatePlan = async () => {
-    setLoading(true);
-    try {
-      if (compiledResult) {
-        // 后端 compile-plan 已通过 TwinService.create_plan() 持久化方案
-        // 直接使用编译方案，无需再次调用 createPlan
-        onPlanCreated(compiledResult.plan);
-      } else {
-        // 兜底：手工 actions → createPlan
-        const plan = await api.createPlan({
-          alert_id: alertId,
-          source: source,
-          actions: actions,
-          notes: 'Created via ActionBuilder'
-        });
-        onPlanCreated(plan);
-      }
-    } catch (e) {
-      console.error(e);
-      alert(t('createFailed'));
-    } finally {
-      setLoading(false);
-    }
   };
 
   // ── 置信度颜色辅助函数 ──
@@ -117,7 +61,6 @@ export default function ActionBuilder({ alertId, initialRecommendation, onPlanCr
 
   const compiledActions = compiledResult?.plan.actions as CompiledAction[] | undefined;
   const hasCompiled = !!compiledActions && compiledActions.length > 0;
-  const canCreate = hasCompiled ? selectedActions.length > 0 : actions.length > 0;
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
@@ -125,15 +68,14 @@ export default function ActionBuilder({ alertId, initialRecommendation, onPlanCr
         <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
           <Send className="w-5 h-5 text-blue-600" /> {t('builderTitle')}
         </h3>
-        <span className={`px-2 py-1 text-xs rounded-full ${
-          hasCompiled ? 'bg-indigo-100 text-indigo-700' :
-          source === 'agent' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'
-        }`}>
-          {t('source')} {hasCompiled ? t('compiledSource') : source === 'agent' ? 'AGENT' : t('manualSource')}
-        </span>
+        {hasCompiled && (
+          <span className="px-2 py-1 text-xs rounded-full bg-indigo-100 text-indigo-700">
+            {t('source')} {t('compiledSource')}
+          </span>
+        )}
       </div>
 
-      {/* ── 编译方案按钮 ── */}
+      {/* ── 编译方案按钮（仅在有 recommendation 且尚未编译时显示） ── */}
       {initialRecommendation && !hasCompiled && (
         <div className="mb-4">
           <button
@@ -152,7 +94,7 @@ export default function ActionBuilder({ alertId, initialRecommendation, onPlanCr
         </div>
       )}
 
-      {/* ── 已编译动作面板 ── */}
+      {/* ── 已编译动作面板（只读展示） ── */}
       {hasCompiled && compiledActions && (
         <div className="mb-6 space-y-3">
           {/* 编译元信息 */}
@@ -163,34 +105,19 @@ export default function ActionBuilder({ alertId, initialRecommendation, onPlanCr
             <span>{t('compilerVersion')}: <strong className="text-gray-800">{compiledResult!.compilation.compiler_version}</strong></span>
           </div>
 
-          {/* 全选 */}
-          <div className="flex items-center justify-between">
-            <h4 className="text-sm font-semibold text-indigo-800 flex items-center gap-1.5">
-              <Shield className="w-4 h-4" /> {t('compiledActions')}
-            </h4>
-            <button onClick={toggleSelectAll} className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
-              {selectedActions.length === compiledActions.length ? <CheckSquare className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
-              {t('selectAll')}
-            </button>
-          </div>
+          {/* 动作标题 */}
+          <h4 className="text-sm font-semibold text-indigo-800 flex items-center gap-1.5">
+            <Shield className="w-4 h-4" /> {t('compiledActions')}
+          </h4>
 
-          {/* 动作卡片 */}
+          {/* 动作卡片（只读，无 checkbox） */}
           {compiledActions.map((action, idx) => {
             const cc = confidenceColor(action.confidence);
-            const isSelected = selectedActions.includes(idx);
             const isExpanded = expandedActions.includes(idx);
             return (
-              <div
-                key={idx}
-                className={`rounded border-2 transition-colors ${
-                  isSelected ? 'border-indigo-400 bg-white' : 'border-gray-200 bg-gray-50 opacity-70'
-                }`}
-              >
+              <div key={idx} className="rounded border-2 border-indigo-400 bg-white">
                 {/* 头部 */}
-                <div className="flex items-center gap-3 p-3 cursor-pointer" onClick={() => toggleAction(idx)}>
-                  <span className="flex-shrink-0">
-                    {isSelected ? <CheckSquare className="w-4 h-4 text-indigo-600" /> : <Square className="w-4 h-4 text-gray-400" />}
-                  </span>
+                <div className="flex items-center gap-3 p-3">
                   <span className="font-mono text-sm font-bold text-gray-800">{action.action_type}</span>
                   <span className="text-gray-400">→</span>
                   <span className="font-mono text-sm text-blue-600">{action.target.type}:{action.target.value}</span>
@@ -199,7 +126,7 @@ export default function ActionBuilder({ alertId, initialRecommendation, onPlanCr
                     <span className={`px-2 py-0.5 rounded text-xs font-bold ${cc.bg} ${cc.text}`}>
                       {t('confidence')}: {(action.confidence * 100).toFixed(0)}%
                     </span>
-                    <button onClick={(e) => { e.stopPropagation(); toggleExpand(idx); }} className="text-gray-400 hover:text-gray-600">
+                    <button onClick={() => toggleExpand(idx)} className="text-gray-400 hover:text-gray-600">
                       {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                     </button>
                   </div>
@@ -249,74 +176,18 @@ export default function ActionBuilder({ alertId, initialRecommendation, onPlanCr
         </div>
       )}
 
-      {/* ── Manual Actions (fallback, or when no compiled result) ── */}
-      {!hasCompiled && (
-        <>
-          <div className="space-y-4 mb-6">
-            {actions.length === 0 ? (
-              <div className="text-center py-8 text-gray-400 bg-gray-50 rounded border border-dashed border-gray-200">
-                {t('noActions')}
-              </div>
-            ) : (
-              actions.map((action, idx) => (
-                <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded border border-gray-200">
-                  <div>
-                    <span className="font-mono text-sm font-bold text-gray-800">{action.type}</span>
-                    <span className="mx-2 text-gray-400">→</span>
-                    <span className="font-mono text-sm text-blue-600">{JSON.stringify(action.target)}</span>
-                  </div>
-                  <button onClick={() => removeAction(idx)} className="text-gray-400 hover:text-red-500">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-
-          {/* Simple Add Form */}
-          <div className="flex gap-2 mb-6">
-            <select 
-              className="border border-gray-300 rounded px-2 py-1.5 text-sm"
-              value={newActionType}
-              onChange={(e) => setNewActionType(e.target.value)}
-            >
-              <option value="block_ip">block_ip</option>
-              <option value="isolate_host">isolate_host</option>
-              <option value="segment_subnet">segment_subnet</option>
-              <option value="rate_limit_service">rate_limit_service</option>
-            </select>
-            <input 
-              type="text" 
-              placeholder={t('targetPlaceholder')} 
-              className="border border-gray-300 rounded px-2 py-1.5 text-sm flex-1"
-              value={newActionTarget}
-              onChange={(e) => setNewActionTarget(e.target.value)}
-            />
-            <button 
-              onClick={addAction}
-              disabled={!newActionTarget}
-              className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm disabled:opacity-50"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-          </div>
-        </>
+      {/* ── 确认编译计划按钮 ── */}
+      {hasCompiled && (
+        <div className="flex justify-end pt-4 border-t border-gray-100">
+          <button
+            onClick={handleConfirmPlan}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded shadow-sm text-sm font-medium flex items-center gap-2"
+          >
+            {t('confirmPlan')}
+            <Check className="w-4 h-4" />
+          </button>
+        </div>
       )}
-
-      <div className="flex justify-end pt-4 border-t border-gray-100">
-        <button
-          onClick={handleCreatePlan}
-          disabled={loading || !canCreate}
-          className={`px-4 py-2 rounded shadow-sm text-sm font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${
-            hasCompiled
-              ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
-              : 'bg-blue-600 hover:bg-blue-700 text-white'
-          }`}
-        >
-          {loading ? t('creating') : hasCompiled ? t('useSelected') : t('createPlan')}
-          <Save className="w-4 h-4" />
-        </button>
-      </div>
     </div>
   );
 }

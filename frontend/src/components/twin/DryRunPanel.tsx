@@ -21,6 +21,7 @@ interface DryRunCreatedEvent {
   risk: number;
 }
 
+// 仅对 compiled plan 生效，不支持手工 plan 路径
 export default function DryRunPanel({ alertId, planId, onDryRunCompleted }: DryRunPanelProps) {
   const t = useTranslations('twin');
   const router = useRouter();

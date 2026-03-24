@@ -134,56 +134,6 @@ export const realApi = {
         });
     },
 
-    createPlan: async (body: any): Promise<ActionPlan> => {
-         // 将前端 action 结构转换为后端 PlanAction schema
-         const allowedActionTypes = new Set([
-            'block_ip',
-            'isolate_host',
-            'segment_subnet',
-            'rate_limit_service',
-         ]);
-         const normalizeTarget = (target: any) => {
-            if (typeof target === 'string') {
-                return { type: 'ip', value: target || '0.0.0.0' };
-            }
-            const allowedTargetTypes = new Set(['ip', 'subnet', 'service']);
-            const type = allowedTargetTypes.has(target?.type) ? target.type : 'ip';
-            const value = typeof target?.value === 'string' && target.value.trim()
-                ? target.value
-                : '0.0.0.0';
-            return { type, value };
-         };
-         const normalizeRollback = (rollback: any) => {
-            // 后端要求 rollback 为对象 {action_type, params} 或 null
-            if (!rollback || typeof rollback !== 'object' || Array.isArray(rollback)) {
-                return null;
-            }
-            if (typeof rollback.action_type !== 'string' || !rollback.action_type) {
-                return null;
-            }
-            return {
-                action_type: rollback.action_type,
-                params: rollback.params && typeof rollback.params === 'object' ? rollback.params : {},
-            };
-         };
-         const transformed = {
-            ...body,
-            actions: (body.actions || []).map((a: any) => ({
-                action_type: allowedActionTypes.has(a.action_type || a.type)
-                    ? (a.action_type || a.type)
-                    : 'block_ip',
-                target: normalizeTarget(a.target),
-                params: a.params || {},
-                rollback: normalizeRollback(a.rollback),
-            })),
-         };
-         console.log('[createPlan] transformed payload:', JSON.stringify(transformed, null, 2));
-         return fetchJson<ActionPlan>(`/api/v1/twin/plans`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(transformed)
-        });
-    },
     dryRunPlan: async (planId: string, body?: any): Promise<DryRunResult> => {
          return fetchJson<DryRunResult>(`/api/v1/twin/plans/${planId}/dry-run`, {
             method: 'POST',
