@@ -34,7 +34,6 @@ class Settings(BaseSettings):
     API_V1_PREFIX: str = "/api/v1"
 
     # 功能开关
-    WORKFLOW_ENGINE_ENABLED: bool = True
     THREAT_ENRICHMENT_ENABLED: bool = True
     PIPELINE_OBSERVABILITY_ENABLED: bool = True
     STRUCTURED_LOG_ENABLED: bool = False

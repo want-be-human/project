@@ -1,5 +1,8 @@
 """
 智能体路由。
+所有 agent 动作统一通过 WorkflowEngine 执行，
+service 仅作为 workflow stage 的内部执行器。
+
 POST /alerts/{alert_id}/triage
 POST /alerts/{alert_id}/investigate
 POST /alerts/{alert_id}/recommend
@@ -14,7 +17,6 @@ from sqlalchemy.orm import Session
 import json
 
 from app.api.deps import get_db
-from app.core.config import settings
 from app.core.errors import NotFoundError
 from app.models.alert import Alert
 from app.models.investigation import Investigation
@@ -28,8 +30,6 @@ from app.schemas.agent import (
     LanguageRequest,
 )
 from app.schemas.twin import CompilePlanRequest, CompilePlanResponse
-from app.services.agent.service import AgentService
-from app.services.plan_compiler.service import PlanCompilerService
 from app.workflows.engine import WorkflowEngine
 
 router = APIRouter(prefix="/alerts", tags=["agent"])
@@ -56,12 +56,9 @@ async def triage_alert(
     db: Session = Depends(get_db),
 ) -> ApiResponse[TriageResponse]:
     alert = _get_alert_or_404(alert_id, db)
-    if settings.WORKFLOW_ENGINE_ENABLED:
-        engine = WorkflowEngine(db)
-        summary = engine.run_stage("triage", alert, language=request.language)
-    else:
-        service = AgentService(db)
-        summary = service.triage(alert, language=request.language)
+    # 统一通过 WorkflowEngine 执行，阶段日志自动记录
+    engine = WorkflowEngine(db)
+    summary = engine.run_stage("triage", alert, language=request.language)
     return ApiResponse.success(TriageResponse(triage_summary=summary))
 
 
@@ -77,12 +74,9 @@ async def investigate_alert(
     db: Session = Depends(get_db),
 ) -> ApiResponse[InvestigationSchema]:
     alert = _get_alert_or_404(alert_id, db)
-    if settings.WORKFLOW_ENGINE_ENABLED:
-        engine = WorkflowEngine(db)
-        investigation = engine.run_stage("investigate", alert, language=request.language)
-    else:
-        service = AgentService(db)
-        investigation = service.investigate(alert, language=request.language)
+    # 统一通过 WorkflowEngine 执行，阶段日志自动记录
+    engine = WorkflowEngine(db)
+    investigation = engine.run_stage("investigate", alert, language=request.language)
     return ApiResponse.success(investigation)
 
 
@@ -98,12 +92,9 @@ async def recommend_actions(
     db: Session = Depends(get_db),
 ) -> ApiResponse[RecommendationSchema]:
     alert = _get_alert_or_404(alert_id, db)
-    if settings.WORKFLOW_ENGINE_ENABLED:
-        engine = WorkflowEngine(db)
-        recommendation = engine.run_stage("recommend", alert, language=request.language)
-    else:
-        service = AgentService(db)
-        recommendation = service.recommend(alert, language=request.language)
+    # 统一通过 WorkflowEngine 执行，阶段日志自动记录
+    engine = WorkflowEngine(db)
+    recommendation = engine.run_stage("recommend", alert, language=request.language)
     return ApiResponse.success(recommendation)
 
 
@@ -118,22 +109,15 @@ async def compile_plan(
     request: CompilePlanRequest = CompilePlanRequest(),
     db: Session = Depends(get_db),
 ) -> ApiResponse[CompilePlanResponse]:
-    _get_alert_or_404(alert_id, db)
-    if settings.WORKFLOW_ENGINE_ENABLED:
-        engine = WorkflowEngine(db)
-        response = engine.run_stage(
-            "compile_plan",
-            _get_alert_or_404(alert_id, db),
-            language=request.language,
-            previous_outputs={"recommendation_id": request.recommendation_id},
-        )
-    else:
-        service = PlanCompilerService(db)
-        response = service.compile_for_alert(
-            alert_id=alert_id,
-            recommendation_id=request.recommendation_id,
-            language=request.language,
-        )
+    # 统一通过 WorkflowEngine 执行 compile-plan，阶段日志自动记录
+    alert = _get_alert_or_404(alert_id, db)
+    engine = WorkflowEngine(db)
+    response = engine.run_stage(
+        "compile_plan",
+        alert,
+        language=request.language,
+        previous_outputs={"recommendation_id": request.recommendation_id},
+    )
     return ApiResponse.success(response)
 
 

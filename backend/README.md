@@ -67,7 +67,6 @@ curl http://localhost:8000/api/v1/pcaps/{pcap_id}/status
 | `MODEL_PARAMS` | `{}` | 用于检测模型参数的 JSON 字符串 |
 | `PIPELINE_OBSERVABILITY_ENABLED` | `true` | 启用管道阶段跟踪 |
 | `STRUCTURED_LOG_ENABLED` | `false` | 启用 JSON 行结构化日志记录 |
-| `WORKFLOW_ENGINE_ENABLED` | `true` | 启用用于代理阶段的工作流引擎 |
 | `THREAT_ENRICHMENT_ENABLED` | `true` | 启用 MITRE 威胁增强功能 |
 ## 文件目录结构
 ```
