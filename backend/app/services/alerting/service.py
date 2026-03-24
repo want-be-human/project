@@ -27,11 +27,11 @@ class AlertingService:
         self.score_threshold = score_threshold
         self.window_sec = window_sec
         
-        # 基于分数的严重等级映射
+        # 复合分数 → 严重等级映射（阈值基于加权复合分数，非原始 anomaly_score）
         self.severity_thresholds = {
-            "critical": 0.95,
-            "high": 0.85,
-            "medium": 0.70,
+            "critical": 0.80,
+            "high": 0.60,
+            "medium": 0.40,
             "low": 0.0,
         }
 
@@ -74,30 +74,67 @@ class AlertingService:
         logger.info(f"Generated {len(alerts)} alerts")
         return alerts
 
+    @staticmethod
+    def _infer_flow_type(flow: dict) -> str:
+        """
+        轻量级单流类型推断，仅用于聚合分组。
+        不替代 _determine_type，后者在组级别做最终判定。
+        """
+        features = flow.get("features", {})
+        dst_port = flow.get("dst_port", 0)
+        syn_count = features.get("syn_count", 0)
+        total_packets = features.get("total_packets", 0)
+
+        # 高 SYN 比例 → scan 倾向
+        if total_packets > 0 and syn_count / max(total_packets, 1) > 0.5:
+            return "scan"
+
+        # 暴力破解端口特征
+        if dst_port in (22, 23, 3389, 21):
+            return "bruteforce"
+
+        # 高流量特征 → dos 倾向
+        total_bytes = features.get("total_bytes", 0)
+        if total_bytes > 200000:  # 单流 >200KB
+            return "dos"
+
+        return "anomaly"
+
     def _aggregate_flows(self, flows: list[dict]) -> dict[str, list[dict]]:
         """
-        Aggregate flows by src_ip + time window.
-        
-        Returns dict mapping group_key to list of flows.
+        多维聚合：src_ip + dst_target + service_key + inferred_type + time_bucket。
+        同一源 IP 在同一时间窗口内的不同攻击模式会被拆分为不同告警。
         """
-        groups = {}
-        
+        groups: dict[str, list[dict]] = {}
+
         for flow in flows:
             src_ip = flow.get("src_ip", "unknown")
             ts_start = flow.get("ts_start")
-            
-            # 计算时间桶
+
+            # 计算时间桶（与原逻辑一致）
             if isinstance(ts_start, datetime):
                 bucket = int(ts_start.timestamp()) // self.window_sec * self.window_sec
             else:
                 bucket = 0
-            
-            group_key = f"{src_ip}@{bucket}"
-            
+
+            # 推断类型
+            inferred = self._infer_flow_type(flow)
+
+            # 目标维度
+            dst_ip = flow.get("dst_ip", "unknown")
+            dst_port = flow.get("dst_port", 0)
+            proto = flow.get("proto", "TCP")
+
+            # scan 类型合并目标（避免每个端口一条告警）
+            dst_target = "multi" if inferred == "scan" else dst_ip
+            service_key = "multi" if inferred == "scan" else f"{proto}/{dst_port}"
+
+            group_key = f"{src_ip}|{dst_target}|{service_key}|{inferred}|{bucket}"
+
             if group_key not in groups:
                 groups[group_key] = []
             groups[group_key].append(flow)
-        
+
         return groups
 
     def _create_alert(
@@ -120,30 +157,33 @@ class AlertingService:
         flows_sorted = sorted(flows, key=lambda x: x.get("anomaly_score", 0), reverse=True)
         primary_flow = flows_sorted[0]
         
-        # 由最高分计算严重等级
-        max_score = max(f.get("anomaly_score", 0) for f in flows)
-        severity = self._score_to_severity(max_score)
-        
+        # 复合严重度评分（替代旧的 max_score 单因子）
+        composite_score, score_breakdown = self._compute_composite_score(flows)
+        severity = self._score_to_severity(composite_score)
+
         # 基于模式判断告警类型
         alert_type = self._determine_type(flows)
-        
+
         # 构建 evidence
         flow_ids = [f.get("id") for f in flows if f.get("id")]
         top_flows = self._get_top_flows(flows_sorted[:5])
         top_features = self._get_top_features(flows)
-        
+
         evidence = {
             "flow_ids": flow_ids,
             "top_flows": top_flows,
             "top_features": top_features,
             "pcap_ref": {"pcap_id": pcap_id, "offset_hint": None},
         }
-        
-        # 构建 aggregation
+
+        # 构建 aggregation（保留原有字段 + 新增维度信息）
         aggregation = {
-            "rule": f"same_src_ip + {self.window_sec}s_window",
+            "rule": f"src_ip+dst_target+service+type+{self.window_sec}s_window",
             "group_key": group_key,
             "count_flows": len(flows),
+            "dimensions": ["src_ip", "dst_target", "service_key", "inferred_type", "time_bucket"],
+            "composite_score": round(composite_score, 4),
+            "score_breakdown": score_breakdown,
         }
         
         alert = {
@@ -177,8 +217,68 @@ class AlertingService:
         
         return alert
 
+    def _compute_composite_score(self, flows: list[dict]) -> tuple[float, dict]:
+        """
+        计算复合严重度分数（0-1），返回 (composite_score, breakdown_dict)。
+
+        权重分配：
+          - max_score:           0.40  （组内最高异常分数）
+          - flow_density:        0.25  （流数量密度，归一化）
+          - duration_factor:     0.20  （活动持续时长，归一化）
+          - aggregation_quality: 0.15  （组内一致性/质量）
+        """
+        # --- max_score ---
+        scores = [f.get("anomaly_score", 0) for f in flows]
+        max_score = max(scores) if scores else 0.0
+
+        # --- flow_density: min(count / 20, 1.0) ---
+        flow_density = min(len(flows) / 20.0, 1.0)
+
+        # --- duration_factor: min(duration_sec / 300, 1.0) ---
+        ts_starts = [f["ts_start"] for f in flows if isinstance(f.get("ts_start"), datetime)]
+        ts_ends = [f["ts_end"] for f in flows if isinstance(f.get("ts_end"), datetime)]
+        if ts_starts and ts_ends:
+            duration_sec = (max(ts_ends) - min(ts_starts)).total_seconds()
+        else:
+            duration_sec = 0.0
+        duration_factor = min(duration_sec / 300.0, 1.0)
+
+        # --- aggregation_quality ---
+        # 高于阈值的流占比 × 0.6 + 分数一致性 × 0.4
+        above = sum(1 for s in scores if s >= self.score_threshold)
+        ratio_above = above / max(len(scores), 1)
+
+        if len(scores) > 1:
+            mean_s = sum(scores) / len(scores)
+            variance = sum((s - mean_s) ** 2 for s in scores) / len(scores)
+            std_dev = variance ** 0.5
+        else:
+            std_dev = 0.0
+        coherence = 1.0 - min(std_dev, 1.0)  # 标准差越小越一致
+
+        aggregation_quality = ratio_above * 0.6 + coherence * 0.4
+
+        # --- 加权合成 ---
+        composite = (
+            max_score * 0.40
+            + flow_density * 0.25
+            + duration_factor * 0.20
+            + aggregation_quality * 0.15
+        )
+        composite = min(composite, 1.0)
+
+        breakdown = {
+            "max_score": round(max_score, 4),
+            "flow_density": round(flow_density, 4),
+            "duration_factor": round(duration_factor, 4),
+            "aggregation_quality": round(aggregation_quality, 4),
+            "composite": round(composite, 4),
+        }
+
+        return composite, breakdown
+
     def _score_to_severity(self, score: float) -> str:
-        """将异常分数映射为严重等级。"""
+        """将复合分数映射为严重等级。"""
         for severity, threshold in self.severity_thresholds.items():
             if score >= threshold:
                 return severity

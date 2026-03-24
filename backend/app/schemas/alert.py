@@ -60,6 +60,10 @@ class AlertAggregation(BaseModel):
     rule: str = Field(..., description="聚合规则")
     group_key: str = Field(..., description="分组键")
     count_flows: int = Field(..., description="组内流数量")
+    # 新增可选字段（向后兼容旧数据）
+    dimensions: list[str] | None = Field(default=None, description="聚合维度列表")
+    composite_score: float | None = Field(default=None, description="复合严重度分数")
+    score_breakdown: dict | None = Field(default=None, description="分数分项明细")
 
 
 class AlertAgent(BaseModel):
