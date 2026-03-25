@@ -247,7 +247,15 @@
     "noFeaturesRecorded": "No features recorded",
     "timeWindow": "Time Window",
     "start": "Start:",
-    "end": "End:"
+    "end": "End:",
+    "traceabilityTitle": "Alert Generation Basis",
+    "aggregationBasis": "Aggregation Basis",
+    "typeBasis": "Type Determination Basis",
+    "severityBasis": "Severity Basis",
+    "relatedFlows": "Related Flows",
+    "totalFlows": "Total Related Flows:",
+    "reasonCodes": "Reason Codes",
+    "scoreBreakdown": "Score Breakdown"
   },
   "agent": {
     "triage": "AI Triage",
@@ -315,7 +323,11 @@
     "compileErrorNotFound": "The linked recommendation has expired or was not found. Please re-generate before compiling.",
     "compileErrorEmptyActions": "Compilation succeeded but produced no executable actions. Rules may not have matched or all actions were skipped.",
     "compileErrorServer": "Internal server error. Please try again later or contact your administrator.",
-    "compileErrorDismiss": "Dismiss"
+    "compileErrorDismiss": "Dismiss",
+    "compileEmptyTitle": "Compilation complete, but no executable actions",
+    "skippedActionsTitle": "The following actions were skipped:",
+    "skipReason": "Reason",
+    "retryCompile": "Retry Compilation"
   },
   "topology": {
     "loading": "Loading topology data...",
@@ -426,8 +438,20 @@
     "detailError": "Error Details",
     "detailSkipReason": "Skip Reason"
   },
+  "confidence": {
+    "anomalyScoreLabel": "Detection Score",
+    "anomalyScoreTooltip": "Per-flow ML anomaly score. Used for ranking, not equivalent to real attack probability.",
+    "compositeScoreLabel": "Composite Severity Score",
+    "compositeScoreTooltip": "Weighted combination of anomaly score, flow density, duration, and aggregation quality. Used for severity classification.",
+    "investigationConfidenceLabel": "Investigation Confidence",
+    "investigationConfidenceTooltip": "Confidence in the investigation hypothesis, based on severity and evidence volume. Advisory only.",
+    "enrichmentConfidenceLabel": "Enrichment Confidence",
+    "enrichmentConfidenceTooltip": "Average confidence of top matched MITRE ATT&CK techniques. Reflects knowledge-base match quality, not attack certainty.",
+    "actionConfidenceLabel": "Action Confidence",
+    "actionConfidenceTooltip": "Confidence in the compiled action, blending severity, priority, and investigation results. Used for ranking actions.",
+    "disclaimer": "Scores are for ranking and explanation, not real attack probability."
+  },
   "scenarios": {
-    "title": "Security Scenarios",
     "description": "Regression testing and dry-run validation pipelines.",
     "loading": "Loading scenarios...",
     "listTitle": "Scenarios",

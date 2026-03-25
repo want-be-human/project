@@ -175,3 +175,52 @@ class TestOutputStructure:
         ctx = service.enrich(alert_type="dos", protocol="tcp", port=80)
         assert ctx is not None
         assert 0.0 <= ctx.enrichment_confidence <= 1.0
+
+
+# ── Bilingual fields ──────────────────────────────────────────────────────
+
+
+class TestBilingualFields:
+    def test_scan_techniques_have_zh_fields(self, service):
+        ctx = service.enrich(alert_type="scan", protocol="tcp", port=80)
+        assert ctx is not None
+        for t in ctx.techniques:
+            assert t.technique_name_zh is not None, f"{t.technique_id} missing technique_name_zh"
+            assert t.tactic_name_zh is not None, f"{t.technique_id} missing tactic_name_zh"
+            assert t.description_zh is not None, f"{t.technique_id} missing description_zh"
+
+    def test_bruteforce_techniques_have_zh_fields(self, service):
+        ctx = service.enrich(alert_type="bruteforce", protocol="tcp", port=22)
+        assert ctx is not None
+        for t in ctx.techniques:
+            assert t.technique_name_zh is not None, f"{t.technique_id} missing technique_name_zh"
+
+    def test_dos_techniques_have_zh_fields(self, service):
+        ctx = service.enrich(alert_type="dos", protocol="tcp", port=443)
+        assert ctx is not None
+        for t in ctx.techniques:
+            assert t.technique_name_zh is not None, f"{t.technique_id} missing technique_name_zh"
+
+    def test_tactics_zh_populated(self, service):
+        ctx = service.enrich(alert_type="bruteforce", protocol="tcp", port=22)
+        assert ctx is not None
+        assert ctx.tactics_zh is not None
+        assert len(ctx.tactics_zh) == len(ctx.tactics)
+
+    def test_tactics_zh_deduplicated(self, service):
+        ctx = service.enrich(alert_type="scan", protocol="icmp", port=0)
+        assert ctx is not None
+        if ctx.tactics_zh:
+            assert len(ctx.tactics_zh) == len(set(ctx.tactics_zh))
+
+    def test_zh_fields_optional_backward_compat(self, service):
+        """If a technique entry lacks _zh fields, they should be None, not crash."""
+        from app.schemas.agent import ThreatTechnique
+        t = ThreatTechnique(
+            technique_id="T9999", technique_name="Test",
+            tactic_id="TA0000", tactic_name="Test Tactic",
+            confidence=0.5,
+        )
+        assert t.technique_name_zh is None
+        assert t.tactic_name_zh is None
+        assert t.description_zh is None

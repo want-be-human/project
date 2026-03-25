@@ -247,7 +247,15 @@
     "noFeaturesRecorded": "无特征记录",
     "timeWindow": "时间窗口",
     "start": "开始：",
-    "end": "结束："
+    "end": "结束：",
+    "traceabilityTitle": "告警生成依据",
+    "aggregationBasis": "聚合依据",
+    "typeBasis": "类型判定依据",
+    "severityBasis": "严重度依据",
+    "relatedFlows": "关联 Flow 核对",
+    "totalFlows": "关联流总数：",
+    "reasonCodes": "判定规则码",
+    "scoreBreakdown": "评分分项"
   },
   "agent": {
     "triage": "AI 分诊",
@@ -315,7 +323,11 @@
     "compileErrorNotFound": "关联的行动建议已过期或不存在，请重新生成建议后再编译",
     "compileErrorEmptyActions": "编译成功但未生成任何可执行动作，可能是规则未匹配或动作均被跳过",
     "compileErrorServer": "服务器内部错误，请稍后重试或联系管理员",
-    "compileErrorDismiss": "关闭"
+    "compileErrorDismiss": "关闭",
+    "compileEmptyTitle": "编译完成，但无可执行动作",
+    "skippedActionsTitle": "以下动作被跳过：",
+    "skipReason": "原因",
+    "retryCompile": "重新编译"
   },
   "topology": {
     "loading": "正在加载拓扑数据...",
@@ -426,8 +438,20 @@
     "detailError": "错误信息",
     "detailSkipReason": "跳过原因"
   },
+  "confidence": {
+    "anomalyScoreLabel": "检测分数",
+    "anomalyScoreTooltip": "单流 ML 异常分数，用于排序和解释，不等同于真实攻击概率。",
+    "compositeScoreLabel": "复合严重度分数",
+    "compositeScoreTooltip": "异常分数、流密度、持续时长和聚合质量的加权组合，用于严重等级分类。",
+    "investigationConfidenceLabel": "研判置信度",
+    "investigationConfidenceTooltip": "基于严重等级和证据量的研判假设置信度，仅供参考。",
+    "enrichmentConfidenceLabel": "增强置信度",
+    "enrichmentConfidenceTooltip": "匹配的 MITRE ATT&CK 技术的平均置信度，反映知识库匹配质量，非攻击确定性。",
+    "actionConfidenceLabel": "动作置信度",
+    "actionConfidenceTooltip": "编译动作的置信度，综合严重等级、优先级和研判结果，用于动作排序。",
+    "disclaimer": "分数用于排序和解释，不等同于真实攻击概率。"
+  },
   "scenarios": {
-    "title": "安全场景",
     "description": "回归测试和推演验证流水线。",
     "loading": "正在加载场景...",
     "listTitle": "场景列表",

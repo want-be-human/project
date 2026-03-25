@@ -4,13 +4,17 @@
       "ports": [22],
       "protocols": ["tcp"],
       "context": "SSH service",
+      "context_zh": "SSH 服务",
       "techniques": [
         {
           "technique_id": "T1021.004",
           "technique_name": "Remote Services: SSH",
+          "technique_name_zh": "远程服务：SSH",
           "tactic_id": "TA0008",
           "tactic_name": "Lateral Movement",
+          "tactic_name_zh": "横向移动",
           "description": "Adversaries may use SSH to login to remote machines and execute commands.",
+          "description_zh": "攻击者可能使用 SSH 登录远程主机并执行命令。",
           "intel_refs": ["https://attack.mitre.org/techniques/T1021/004/"],
           "severity_hint": "high",
           "base_confidence": 0.70
@@ -21,13 +25,17 @@
       "ports": [23],
       "protocols": ["tcp"],
       "context": "Telnet service",
+      "context_zh": "Telnet 服务",
       "techniques": [
         {
           "technique_id": "T1021",
           "technique_name": "Remote Services",
+          "technique_name_zh": "远程服务",
           "tactic_id": "TA0008",
           "tactic_name": "Lateral Movement",
+          "tactic_name_zh": "横向移动",
           "description": "Adversaries may use remote services such as Telnet to connect to other machines.",
+          "description_zh": "攻击者可能使用 Telnet 等远程服务连接到其他主机。",
           "intel_refs": ["https://attack.mitre.org/techniques/T1021/"],
           "severity_hint": "high",
           "base_confidence": 0.70
@@ -38,13 +46,17 @@
       "ports": [3389],
       "protocols": ["tcp"],
       "context": "RDP service",
+      "context_zh": "RDP 服务",
       "techniques": [
         {
           "technique_id": "T1021.001",
           "technique_name": "Remote Services: Remote Desktop Protocol",
+          "technique_name_zh": "远程服务：远程桌面协议",
           "tactic_id": "TA0008",
           "tactic_name": "Lateral Movement",
+          "tactic_name_zh": "横向移动",
           "description": "Adversaries may use RDP to remotely connect to and control a system.",
+          "description_zh": "攻击者可能使用 RDP 远程连接并控制系统。",
           "intel_refs": ["https://attack.mitre.org/techniques/T1021/001/"],
           "severity_hint": "high",
           "base_confidence": 0.75
@@ -55,13 +67,17 @@
       "ports": [21],
       "protocols": ["tcp"],
       "context": "FTP service",
+      "context_zh": "FTP 服务",
       "techniques": [
         {
           "technique_id": "T1048.003",
           "technique_name": "Exfiltration Over Unencrypted Non-C2 Protocol",
+          "technique_name_zh": "通过未加密非 C2 协议窃取数据",
           "tactic_id": "TA0010",
           "tactic_name": "Exfiltration",
+          "tactic_name_zh": "数据窃取",
           "description": "Adversaries may steal data by exfiltrating it over an un-encrypted network protocol other than C2.",
+          "description_zh": "攻击者可能通过 C2 以外的未加密网络协议窃取数据。",
           "intel_refs": ["https://attack.mitre.org/techniques/T1048/003/"],
           "severity_hint": "medium",
           "base_confidence": 0.55
@@ -72,13 +88,17 @@
       "ports": [53],
       "protocols": ["tcp", "udp"],
       "context": "DNS service",
+      "context_zh": "DNS 服务",
       "techniques": [
         {
           "technique_id": "T1071.004",
           "technique_name": "Application Layer Protocol: DNS",
+          "technique_name_zh": "应用层协议：DNS",
           "tactic_id": "TA0011",
           "tactic_name": "Command and Control",
+          "tactic_name_zh": "命令与控制",
           "description": "Adversaries may communicate using the DNS protocol to avoid detection by blending in with DNS traffic.",
+          "description_zh": "攻击者可能使用 DNS 协议进行通信，通过混入 DNS 流量来规避检测。",
           "intel_refs": ["https://attack.mitre.org/techniques/T1071/004/"],
           "severity_hint": "high",
           "base_confidence": 0.65
@@ -86,9 +106,12 @@
         {
           "technique_id": "T1568",
           "technique_name": "Dynamic Resolution",
+          "technique_name_zh": "动态解析",
           "tactic_id": "TA0011",
           "tactic_name": "Command and Control",
+          "tactic_name_zh": "命令与控制",
           "description": "Adversaries may dynamically establish connections to C2 infrastructure to evade detections.",
+          "description_zh": "攻击者可能动态建立与 C2 基础设施的连接以规避检测。",
           "intel_refs": ["https://attack.mitre.org/techniques/T1568/"],
           "severity_hint": "medium",
           "base_confidence": 0.50
@@ -99,13 +122,17 @@
       "ports": [80, 8080, 8000, 8888],
       "protocols": ["tcp"],
       "context": "HTTP service",
+      "context_zh": "HTTP 服务",
       "techniques": [
         {
           "technique_id": "T1071.001",
           "technique_name": "Application Layer Protocol: Web Protocols",
+          "technique_name_zh": "应用层协议：Web 协议",
           "tactic_id": "TA0011",
           "tactic_name": "Command and Control",
+          "tactic_name_zh": "命令与控制",
           "description": "Adversaries may communicate using web protocols (HTTP/HTTPS) to avoid detection.",
+          "description_zh": "攻击者可能使用 Web 协议（HTTP/HTTPS）进行通信以规避检测。",
           "intel_refs": ["https://attack.mitre.org/techniques/T1071/001/"],
           "severity_hint": "medium",
           "base_confidence": 0.50
@@ -116,13 +143,17 @@
       "ports": [443, 8443],
       "protocols": ["tcp"],
       "context": "HTTPS service",
+      "context_zh": "HTTPS 服务",
       "techniques": [
         {
           "technique_id": "T1071.001",
           "technique_name": "Application Layer Protocol: Web Protocols",
+          "technique_name_zh": "应用层协议：Web 协议",
           "tactic_id": "TA0011",
           "tactic_name": "Command and Control",
+          "tactic_name_zh": "命令与控制",
           "description": "Adversaries may communicate using web protocols (HTTP/HTTPS) to avoid detection.",
+          "description_zh": "攻击者可能使用 Web 协议（HTTP/HTTPS）进行通信以规避检测。",
           "intel_refs": ["https://attack.mitre.org/techniques/T1071/001/"],
           "severity_hint": "medium",
           "base_confidence": 0.50
@@ -130,9 +161,12 @@
         {
           "technique_id": "T1573.002",
           "technique_name": "Encrypted Channel: Asymmetric Cryptography",
+          "technique_name_zh": "加密通道：非对称加密",
           "tactic_id": "TA0011",
           "tactic_name": "Command and Control",
+          "tactic_name_zh": "命令与控制",
           "description": "Adversaries may employ asymmetric encryption to conceal C2 traffic.",
+          "description_zh": "攻击者可能使用非对称加密来隐藏 C2 流量。",
           "intel_refs": ["https://attack.mitre.org/techniques/T1573/002/"],
           "severity_hint": "medium",
           "base_confidence": 0.40
@@ -143,13 +177,17 @@
       "ports": [445],
       "protocols": ["tcp"],
       "context": "SMB service",
+      "context_zh": "SMB 服务",
       "techniques": [
         {
           "technique_id": "T1021.002",
           "technique_name": "Remote Services: SMB/Windows Admin Shares",
+          "technique_name_zh": "远程服务：SMB/Windows 管理共享",
           "tactic_id": "TA0008",
           "tactic_name": "Lateral Movement",
+          "tactic_name_zh": "横向移动",
           "description": "Adversaries may use SMB to interact with network shared resources for lateral movement.",
+          "description_zh": "攻击者可能使用 SMB 与网络共享资源交互以进行横向移动。",
           "intel_refs": ["https://attack.mitre.org/techniques/T1021/002/"],
           "severity_hint": "high",
           "base_confidence": 0.65
@@ -162,13 +200,17 @@
     {
       "protocols": ["icmp"],
       "context": "ICMP traffic",
+      "context_zh": "ICMP 流量",
       "techniques": [
         {
           "technique_id": "T1095",
           "technique_name": "Non-Application Layer Protocol",
+          "technique_name_zh": "非应用层协议",
           "tactic_id": "TA0011",
           "tactic_name": "Command and Control",
+          "tactic_name_zh": "命令与控制",
           "description": "Adversaries may use non-application layer protocols for communication to avoid detection.",
+          "description_zh": "攻击者可能使用非应用层协议进行通信以规避检测。",
           "intel_refs": ["https://attack.mitre.org/techniques/T1095/"],
           "severity_hint": "medium",
           "base_confidence": 0.55
@@ -176,9 +218,12 @@
         {
           "technique_id": "T1018",
           "technique_name": "Remote System Discovery",
+          "technique_name_zh": "远程系统发现",
           "tactic_id": "TA0007",
           "tactic_name": "Discovery",
+          "tactic_name_zh": "发现",
           "description": "Adversaries may use ICMP for remote system discovery (ping sweep).",
+          "description_zh": "攻击者可能使用 ICMP 进行远程系统发现（ping 扫描）。",
           "intel_refs": ["https://attack.mitre.org/techniques/T1018/"],
           "severity_hint": "low",
           "base_confidence": 0.50
@@ -192,37 +237,43 @@
       "threshold_high": 0.7,
       "boost_techniques": ["T1595", "T1595.001", "T1046"],
       "confidence_boost": 0.10,
-      "description": "High SYN ratio indicates scanning behavior"
+      "description": "High SYN ratio indicates scanning behavior",
+      "description_zh": "高 SYN 比例表明存在扫描行为"
     },
     "rst_ratio": {
       "threshold_high": 0.5,
       "boost_techniques": ["T1595", "T1046", "T1110"],
       "confidence_boost": 0.08,
-      "description": "High RST ratio indicates connection rejection, consistent with scanning or brute-force"
+      "description": "High RST ratio indicates connection rejection, consistent with scanning or brute-force",
+      "description_zh": "高 RST 比例表明连接被拒绝，与扫描或暴力破解行为一致"
     },
     "syn_count": {
       "threshold_high": 100,
       "boost_techniques": ["T1498", "T1498.001", "T1499"],
       "confidence_boost": 0.08,
-      "description": "High SYN count may indicate SYN flood attack"
+      "description": "High SYN count may indicate SYN flood attack",
+      "description_zh": "高 SYN 数量可能表明 SYN 洪泛攻击"
     },
     "total_bytes": {
       "threshold_high": 1000000,
       "boost_techniques": ["T1041", "T1048", "T1567"],
       "confidence_boost": 0.10,
-      "description": "High total bytes may indicate data exfiltration or DoS"
+      "description": "High total bytes may indicate data exfiltration or DoS",
+      "description_zh": "高总字节数可能表明数据窃取或拒绝服务攻击"
     },
     "bytes_per_packet": {
       "threshold_low": 60,
       "boost_techniques": ["T1595", "T1046"],
       "confidence_boost": 0.05,
-      "description": "Small packets typical of scanning probes"
+      "description": "Small packets typical of scanning probes",
+      "description_zh": "小数据包是扫描探测的典型特征"
     },
     "flow_duration_ms": {
       "threshold_low": 100,
       "boost_techniques": ["T1595", "T1595.001"],
       "confidence_boost": 0.05,
-      "description": "Very short flows typical of port scanning"
+      "description": "Very short flows typical of port scanning",
+      "description_zh": "极短流量是端口扫描的典型特征"
     }
   }
 }

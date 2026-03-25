@@ -73,7 +73,7 @@ class PlanCompilerService:
         evidence_chain = self._load_evidence_chain(alert_id)
 
         # 编译
-        compiled_actions, skipped = self._compiler.compile(
+        compiled_actions, skipped_details = self._compiler.compile(
             alert=alert,
             recommendation=recommendation,
             investigation=investigation,
@@ -84,7 +84,7 @@ class PlanCompilerService:
         # 生成包含编译信息的 notes
         notes = (
             f"Auto-compiled from recommendation {recommendation.id}. "
-            f"{len(compiled_actions)} actions compiled, {skipped} skipped."
+            f"{len(compiled_actions)} actions compiled, {len(skipped_details)} skipped."
         )
 
         # 通过 TwinService 创建 plan（复用既有持久化逻辑）
@@ -96,11 +96,25 @@ class PlanCompilerService:
             notes=notes,
         )
 
+        all_skipped = len(compiled_actions) == 0 and len(skipped_details) > 0
+        empty_reason = None
+        if all_skipped:
+            if language == "zh":
+                empty_reason = "所有推荐动作均为监控/建议类，无法编译为可执行操作。"
+            else:
+                empty_reason = (
+                    "All recommended actions are monitoring/advisory type "
+                    "and cannot be compiled into executable operations."
+                )
+
         metadata = CompilationMetadata(
             recommendation_id=recommendation.id,
             rules_matched=len(compiled_actions),
-            actions_skipped=skipped,
-            compiler_version="1.0",
+            actions_skipped=len(skipped_details),
+            compiler_version="1.1",
+            skipped_actions=skipped_details,
+            all_skipped=all_skipped,
+            empty_reason=empty_reason,
         )
 
         logger.info(

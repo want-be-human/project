@@ -3,7 +3,9 @@
     "allow": [
       "Bash(xargs grep:*)",
       "Bash(xargs cat:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(python -m pytest backend/app/tests/unit/test_plan_compiler.py backend/app/tests/unit/test_compile_dry_run_e2e.py -v)",
+      "Bash(python -m pytest backend/app/tests/unit/test_alerting.py backend/app/tests/unit/test_threat_enrichment.py -v)"
     ]
   }
 }

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.logging import get_logger
+from app.core.scoring_policy import SEVERITY_BASE, CONFIDENCE_CAP
 from app.core.utils import generate_uuid, utc_now, datetime_to_iso
 from app.models.alert import Alert
 from app.models.investigation import Investigation
@@ -19,6 +20,7 @@ from app.schemas.agent import (
     RecommendationSchema,
     RecommendedAction,
     ThreatContext,
+    CompileHint,
 )
 from app.services.threat_enrichment.service import ThreatEnrichmentService
 
@@ -308,18 +310,11 @@ class AgentService:
         
         # 基于 flow 数量与严重级别计算置信度
         flow_count = len(evidence.get("flow_ids", []))
-        
-        if alert.severity == "critical":
-            base_confidence = 0.9
-        elif alert.severity == "high":
-            base_confidence = 0.8
-        elif alert.severity == "medium":
-            base_confidence = 0.65
-        else:
-            base_confidence = 0.5
-        
+
+        base_confidence = SEVERITY_BASE.get(alert.severity, 0.5)
+
         # 按 flow 数量调整
-        confidence = min(base_confidence + (flow_count * 0.01), 0.95)
+        confidence = min(base_confidence + (flow_count * 0.01), CONFIDENCE_CAP)
         
         return {"scope": scope, "confidence": round(confidence, 2)}
 
@@ -360,7 +355,7 @@ class AgentService:
     ) -> list[RecommendedAction]:
         """基于告警构建推荐动作。"""
         actions = []
-        
+
         if alert.type in ["scan", "bruteforce"]:
             if language == "zh":
                 actions.append(RecommendedAction(
@@ -376,6 +371,11 @@ class AgentService:
                         "验证合法流量已恢复",
                     ],
                     risk="如果 IP 为共享/NAT 地址，可能会阻断合法流量",
+                    action_intent="executable",
+                    compile_hint=CompileHint(
+                        preferred_action_type="block_ip",
+                        reason="封禁扫描/暴力破解来源 IP",
+                    ),
                 ))
             else:
                 actions.append(RecommendedAction(
@@ -391,8 +391,13 @@ class AgentService:
                         "Verify legitimate traffic is restored",
                     ],
                     risk="May block legitimate traffic if IP is shared/NAT",
+                    action_intent="executable",
+                    compile_hint=CompileHint(
+                        preferred_action_type="block_ip",
+                        reason="Block scanning/brute-force source",
+                    ),
                 ))
-        
+
         if alert.type == "dos":
             if language == "zh":
                 actions.append(RecommendedAction(
@@ -408,6 +413,11 @@ class AgentService:
                         "恢复正常服务限制",
                     ],
                     risk="可能影响合法的高流量用户",
+                    action_intent="executable",
+                    compile_hint=CompileHint(
+                        preferred_action_type="rate_limit_service",
+                        reason="限制 DoS 攻击流量",
+                    ),
                 ))
             else:
                 actions.append(RecommendedAction(
@@ -423,8 +433,97 @@ class AgentService:
                         "Restore normal service limits",
                     ],
                     risk="May impact legitimate high-volume users",
+                    action_intent="executable",
+                    compile_hint=CompileHint(
+                        preferred_action_type="rate_limit_service",
+                        reason="Rate limit DoS traffic",
+                    ),
                 ))
-        
+
+        if alert.type == "exfil":
+            if language == "zh":
+                actions.append(RecommendedAction(
+                    title=f"封禁数据外泄源 IP {alert.primary_src_ip}",
+                    priority="high" if alert.severity in ["critical", "high"] else "medium",
+                    steps=[
+                        f"添加防火墙规则封禁 {alert.primary_src_ip} 的出站流量",
+                        "检查是否有已泄露数据需要处置",
+                        "通知安全团队进行进一步调查",
+                    ],
+                    rollback=[
+                        f"移除封禁 {alert.primary_src_ip} 的防火墙规则",
+                        "验证合法出站流量已恢复",
+                    ],
+                    risk="如果 IP 为内部共享地址，可能影响其他用户的正常出站流量",
+                    action_intent="executable",
+                    compile_hint=CompileHint(
+                        preferred_action_type="block_ip",
+                        reason="封禁数据外泄来源以阻止泄露",
+                    ),
+                ))
+            else:
+                actions.append(RecommendedAction(
+                    title=f"Block exfiltration source IP {alert.primary_src_ip}",
+                    priority="high" if alert.severity in ["critical", "high"] else "medium",
+                    steps=[
+                        f"Add firewall rule to block outbound traffic from {alert.primary_src_ip}",
+                        "Check if any exfiltrated data requires remediation",
+                        "Notify security team for further investigation",
+                    ],
+                    rollback=[
+                        f"Remove firewall rule blocking {alert.primary_src_ip}",
+                        "Verify legitimate outbound traffic is restored",
+                    ],
+                    risk="May block legitimate outbound traffic if IP is shared internally",
+                    action_intent="executable",
+                    compile_hint=CompileHint(
+                        preferred_action_type="block_ip",
+                        reason="Block exfiltration source to stop data leakage",
+                    ),
+                ))
+
+        if alert.type == "anomaly":
+            if language == "zh":
+                actions.append(RecommendedAction(
+                    title=f"隔离异常行为源主机 {alert.primary_src_ip}",
+                    priority="high" if alert.severity in ["critical", "high"] else "medium",
+                    steps=[
+                        f"将 {alert.primary_src_ip} 从网络中隔离",
+                        "检查主机上的可疑进程和连接",
+                        "保留取证日志以供后续分析",
+                    ],
+                    rollback=[
+                        f"恢复 {alert.primary_src_ip} 的网络连接",
+                        "验证主机服务正常运行",
+                    ],
+                    risk="隔离可能导致该主机上的合法服务中断",
+                    action_intent="executable",
+                    compile_hint=CompileHint(
+                        preferred_action_type="isolate_host",
+                        reason="隔离异常主机以遏制潜在威胁",
+                    ),
+                ))
+            else:
+                actions.append(RecommendedAction(
+                    title=f"Isolate anomalous source host {alert.primary_src_ip}",
+                    priority="high" if alert.severity in ["critical", "high"] else "medium",
+                    steps=[
+                        f"Isolate {alert.primary_src_ip} from the network",
+                        "Inspect suspicious processes and connections on the host",
+                        "Preserve forensic logs for further analysis",
+                    ],
+                    rollback=[
+                        f"Restore network connectivity for {alert.primary_src_ip}",
+                        "Verify host services are operating normally",
+                    ],
+                    risk="Isolation may disrupt legitimate services running on this host",
+                    action_intent="executable",
+                    compile_hint=CompileHint(
+                        preferred_action_type="isolate_host",
+                        reason="Isolate anomalous host to contain potential threat",
+                    ),
+                ))
+
         # 构建 MITRE 风险后缀，增强上下文引用
         mitre_risk_suffix = ""
         if threat_context and threat_context.techniques:
@@ -448,6 +547,7 @@ class AgentService:
                     "将日志级别恢复为正常",
                 ],
                 risk="日志存储和处理开销增加" + mitre_risk_suffix,
+                action_intent="monitoring",
             ))
         else:
             actions.append(RecommendedAction(
@@ -463,6 +563,7 @@ class AgentService:
                     "Reset logging to normal levels",
                 ],
                 risk="Increased log storage and processing" + mitre_risk_suffix,
+                action_intent="monitoring",
             ))
-        
+
         return actions

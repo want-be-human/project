@@ -103,6 +103,13 @@ def _alert_to_schema(alert: Alert) -> AlertSchema:
             rule=aggregation_raw.get("rule", ""),
             group_key=aggregation_raw.get("group_key", ""),
             count_flows=aggregation_raw.get("count_flows", 0),
+            dimensions=aggregation_raw.get("dimensions"),
+            composite_score=aggregation_raw.get("composite_score"),
+            score_breakdown=aggregation_raw.get("score_breakdown"),
+            type_reason=aggregation_raw.get("type_reason"),
+            aggregation_summary=aggregation_raw.get("aggregation_summary"),
+            type_summary=aggregation_raw.get("type_summary"),
+            severity_summary=aggregation_raw.get("severity_summary"),
         ),
         agent=AlertAgent(
             triage_summary=agent_raw.get("triage_summary"),

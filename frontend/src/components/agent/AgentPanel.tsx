@@ -25,6 +25,7 @@ export default function AgentPanel({
   onOperationCompleted,
 }: AgentPanelProps) {
   const t = useTranslations('agent');
+  const tc = useTranslations('confidence');
   const locale = useLocale();
   const [activeTab, setActiveTab] = useState<'triage' | 'investigate' | 'recommend'>('triage');
 
@@ -208,8 +209,9 @@ export default function AgentPanel({
                       </ul>
                     </div>
                   </div>
-                  <div className="bg-yellow-50 text-yellow-800 text-xs p-2 rounded border border-yellow-200">
-                    {t('confidence')} {(investigation.impact?.confidence ?? 0) * 100}%
+                  <div className="bg-yellow-50 text-yellow-800 text-xs p-2 rounded border border-yellow-200" title={tc('investigationConfidenceTooltip')}>
+                    {tc('investigationConfidenceLabel')}: {(investigation.impact?.confidence ?? 0) * 100}%
+                    <span className="block text-[10px] text-yellow-600 mt-0.5">{tc('disclaimer')}</span>
                   </div>
                   <ThreatContextCard threatContext={investigation.threat_context} />
                 </div>

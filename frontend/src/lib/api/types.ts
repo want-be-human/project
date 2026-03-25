@@ -74,6 +74,13 @@ export interface Alert {
     rule: string;
     group_key: string;
     count_flows: number;
+    dimensions?: string[];
+    composite_score?: number;
+    score_breakdown?: Record<string, number>;
+    type_reason?: { type: string; reason_codes: string[]; details: Record<string, any> };
+    aggregation_summary?: string;
+    type_summary?: string;
+    severity_summary?: string;
   };
   agent?: {
     triage_summary: string | null;
@@ -141,16 +148,20 @@ export interface EvidenceChain {
 export interface ThreatTechnique {
     technique_id: string;
     technique_name: string;
+    technique_name_zh?: string;
     tactic_id: string;
     tactic_name: string;
+    tactic_name_zh?: string;
     confidence: number;
     description?: string;
+    description_zh?: string;
     intel_refs?: string[];
 }
 
 export interface ThreatContext {
     techniques: ThreatTechnique[];
     tactics: string[];
+    tactics_zh?: string[];
     enrichment_confidence: number;
     enrichment_source: string;
 }
@@ -182,6 +193,8 @@ export interface Recommendation {
         steps: string[];
         rollback: string[];
         risk: string;
+        action_intent?: 'executable' | 'monitoring' | 'advisory';
+        compile_hint?: { preferred_action_type: string; reason: string } | null;
     }>;
     threat_context?: ThreatContext | null;
 }
@@ -206,6 +219,13 @@ export interface CompiledAction {
     reasoning_summary: string;
 }
 
+export interface SkippedAction {
+    title: string;
+    reason: string;
+    action_intent: string;
+    suggestion: string;
+}
+
 export interface CompilePlanRequest {
     recommendation_id?: string | null;
     language?: 'zh' | 'en';
@@ -218,6 +238,9 @@ export interface CompilePlanResponse {
         rules_matched: number;
         actions_skipped: number;
         compiler_version: string;
+        skipped_actions: SkippedAction[];
+        all_skipped: boolean;
+        empty_reason: string | null;
     };
 }
 

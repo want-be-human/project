@@ -180,12 +180,23 @@ class CompilePlanRequest(BaseModel):
     language: Literal["zh", "en"] = Field(default="en", description="输出语言")
 
 
+class SkippedAction(BaseModel):
+    """描述编译过程中被跳过的推荐动作。"""
+    title: str = Field(..., description="原始动作标题")
+    reason: str = Field(..., description="跳过原因")
+    action_intent: str = Field(default="unknown", description="动作声明的意图分类")
+    suggestion: str = Field(default="", description="用户可采取的下一步建议")
+
+
 class CompilationMetadata(BaseModel):
     """编译过程元数据。"""
     recommendation_id: str = Field(..., description="来源 recommendation ID")
     rules_matched: int = Field(default=0, description="命中规则数量")
     actions_skipped: int = Field(default=0, description="被跳过的不可编译动作数量")
     compiler_version: str = Field(default="1.0", description="编译器版本")
+    skipped_actions: list[SkippedAction] = Field(default_factory=list, description="被跳过动作的详细信息")
+    all_skipped: bool = Field(default=False, description="是否所有推荐动作均被跳过")
+    empty_reason: str | None = Field(default=None, description="当 all_skipped=True 时的解释说明")
 
 
 class CompilePlanResponse(BaseModel):

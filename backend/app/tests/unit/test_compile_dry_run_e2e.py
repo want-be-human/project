@@ -142,7 +142,7 @@ class TestCompileDryRunE2E:
         )
 
         assert len(compiled_actions) >= 1
-        assert skipped >= 1  # monitoring action should be skipped
+        assert len(skipped) >= 1  # monitoring action should be skipped
 
         # Verify compiled actions have correct structure
         for action in compiled_actions:
@@ -245,3 +245,52 @@ class TestCompileDryRunE2E:
         rl_actions = [a for a in compiled_actions if a.action_type == "rate_limit_service"]
         assert len(rl_actions) >= 1
         assert rl_actions[0].target.value == "TCP/80"
+
+    def test_anomaly_alert_produces_actions(self):
+        """anomaly alert should now produce at least 1 compiled action (isolate_host)."""
+        db = MagicMock()
+        alert = _make_alert(alert_type="anomaly", severity="high")
+
+        agent_svc = AgentService(db)
+        recommendation = agent_svc.recommend(alert, language="en")
+
+        compiler = PlanCompiler()
+        compiled_actions, skipped = compiler.compile(alert=alert, recommendation=recommendation)
+
+        assert len(compiled_actions) >= 1
+        assert any(a.action_type == "isolate_host" for a in compiled_actions)
+        # monitoring action should still be skipped
+        assert len(skipped) >= 1
+        assert any(s.action_intent == "monitoring" for s in skipped)
+
+    def test_exfil_alert_produces_actions(self):
+        """exfil alert should now produce at least 1 compiled action (block_ip)."""
+        db = MagicMock()
+        alert = _make_alert(alert_type="exfil", severity="high")
+
+        agent_svc = AgentService(db)
+        recommendation = agent_svc.recommend(alert, language="en")
+
+        compiler = PlanCompiler()
+        compiled_actions, skipped = compiler.compile(alert=alert, recommendation=recommendation)
+
+        assert len(compiled_actions) >= 1
+        assert any(a.action_type == "block_ip" for a in compiled_actions)
+        assert len(skipped) >= 1
+
+    def test_skipped_actions_have_details(self):
+        """Skipped actions should carry structured skip info."""
+        db = MagicMock()
+        alert = _make_alert(alert_type="bruteforce", severity="high")
+
+        agent_svc = AgentService(db)
+        recommendation = agent_svc.recommend(alert, language="en")
+
+        compiler = PlanCompiler()
+        _, skipped = compiler.compile(alert=alert, recommendation=recommendation)
+
+        assert len(skipped) >= 1
+        for s in skipped:
+            assert s.title
+            assert s.reason
+            assert s.suggestion

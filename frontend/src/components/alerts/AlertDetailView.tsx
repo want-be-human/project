@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { Alert, EvidenceChain, Investigation, Recommendation, ActionPlan } from '@/lib/api/types';
 import AlertEvidenceSection from '@/components/alerts/AlertEvidenceSection';
+import AlertTraceabilitySection from '@/components/alerts/AlertTraceabilitySection';
 import EvidenceChainView from '@/components/evidence/EvidenceChainView';
 import AgentPanel from '@/components/agent/AgentPanel';
 import ActionBuilder from '@/components/twin/ActionBuilder';
@@ -191,6 +192,9 @@ export default function AlertDetailView({ alert, evidenceChain, onAlertUpdate, o
           </div>
         )}
       </div>
+
+      {/* 告警生成依据 */}
+      <AlertTraceabilitySection alert={alert} />
 
       {/* 证据区 */}
       <AlertEvidenceSection alert={alert} />

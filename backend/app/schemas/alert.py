@@ -64,6 +64,11 @@ class AlertAggregation(BaseModel):
     dimensions: list[str] | None = Field(default=None, description="聚合维度列表")
     composite_score: float | None = Field(default=None, description="复合严重度分数")
     score_breakdown: dict | None = Field(default=None, description="分数分项明细")
+    type_reason: dict | None = Field(default=None, description="类型判定原因（含 reason_codes 和 details）")
+    # 人类可读的可追溯摘要
+    aggregation_summary: str | None = Field(default=None, description="聚合依据摘要（自然语言）")
+    type_summary: str | None = Field(default=None, description="类型判定依据摘要（自然语言）")
+    severity_summary: str | None = Field(default=None, description="严重度来源摘要（自然语言）")
 
 
 class AlertAgent(BaseModel):

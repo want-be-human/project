@@ -15,10 +15,13 @@ class ThreatTechnique(BaseModel):
     """增强流程匹配到的单个 MITRE ATT&CK 技术。"""
     technique_id: str = Field(..., description="MITRE 技术 ID，例如 T1595")
     technique_name: str = Field(..., description="技术名称")
+    technique_name_zh: str | None = Field(default=None, description="技术名称（中文）")
     tactic_id: str = Field(..., description="MITRE 战术 ID，例如 TA0043")
     tactic_name: str = Field(..., description="战术名称")
+    tactic_name_zh: str | None = Field(default=None, description="战术名称（中文）")
     confidence: float = Field(..., ge=0.0, le=1.0, description="匹配置信度")
     description: str = Field(default="", description="简要描述")
+    description_zh: str | None = Field(default=None, description="简要描述（中文）")
     intel_refs: list[str] = Field(default_factory=list, description="参考链接")
 
 
@@ -26,6 +29,7 @@ class ThreatContext(BaseModel):
     """威胁情报增强结果。"""
     techniques: list[ThreatTechnique] = Field(default_factory=list, description="匹配到的 MITRE 技术")
     tactics: list[str] = Field(default_factory=list, description="去重后的战术名称")
+    tactics_zh: list[str] | None = Field(default=None, description="去重后的战术名称（中文）")
     enrichment_confidence: float = Field(default=0.0, ge=0.0, le=1.0, description="整体增强置信度")
     enrichment_source: str = Field(default="local_mitre_v1", description="增强数据来源标识")
 
@@ -65,6 +69,12 @@ class InvestigationSchema(BaseModel):
 
 
 # Recommendation Schema（DOC C C1.5）
+class CompileHint(BaseModel):
+    """编译器提示，提供首选 action_type 映射。"""
+    preferred_action_type: str = Field(..., description="建议的 action_type，例如 'block_ip'")
+    reason: str = Field(default="", description="映射建议的原因")
+
+
 class RecommendedAction(BaseModel):
     """Recommendation 中的单个动作 - DOC C C1.5。"""
     title: str = Field(..., description="动作标题")
@@ -72,6 +82,14 @@ class RecommendedAction(BaseModel):
     steps: list[str] = Field(default_factory=list, description="执行步骤")
     rollback: list[str] = Field(default_factory=list, description="回滚步骤")
     risk: str = Field(default="", description="风险描述")
+    action_intent: Literal["executable", "monitoring", "advisory"] = Field(
+        default="executable",
+        description="动作意图分类：executable 可编译, monitoring 监控类, advisory 建议类",
+    )
+    compile_hint: CompileHint | None = Field(
+        default=None,
+        description="编译器提示，提供首选 action_type 映射",
+    )
 
 
 class RecommendationSchema(BaseModel):

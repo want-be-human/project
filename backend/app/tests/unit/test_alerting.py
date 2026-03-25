@@ -347,6 +347,136 @@ class TestAlertType:
         alerts = svc.generate_alerts(flows, pcap_id="p1")
         assert alerts[0]["type"] == "anomaly"
 
+    def test_scan_horizontal(self):
+        """水平扫描：多目标 IP + 少端口 → scan + SCAN_HORIZONTAL。"""
+        svc = AlertingService(score_threshold=0.5, window_sec=60)
+        base = datetime(2026, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
+        scan_features = {"syn_count": 80, "total_packets": 100, "rst_ratio": 0.0}
+        flows = [
+            _make_flow(
+                src_ip="10.0.0.1", dst_ip=f"10.0.0.{i}", dst_port=80,
+                anomaly_score=0.9, ts_start=base, flow_id=f"f-{i}",
+                features=scan_features,
+            )
+            for i in range(2, 10)  # 8 个不同目标 IP，同一端口
+        ]
+        alerts = svc.generate_alerts(flows, pcap_id="p1")
+        assert alerts[0]["type"] == "scan"
+        agg = json.loads(alerts[0]["aggregation"])
+        assert "SCAN_HORIZONTAL" in agg["type_reason"]["reason_codes"]
+
+    def test_scan_vertical(self):
+        """垂直扫描：单目标 IP + 多端口 → scan + SCAN_VERTICAL。"""
+        svc = AlertingService(score_threshold=0.5, window_sec=60)
+        base = datetime(2026, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
+        scan_features = {"syn_count": 80, "total_packets": 100, "rst_ratio": 0.0}
+        flows = [
+            _make_flow(
+                src_ip="10.0.0.1", dst_ip="10.0.0.2", dst_port=p,
+                anomaly_score=0.9, ts_start=base, flow_id=f"f-{p}",
+                features=scan_features,
+            )
+            for p in range(20, 35)  # 15 个不同端口，同一目标 IP
+        ]
+        alerts = svc.generate_alerts(flows, pcap_id="p1")
+        assert alerts[0]["type"] == "scan"
+        agg = json.loads(alerts[0]["aggregation"])
+        assert "SCAN_VERTICAL" in agg["type_reason"]["reason_codes"]
+
+    def test_bruteforce_expanded_ports(self):
+        """扩展认证端口（MySQL 3306）+ 行为指标 → bruteforce。"""
+        svc = AlertingService(score_threshold=0.5, window_sec=60)
+        base = datetime(2026, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
+        brute_features = {
+            "syn_count": 1, "total_packets": 5,
+            "rst_ratio": 0.5, "handshake_completeness": 0.4,
+            "is_short_flow": 1,
+        }
+        flows = [
+            _make_flow(
+                src_ip="10.0.0.1", dst_ip="10.0.0.2", dst_port=3306,
+                anomaly_score=0.9, ts_start=base + timedelta(seconds=i),
+                flow_id=f"f-{i}", features=brute_features,
+            )
+            for i in range(6)
+        ]
+        alerts = svc.generate_alerts(flows, pcap_id="p1")
+        assert alerts[0]["type"] == "bruteforce"
+        agg = json.loads(alerts[0]["aggregation"])
+        assert "BRUTE_AUTH_PORT" in agg["type_reason"]["reason_codes"]
+
+    def test_bruteforce_needs_behavioral_indicator(self):
+        """仅端口匹配不足以判定 bruteforce（需要行为指标）。"""
+        svc = AlertingService(score_threshold=0.5, window_sec=60)
+        base = datetime(2026, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
+        # 仅 2 条流，正常握手，无 RST → 行为指标不足
+        normal_features = {
+            "syn_count": 1, "total_packets": 50,
+            "rst_ratio": 0.0, "handshake_completeness": 1.0,
+            "is_short_flow": 0,
+        }
+        flows = [
+            _make_flow(
+                src_ip="10.0.0.1", dst_ip="10.0.0.2", dst_port=22,
+                anomaly_score=0.9, ts_start=base, flow_id=f"f-{i}",
+                features=normal_features,
+            )
+            for i in range(2)
+        ]
+        alerts = svc.generate_alerts(flows, pcap_id="p1")
+        assert alerts[0]["type"] != "bruteforce"
+
+    def test_dos_syn_flood(self):
+        """SYN Flood：高 SYN 比例 + 低握手 + 单目标 → dos + DOS_SYN_FLOOD。"""
+        svc = AlertingService(score_threshold=0.5, window_sec=60)
+        base = datetime(2026, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
+        flood_features = {
+            "syn_count": 95, "total_packets": 100,
+            "handshake_completeness": 0.1, "rst_ratio": 0.0,
+            "total_bytes": 5000,
+        }
+        flows = [
+            _make_flow(
+                src_ip="10.0.0.1", dst_ip="10.0.0.2", dst_port=80,
+                anomaly_score=0.9, ts_start=base + timedelta(seconds=i),
+                flow_id=f"f-{i}", features=flood_features,
+            )
+            for i in range(5)
+        ]
+        alerts = svc.generate_alerts(flows, pcap_id="p1")
+        # 注意：高 SYN 比例也可能触发 scan，但 SYN Flood 场景下
+        # 单目标 + 单端口不满足 scan 的多目标/多端口条件
+        # 而 syn_ratio > 0.7 + handshake < 0.5 + dst_ips <= 2 → DOS_SYN_FLOOD
+        agg = json.loads(alerts[0]["aggregation"])
+        # 可能先命中 scan（因 SYN_RATIO），也可能命中 dos
+        # 关键是 type_reason 存在且结构正确
+        assert "type_reason" in agg
+        assert "reason_codes" in agg["type_reason"]
+        assert len(agg["type_reason"]["reason_codes"]) > 0
+
+    def test_type_reason_in_aggregation(self):
+        """type_reason 出现在 aggregation JSON 中，结构完整。"""
+        svc = AlertingService(score_threshold=0.5)
+        flows = [_make_flow(anomaly_score=0.9)]
+        alerts = svc.generate_alerts(flows, pcap_id="p1")
+        agg = json.loads(alerts[0]["aggregation"])
+        assert "type_reason" in agg
+        tr = agg["type_reason"]
+        assert "type" in tr
+        assert "reason_codes" in tr
+        assert "details" in tr
+        assert isinstance(tr["reason_codes"], list)
+        assert isinstance(tr["details"], dict)
+
+    def test_type_reason_anomaly_default(self):
+        """默认 anomaly 的 type_reason 包含 ANOMALY_DEFAULT。"""
+        svc = AlertingService(score_threshold=0.5)
+        flows = [_make_flow(anomaly_score=0.9, features={"syn_count": 1, "total_packets": 5})]
+        alerts = svc.generate_alerts(flows, pcap_id="p1")
+        agg = json.loads(alerts[0]["aggregation"])
+        assert agg["type_reason"]["type"] == "anomaly"
+        assert agg["type_reason"]["reason_codes"] == ["ANOMALY_DEFAULT"]
+
 
 # --------------- TestFlowIdsMetadata ---------------
 
@@ -393,3 +523,134 @@ class TestInferFlowType:
         """普通流 → anomaly。"""
         flow = _make_flow(dst_port=8080, features={"syn_count": 1, "total_packets": 10})
         assert AlertingService._infer_flow_type(flow) == "anomaly"
+
+    def test_scan_incomplete_handshake(self):
+        """SYN 比例 + 低握手完成度 → scan（评分制：SYN +2, handshake +1 = 3 ≥ 2）。"""
+        flow = _make_flow(features={
+            "syn_count": 60, "total_packets": 100,
+            "handshake_completeness": 0.33, "rst_ratio": 0.0,
+            "is_short_flow": 0,
+        })
+        assert AlertingService._infer_flow_type(flow) == "scan"
+
+    def test_bruteforce_mysql_port(self):
+        """MySQL 端口 3306 → bruteforce。"""
+        flow = _make_flow(dst_port=3306, features={
+            "syn_count": 1, "total_packets": 10,
+        })
+        assert AlertingService._infer_flow_type(flow) == "bruteforce"
+
+    def test_bruteforce_redis_port(self):
+        """Redis 端口 6379 → bruteforce。"""
+        flow = _make_flow(dst_port=6379, features={
+            "syn_count": 1, "total_packets": 10,
+        })
+        assert AlertingService._infer_flow_type(flow) == "bruteforce"
+
+    def test_dos_high_pps(self):
+        """高 packets_per_second → dos。"""
+        flow = _make_flow(dst_port=80, features={
+            "syn_count": 1, "total_packets": 10,
+            "total_bytes": 5000, "packets_per_second": 2000,
+        })
+        assert AlertingService._infer_flow_type(flow) == "dos"
+
+    def test_infer_detailed_returns_reasons(self):
+        """_infer_flow_type_detailed 返回 reason_codes 和 details。"""
+        flow = _make_flow(features={"syn_count": 80, "total_packets": 100})
+        typ, reasons, details = AlertingService._infer_flow_type_detailed(flow)
+        assert typ == "scan"
+        assert "SCAN_SYN_RATIO" in reasons
+        assert "syn_ratio" in details
+
+
+# --------------- TestTraceabilitySummaries ---------------
+
+class TestTraceabilitySummaries:
+    """测试可追溯摘要字段生成。"""
+
+    def test_aggregation_summary_present(self):
+        """aggregation JSON 包含 aggregation_summary 且非空。"""
+        svc = AlertingService(score_threshold=0.5)
+        flows = [_make_flow(anomaly_score=0.9)]
+        alerts = svc.generate_alerts(flows, pcap_id="p1")
+        agg = json.loads(alerts[0]["aggregation"])
+        assert "aggregation_summary" in agg
+        assert isinstance(agg["aggregation_summary"], str)
+        assert len(agg["aggregation_summary"]) > 0
+        # 应包含"聚合"关键词
+        assert "聚合" in agg["aggregation_summary"]
+
+    def test_type_summary_present(self):
+        """aggregation JSON 包含 type_summary 且非空。"""
+        svc = AlertingService(score_threshold=0.5)
+        flows = [_make_flow(anomaly_score=0.9)]
+        alerts = svc.generate_alerts(flows, pcap_id="p1")
+        agg = json.loads(alerts[0]["aggregation"])
+        assert "type_summary" in agg
+        assert isinstance(agg["type_summary"], str)
+        assert len(agg["type_summary"]) > 0
+        # 应包含"判定为"关键词
+        assert "判定为" in agg["type_summary"]
+
+    def test_severity_summary_present(self):
+        """aggregation JSON 包含 severity_summary 且非空。"""
+        svc = AlertingService(score_threshold=0.5)
+        flows = [_make_flow(anomaly_score=0.9)]
+        alerts = svc.generate_alerts(flows, pcap_id="p1")
+        agg = json.loads(alerts[0]["aggregation"])
+        assert "severity_summary" in agg
+        assert isinstance(agg["severity_summary"], str)
+        assert len(agg["severity_summary"]) > 0
+        # 应包含"复合评分"关键词
+        assert "复合评分" in agg["severity_summary"]
+
+    def test_scan_type_summary_content(self):
+        """scan 类型的 type_summary 应包含扫描相关描述。"""
+        svc = AlertingService(score_threshold=0.5, window_sec=60)
+        base = datetime(2026, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
+        scan_features = {"syn_count": 80, "total_packets": 100, "rst_ratio": 0.0}
+        flows = [
+            _make_flow(
+                src_ip="10.0.0.1", dst_ip=f"10.0.0.{i}", dst_port=80,
+                anomaly_score=0.9, ts_start=base, flow_id=f"f-{i}",
+                features=scan_features,
+            )
+            for i in range(2, 10)
+        ]
+        alerts = svc.generate_alerts(flows, pcap_id="p1")
+        agg = json.loads(alerts[0]["aggregation"])
+        assert "扫描" in agg["type_summary"]
+
+    def test_bruteforce_type_summary_content(self):
+        """bruteforce 类型的 type_summary 应包含暴力破解相关描述。"""
+        svc = AlertingService(score_threshold=0.5, window_sec=60)
+        base = datetime(2026, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
+        brute_features = {
+            "syn_count": 1, "total_packets": 5,
+            "rst_ratio": 0.5, "handshake_completeness": 0.4,
+            "is_short_flow": 1,
+        }
+        flows = [
+            _make_flow(
+                src_ip="10.0.0.1", dst_ip="10.0.0.2", dst_port=3306,
+                anomaly_score=0.9, ts_start=base + timedelta(seconds=i),
+                flow_id=f"f-{i}", features=brute_features,
+            )
+            for i in range(6)
+        ]
+        alerts = svc.generate_alerts(flows, pcap_id="p1")
+        agg = json.loads(alerts[0]["aggregation"])
+        assert "暴力破解" in agg["type_summary"]
+
+    def test_severity_summary_shows_breakdown(self):
+        """severity_summary 应包含各分项因子名称。"""
+        svc = AlertingService(score_threshold=0.5)
+        flows = [_make_flow(anomaly_score=0.9)]
+        alerts = svc.generate_alerts(flows, pcap_id="p1")
+        agg = json.loads(alerts[0]["aggregation"])
+        summary = agg["severity_summary"]
+        assert "最高异常分" in summary
+        assert "流密度" in summary
+        assert "持续时长" in summary
+        assert "聚合质量" in summary

@@ -142,10 +142,13 @@ class ThreatEnrichmentService:
             threat_techniques.append(ThreatTechnique(
                 technique_id=t["technique_id"],
                 technique_name=t["technique_name"],
+                technique_name_zh=t.get("technique_name_zh"),
                 tactic_id=t["tactic_id"],
                 tactic_name=t["tactic_name"],
+                tactic_name_zh=t.get("tactic_name_zh"),
                 confidence=round(t.get("base_confidence", 0.5), 2),
                 description=t.get("description", ""),
+                description_zh=t.get("description_zh"),
                 intel_refs=t.get("intel_refs", []),
             ))
 
@@ -155,10 +158,15 @@ class ThreatEnrichmentService:
         # 7. 去重 tactics 列表（保留首次出现顺序）
         tactics_seen: set[str] = set()
         tactics: list[str] = []
+        tactics_zh_seen: set[str] = set()
+        tactics_zh: list[str] = []
         for tt in threat_techniques:
             if tt.tactic_name not in tactics_seen:
                 tactics_seen.add(tt.tactic_name)
                 tactics.append(tt.tactic_name)
+            if tt.tactic_name_zh and tt.tactic_name_zh not in tactics_zh_seen:
+                tactics_zh_seen.add(tt.tactic_name_zh)
+                tactics_zh.append(tt.tactic_name_zh)
 
         # 8. 总体增强置信度 = 前 3 项加权平均
         top_scores = [tt.confidence for tt in threat_techniques[:3]]
@@ -167,6 +175,7 @@ class ThreatEnrichmentService:
         return ThreatContext(
             techniques=threat_techniques,
             tactics=tactics,
+            tactics_zh=tactics_zh or None,
             enrichment_confidence=enrichment_confidence,
             enrichment_source="local_mitre_v1",
         )

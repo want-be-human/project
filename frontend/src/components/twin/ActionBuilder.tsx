@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { api } from '@/lib/api';
-import { ActionPlan, Recommendation, CompilePlanResponse, CompiledAction } from '@/lib/api/types';
+import { ActionPlan, Recommendation, CompilePlanResponse, CompiledAction, SkippedAction } from '@/lib/api/types';
 import { Send, AlertTriangle, Zap, ChevronDown, ChevronUp, Shield, Check, X } from 'lucide-react';
 import { useTranslations, useLocale } from 'next-intl';
 
@@ -14,6 +14,7 @@ interface ActionBuilderProps {
 
 export default function ActionBuilder({ alertId, initialRecommendation, onPlanCreated }: ActionBuilderProps) {
   const t = useTranslations('twin');
+  const tc = useTranslations('confidence');
   const locale = useLocale();
 
   // compile-plan 状态
@@ -54,19 +55,14 @@ export default function ActionBuilder({ alertId, initialRecommendation, onPlanCr
   const handleCompilePlan = async () => {
     setCompiling(true);
     setCompileError(null); // 清除上次错误
+    setCompiledResult(null); // 清除上次结果
     try {
       const result = await api.compilePlan(alertId, {
         recommendation_id: initialRecommendation?.id || null,
         language: locale === 'zh' ? 'zh' : 'en',
       });
 
-      // 编译成功但无可执行动作（逻辑空结果）
-      if (!result.plan.actions || result.plan.actions.length === 0) {
-        setCompileError(t('compileErrorEmptyActions'));
-        setCompiledResult(null);
-        return;
-      }
-
+      // 始终保存结果（即使 0 动作），以便展示跳过详情
       setCompiledResult(result);
     } catch (e) {
       console.error(e);
@@ -147,6 +143,51 @@ export default function ActionBuilder({ alertId, initialRecommendation, onPlanCr
         </div>
       )}
 
+      {/* ── 编译完成但无可执行动作（amber 警告面板） ── */}
+      {compiledResult && (!compiledResult.plan.actions || compiledResult.plan.actions.length === 0) && (
+        <div className="mb-4 rounded border border-amber-300 bg-amber-50 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <AlertTriangle className="w-5 h-5 text-amber-600" />
+            <h4 className="text-sm font-semibold text-amber-800">
+              {t('compileEmptyTitle')}
+            </h4>
+          </div>
+
+          {compiledResult.compilation.empty_reason && (
+            <p className="text-sm text-amber-700 mb-3">
+              {compiledResult.compilation.empty_reason}
+            </p>
+          )}
+
+          {compiledResult.compilation.skipped_actions && compiledResult.compilation.skipped_actions.length > 0 && (
+            <div className="space-y-2 mb-3">
+              <p className="text-xs font-semibold text-amber-700">{t('skippedActionsTitle')}</p>
+              {compiledResult.compilation.skipped_actions.map((sa: SkippedAction, idx: number) => (
+                <div key={idx} className="bg-white rounded border border-amber-200 p-2 text-xs">
+                  <div className="font-medium text-gray-800">{sa.title}</div>
+                  <div className="text-gray-500 mt-1">
+                    <span className="font-semibold">{t('skipReason')}:</span> {sa.reason}
+                  </div>
+                  {sa.suggestion && (
+                    <div className="text-amber-600 mt-1">{sa.suggestion}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex gap-2 mt-3">
+            <button
+              onClick={handleCompilePlan}
+              disabled={compiling}
+              className="px-3 py-1.5 text-xs bg-amber-600 hover:bg-amber-700 text-white rounded disabled:opacity-50"
+            >
+              {t('retryCompile')}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── 已编译动作面板（只读展示） ── */}
       {hasCompiled && compiledActions && (
         <div className="mb-6 space-y-3">
@@ -176,8 +217,8 @@ export default function ActionBuilder({ alertId, initialRecommendation, onPlanCr
                   <span className="font-mono text-sm text-blue-600">{action.target.type}:{action.target.value}</span>
                   <div className="ml-auto flex items-center gap-2">
                     {/* 置信度徽标 */}
-                    <span className={`px-2 py-0.5 rounded text-xs font-bold ${cc.bg} ${cc.text}`}>
-                      {t('confidence')}: {(action.confidence * 100).toFixed(0)}%
+                    <span className={`px-2 py-0.5 rounded text-xs font-bold ${cc.bg} ${cc.text}`} title={tc('actionConfidenceTooltip')}>
+                      {tc('actionConfidenceLabel')}: {(action.confidence * 100).toFixed(0)}%
                     </span>
                     <button onClick={() => toggleExpand(idx)} className="text-gray-400 hover:text-gray-600">
                       {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -190,6 +231,7 @@ export default function ActionBuilder({ alertId, initialRecommendation, onPlanCr
                   <div className="w-full bg-gray-200 rounded-full h-1.5">
                     <div className={`${cc.bar} h-1.5 rounded-full transition-all`} style={{ width: `${action.confidence * 100}%` }} />
                   </div>
+                  <p className="text-[10px] text-gray-400 mt-1">{tc('disclaimer')}</p>
                 </div>
 
                 {/* 推理摘要（始终可见） */}

@@ -13,12 +13,14 @@ from app.core.logging import get_logger
 from app.models.alert import Alert
 from app.schemas.agent import RecommendedAction, RecommendationSchema, InvestigationSchema
 from app.schemas.evidence import EvidenceChainSchema
-from app.schemas.twin import PlanAction, ActionTarget, RollbackAction
+from app.schemas.twin import PlanAction, ActionTarget, RollbackAction, SkippedAction
 from app.services.plan_compiler.rules import (
-    match_action_type,
+    match_action_type_with_hint,
     compute_confidence,
     PARAMS_DEFAULTS,
     ROLLBACK_MAPPING,
+    SKIP_REASON_TEMPLATES,
+    SKIP_SUGGESTION_TEMPLATES,
 )
 
 logger = get_logger(__name__)
@@ -29,7 +31,7 @@ class PlanCompiler:
     将 Agent recommendation 动作编译为 Twin 可消费的 PlanAction。
 
     所有编译规则均为确定性、基于关键词且可追溯到证据节点。
-    不可编译动作（如纯监控建议）会被静默跳过，并返回跳过数量。
+    不可编译动作（如纯监控建议）会被记录为 SkippedAction 并返回详情。
     """
 
     def compile(
@@ -39,7 +41,7 @@ class PlanCompiler:
         investigation: InvestigationSchema | None = None,
         evidence_chain: EvidenceChainSchema | None = None,
         language: str = "en",
-    ) -> tuple[list[PlanAction], int]:
+    ) -> tuple[list[PlanAction], list[SkippedAction]]:
         """
         将 recommendation 动作编译为 PlanAction 列表。
 
@@ -50,10 +52,10 @@ class PlanCompiler:
             evidence_chain: 可选的 evidence chain（用于追溯）
 
         返回：
-            元组（编译后的 PlanAction 列表, 被跳过动作数量）
+            元组（编译后的 PlanAction 列表, 被跳过动作的 SkippedAction 列表）
         """
         compiled: list[PlanAction] = []
-        skipped = 0
+        skipped: list[SkippedAction] = []
 
         inv_confidence = (
             investigation.impact.confidence if investigation else None
@@ -74,13 +76,13 @@ class PlanCompiler:
             if result is not None:
                 compiled.append(result)
             else:
-                skipped += 1
+                skipped.append(self._build_skip_info(action, language))
 
         logger.info(
             "Compiled %d actions from recommendation %s (%d skipped)",
             len(compiled),
             recommendation.id,
-            skipped,
+            len(skipped),
         )
         return compiled, skipped
 
@@ -94,9 +96,10 @@ class PlanCompiler:
         language: str,
     ) -> PlanAction | None:
         """编译单个 RecommendedAction；若不可编译则返回 None。"""
-        action_type = match_action_type(action.title)
+        hint_dict = action.compile_hint.model_dump() if action.compile_hint else None
+        action_type, _method = match_action_type_with_hint(action.title, hint_dict)
         if action_type is None:
-            logger.debug("Skipping non-compilable action: %s", action.title)
+            logger.debug("Skipping non-compilable action: %s (method=%s)", action.title, _method)
             return None
 
         target = self._resolve_target(action_type, alert)
@@ -218,4 +221,26 @@ class PlanCompiler:
             f"Compiled from recommendation \"{action.title}\" "
             f"(priority: {action.priority}) for {alert.severity} {alert.type} alert. "
             f"Action: {action_type}. Confidence: {confidence}."
+        )
+
+    def _build_skip_info(self, action: RecommendedAction, language: str) -> SkippedAction:
+        """为被跳过的动作构建结构化跳过信息。"""
+        intent = action.action_intent
+        lang = "zh" if language == "zh" else "en"
+
+        if intent == "monitoring":
+            reason = SKIP_REASON_TEMPLATES["monitoring"][lang]
+            suggestion = SKIP_SUGGESTION_TEMPLATES["monitoring"][lang]
+        elif intent == "advisory":
+            reason = SKIP_REASON_TEMPLATES["advisory"][lang]
+            suggestion = SKIP_SUGGESTION_TEMPLATES["advisory"][lang]
+        else:
+            reason = SKIP_REASON_TEMPLATES["no_match"][lang]
+            suggestion = SKIP_SUGGESTION_TEMPLATES["no_match"][lang]
+
+        return SkippedAction(
+            title=action.title,
+            reason=reason,
+            action_intent=intent,
+            suggestion=suggestion,
         )

@@ -13,10 +13,10 @@ Covers:
 import pytest
 from unittest.mock import MagicMock
 
-from app.schemas.agent import RecommendedAction, RecommendationSchema, InvestigationSchema, InvestigationImpact
+from app.schemas.agent import RecommendedAction, RecommendationSchema, InvestigationSchema, InvestigationImpact, CompileHint
 from app.schemas.evidence import EvidenceChainSchema, EvidenceNode, EvidenceEdge
 from app.services.plan_compiler.compiler import PlanCompiler
-from app.services.plan_compiler.rules import match_action_type, compute_confidence
+from app.services.plan_compiler.rules import match_action_type, match_action_type_with_hint, compute_confidence
 
 
 # ── Helpers ─────────────────────────────────────────────────────
@@ -134,15 +134,24 @@ class TestMatchActionType:
         ("临时封禁源 IP 192.0.2.10", "block_ip"),
         ("Add to firewall blocklist", "block_ip"),
         ("Ban the attacker IP", "block_ip"),
+        ("Deny traffic from attacker", "block_ip"),
+        ("拒绝来自攻击者的流量", "block_ip"),
+        ("Drop malicious packets", "block_ip"),
         ("Isolate compromised host", "isolate_host"),
         ("隔离受感染主机", "isolate_host"),
         ("Quarantine the node", "isolate_host"),
+        ("Contain the compromised host", "isolate_host"),
+        ("遏制受感染主机", "isolate_host"),
+        ("Restrict access to the server", "isolate_host"),
         ("Segment internal network", "segment_subnet"),
         ("网络分段隔离", "segment_subnet"),
+        ("Partition the network segment", "segment_subnet"),
         ("Rate limit traffic to TCP/22", "rate_limit_service"),
         ("对 TCP/22 的流量进行速率限制", "rate_limit_service"),
         ("限流 SSH 服务", "rate_limit_service"),
         ("Throttle incoming connections", "rate_limit_service"),
+        ("Slow down incoming requests", "rate_limit_service"),
+        ("控制速率", "rate_limit_service"),
     ])
     def test_compilable_actions(self, title: str, expected: str):
         assert match_action_type(title) == expected
@@ -155,6 +164,10 @@ class TestMatchActionType:
         "Set up alerts for similar patterns",
         "Enable SSH key-only authentication",
         "启用密钥认证",
+        "Observe network traffic patterns",
+        "追踪可疑连接",
+        "Review firewall logs",
+        "排查异常流量",
     ])
     def test_non_compilable_actions_return_none(self, title: str):
         assert match_action_type(title) is None
@@ -212,7 +225,9 @@ class TestPlanCompiler:
             self.alert, self.recommendation, self.investigation, self.evidence_chain,
         )
         assert len(compiled) == 2
-        assert skipped == 1
+        assert len(skipped) == 1
+        assert skipped[0].title == "Enhance monitoring for related entities"
+        assert skipped[0].action_intent == "executable"  # default for old-style actions
 
     def test_compiled_action_types(self):
         compiled, _ = self.compiler.compile(
@@ -286,7 +301,7 @@ class TestPlanCompiler:
             self.alert, self.recommendation, investigation=None, evidence_chain=None,
         )
         assert len(compiled) == 2
-        assert skipped == 1
+        assert len(skipped) == 1
 
     def test_compile_no_compilable_actions(self):
         """All monitoring actions → 0 compiled."""
@@ -297,11 +312,70 @@ class TestPlanCompiler:
                 steps=["Add to watchlist"],
                 rollback=["Remove from watchlist"],
                 risk="Log overhead",
+                action_intent="monitoring",
             ),
         ])
         compiled, skipped = self.compiler.compile(self.alert, rec)
         assert len(compiled) == 0
-        assert skipped == 1
+        assert len(skipped) == 1
+        assert skipped[0].action_intent == "monitoring"
+        assert skipped[0].reason  # non-empty
+        assert skipped[0].suggestion  # non-empty
+
+
+class TestMatchActionTypeWithHint:
+    """Tests for hint-aware action type matching."""
+
+    def test_hint_overrides_keyword(self):
+        """compile_hint should take priority over keyword matching."""
+        action_type, method = match_action_type_with_hint(
+            "Do something custom for the host",
+            compile_hint={"preferred_action_type": "isolate_host", "reason": "test"},
+        )
+        assert action_type == "isolate_host"
+        assert method == "hint"
+
+    def test_hint_with_invalid_type_falls_back(self):
+        """Invalid hint type should fall back to keyword matching."""
+        action_type, method = match_action_type_with_hint(
+            "Block the attacker",
+            compile_hint={"preferred_action_type": "invalid_type", "reason": "test"},
+        )
+        assert action_type == "block_ip"
+        assert method == "keyword"
+
+    def test_no_hint_uses_keyword(self):
+        action_type, method = match_action_type_with_hint("Block the attacker")
+        assert action_type == "block_ip"
+        assert method == "keyword"
+
+    def test_no_hint_no_keyword_returns_none(self):
+        action_type, method = match_action_type_with_hint("Do something entirely new")
+        assert action_type is None
+        assert method == "none"
+
+    def test_hint_based_compilation(self):
+        """Full compile with hint should produce correct action type."""
+        compiler = PlanCompiler()
+        alert = _make_alert()
+        rec = _make_recommendation(actions=[
+            RecommendedAction(
+                title="Custom action for the host",
+                priority="high",
+                steps=["Custom step"],
+                rollback=["Undo"],
+                risk="Risk",
+                action_intent="executable",
+                compile_hint=CompileHint(
+                    preferred_action_type="isolate_host",
+                    reason="Test hint",
+                ),
+            ),
+        ])
+        compiled, skipped = compiler.compile(alert, rec)
+        assert len(compiled) == 1
+        assert compiled[0].action_type == "isolate_host"
+        assert len(skipped) == 0
 
 
 class TestPlanCompilerTargetResolution:

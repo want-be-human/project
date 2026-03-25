@@ -1,7 +1,7 @@
 'use client';
 
 import { ThreatContext } from '@/lib/api/types';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { ShieldAlert, ExternalLink } from 'lucide-react';
 
 interface ThreatContextCardProps {
@@ -22,8 +22,19 @@ function confidenceBadgeColor(confidence: number): string {
 
 export default function ThreatContextCard({ threatContext }: ThreatContextCardProps) {
   const t = useTranslations('agent');
+  const tc = useTranslations('confidence');
+  const locale = useLocale();
 
   if (!threatContext || threatContext.techniques.length === 0) return null;
+
+  const localized = (zh: string | undefined | null, en: string) => {
+    if (locale === 'zh' && zh) return zh;
+    return en;
+  };
+
+  const displayTactics = locale === 'zh' && threatContext.tactics_zh
+    ? threatContext.tactics_zh
+    : threatContext.tactics;
 
   return (
     <div className="mt-4 border border-rose-200 bg-rose-50/50 rounded-lg overflow-hidden">
@@ -31,23 +42,29 @@ export default function ThreatContextCard({ threatContext }: ThreatContextCardPr
       <div className="flex items-center gap-2 px-4 py-2.5 bg-rose-100/60 border-b border-rose-200">
         <ShieldAlert className="w-4 h-4 text-rose-600" />
         <h4 className="text-xs font-bold text-rose-800 uppercase tracking-wider">{t('threatContext')}</h4>
-        <span className={`ml-auto text-[10px] font-medium px-2 py-0.5 rounded-full ${confidenceBadgeColor(threatContext.enrichment_confidence)}`}>
-          {t('enrichmentConfidence')} {Math.round(threatContext.enrichment_confidence * 100)}%
+        <span
+          className={`ml-auto text-[10px] font-medium px-2 py-0.5 rounded-full ${confidenceBadgeColor(threatContext.enrichment_confidence)}`}
+          title={tc('enrichmentConfidenceTooltip')}
+        >
+          {tc('enrichmentConfidenceLabel')} {Math.round(threatContext.enrichment_confidence * 100)}%
         </span>
       </div>
 
       <div className="p-4 space-y-3">
         {/* Tactics row */}
-        {threatContext.tactics.length > 0 && (
+        {displayTactics.length > 0 && (
           <div>
             <h5 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">{t('tactics')}</h5>
             <div className="flex flex-wrap gap-1.5">
-              {threatContext.tactics.map((tactic) => (
+              {displayTactics.map((tactic, idx) => (
                 <span
-                  key={tactic}
+                  key={idx}
                   className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-rose-100 text-rose-700 border border-rose-200"
                 >
                   {tactic}
+                  {locale === 'zh' && threatContext.tactics[idx] && (
+                    <span className="text-[9px] text-rose-400 ml-1">({threatContext.tactics[idx]})</span>
+                  )}
                 </span>
               ))}
             </div>
@@ -66,11 +83,16 @@ export default function ThreatContextCard({ threatContext }: ThreatContextCardPr
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-[10px] font-mono font-bold shrink-0">{tech.technique_id}</span>
-                    <span className="text-xs font-medium truncate">{tech.technique_name}</span>
+                    <span className="text-xs font-medium truncate">
+                      {localized(tech.technique_name_zh, tech.technique_name)}
+                    </span>
+                    {locale === 'zh' && tech.technique_name_zh && (
+                      <span className="text-[9px] text-gray-400 truncate">{tech.technique_name}</span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/60 border border-current/10">
-                      {tech.tactic_name}
+                      {localized(tech.tactic_name_zh, tech.tactic_name)}
                     </span>
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${confidenceBadgeColor(tech.confidence)}`}>
                       {Math.round(tech.confidence * 100)}%
@@ -78,8 +100,10 @@ export default function ThreatContextCard({ threatContext }: ThreatContextCardPr
                   </div>
                 </div>
 
-                {tech.description && (
-                  <p className="mt-1 text-[11px] opacity-80">{tech.description}</p>
+                {(tech.description || tech.description_zh) && (
+                  <p className="mt-1 text-[11px] opacity-80">
+                    {localized(tech.description_zh, tech.description ?? '')}
+                  </p>
                 )}
 
                 {tech.intel_refs && tech.intel_refs.length > 0 && (
@@ -103,9 +127,10 @@ export default function ThreatContextCard({ threatContext }: ThreatContextCardPr
           </div>
         </div>
 
-        {/* Source footer */}
-        <div className="text-[10px] text-gray-400 pt-1 border-t border-rose-100">
-          {t('enrichmentSource')} {threatContext.enrichment_source}
+        {/* Source footer + disclaimer */}
+        <div className="text-[10px] text-gray-400 pt-1 border-t border-rose-100 space-y-0.5">
+          <div>{t('enrichmentSource')} {threatContext.enrichment_source}</div>
+          <div>{tc('disclaimer')}</div>
         </div>
       </div>
     </div>

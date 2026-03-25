@@ -4,9 +4,12 @@
       {
         "technique_id": "T1595",
         "technique_name": "Active Scanning",
+        "technique_name_zh": "主动扫描",
         "tactic_id": "TA0043",
         "tactic_name": "Reconnaissance",
+        "tactic_name_zh": "侦察",
         "description": "Adversaries may scan victim IP blocks to gather information for targeting. Includes vulnerability scanning and active host enumeration.",
+        "description_zh": "攻击者可能扫描受害者 IP 段以收集目标信息，包括漏洞扫描和主机枚举。",
         "intel_refs": ["https://attack.mitre.org/techniques/T1595/"],
         "severity_hint": "medium",
         "base_confidence": 0.80
@@ -14,9 +17,12 @@
       {
         "technique_id": "T1595.001",
         "technique_name": "Scanning IP Blocks",
+        "technique_name_zh": "扫描 IP 段",
         "tactic_id": "TA0043",
         "tactic_name": "Reconnaissance",
+        "tactic_name_zh": "侦察",
         "description": "Adversaries may scan victim IP blocks to identify potential targets for further operations.",
+        "description_zh": "攻击者可能扫描受害者 IP 段以识别潜在目标，为后续操作做准备。",
         "intel_refs": ["https://attack.mitre.org/techniques/T1595/001/"],
         "severity_hint": "medium",
         "base_confidence": 0.75
@@ -24,9 +30,12 @@
       {
         "technique_id": "T1046",
         "technique_name": "Network Service Discovery",
+        "technique_name_zh": "网络服务发现",
         "tactic_id": "TA0007",
         "tactic_name": "Discovery",
+        "tactic_name_zh": "发现",
         "description": "Adversaries may attempt to get a listing of services running on remote hosts and local network infrastructure devices.",
+        "description_zh": "攻击者可能尝试获取远程主机和本地网络基础设施设备上运行的服务列表。",
         "intel_refs": ["https://attack.mitre.org/techniques/T1046/"],
         "severity_hint": "medium",
         "base_confidence": 0.75
@@ -34,9 +43,12 @@
       {
         "technique_id": "T1018",
         "technique_name": "Remote System Discovery",
+        "technique_name_zh": "远程系统发现",
         "tactic_id": "TA0007",
         "tactic_name": "Discovery",
+        "tactic_name_zh": "发现",
         "description": "Adversaries may attempt to get a listing of other systems by IP address, hostname, or other identifiers on a network.",
+        "description_zh": "攻击者可能尝试通过 IP 地址、主机名或其他标识符获取网络上其他系统的列表。",
         "intel_refs": ["https://attack.mitre.org/techniques/T1018/"],
         "severity_hint": "low",
         "base_confidence": 0.60
@@ -49,9 +61,12 @@
       {
         "technique_id": "T1110",
         "technique_name": "Brute Force",
+        "technique_name_zh": "暴力破解",
         "tactic_id": "TA0006",
         "tactic_name": "Credential Access",
+        "tactic_name_zh": "凭据访问",
         "description": "Adversaries may use brute force techniques to gain access to accounts when passwords are unknown or password hashes are obtained.",
+        "description_zh": "攻击者可能使用暴力破解技术在密码未知或获取密码哈希时尝试访问账户。",
         "intel_refs": ["https://attack.mitre.org/techniques/T1110/"],
         "severity_hint": "high",
         "base_confidence": 0.85
@@ -59,9 +74,12 @@
       {
         "technique_id": "T1110.001",
         "technique_name": "Password Guessing",
+        "technique_name_zh": "密码猜测",
         "tactic_id": "TA0006",
         "tactic_name": "Credential Access",
+        "tactic_name_zh": "凭据访问",
         "description": "Adversaries may guess passwords to attempt access to accounts. Without knowledge of the password, they may systematically guess.",
+        "description_zh": "攻击者可能猜测密码以尝试访问账户，在不知道密码的情况下进行系统性猜测。",
         "intel_refs": ["https://attack.mitre.org/techniques/T1110/001/"],
         "severity_hint": "high",
         "base_confidence": 0.75
@@ -69,9 +87,12 @@
       {
         "technique_id": "T1110.003",
         "technique_name": "Password Spraying",
+        "technique_name_zh": "密码喷洒",
         "tactic_id": "TA0006",
         "tactic_name": "Credential Access",
+        "tactic_name_zh": "凭据访问",
         "description": "Adversaries may use a single or small list of commonly used passwords against many different accounts to attempt to acquire valid credentials.",
+        "description_zh": "攻击者可能使用单个或少量常用密码对多个不同账户进行尝试，以获取有效凭据。",
         "intel_refs": ["https://attack.mitre.org/techniques/T1110/003/"],
         "severity_hint": "high",
         "base_confidence": 0.70
@@ -79,9 +100,12 @@
       {
         "technique_id": "T1078",
         "technique_name": "Valid Accounts",
+        "technique_name_zh": "合法账户利用",
         "tactic_id": "TA0001",
         "tactic_name": "Initial Access",
+        "tactic_name_zh": "初始访问",
         "description": "Adversaries may obtain and abuse credentials of existing accounts as a means of gaining Initial Access.",
+        "description_zh": "攻击者可能获取并滥用现有账户的凭据作为获取初始访问权限的手段。",
         "intel_refs": ["https://attack.mitre.org/techniques/T1078/"],
         "severity_hint": "high",
         "base_confidence": 0.55
@@ -94,9 +118,12 @@
       {
         "technique_id": "T1498",
         "technique_name": "Network Denial of Service",
+        "technique_name_zh": "网络拒绝服务",
         "tactic_id": "TA0040",
         "tactic_name": "Impact",
+        "tactic_name_zh": "影响",
         "description": "Adversaries may perform Network Denial of Service (DoS) attacks to degrade or block the availability of targeted resources.",
+        "description_zh": "攻击者可能执行网络拒绝服务（DoS）攻击以降低或阻断目标资源的可用性。",
         "intel_refs": ["https://attack.mitre.org/techniques/T1498/"],
         "severity_hint": "critical",
         "base_confidence": 0.85
@@ -104,9 +131,12 @@
       {
         "technique_id": "T1498.001",
         "technique_name": "Direct Network Flood",
+        "technique_name_zh": "直接网络洪泛",
         "tactic_id": "TA0040",
         "tactic_name": "Impact",
+        "tactic_name_zh": "影响",
         "description": "Adversaries may attempt to cause a DoS by directly sending a high-volume of network traffic to a target.",
+        "description_zh": "攻击者可能通过直接向目标发送大量网络流量来尝试造成拒绝服务。",
         "intel_refs": ["https://attack.mitre.org/techniques/T1498/001/"],
         "severity_hint": "critical",
         "base_confidence": 0.80
@@ -114,9 +144,12 @@
       {
         "technique_id": "T1499",
         "technique_name": "Endpoint Denial of Service",
+        "technique_name_zh": "端点拒绝服务",
         "tactic_id": "TA0040",
         "tactic_name": "Impact",
+        "tactic_name_zh": "影响",
         "description": "Adversaries may perform Endpoint Denial of Service (DoS) attacks to degrade or block the availability of services to users.",
+        "description_zh": "攻击者可能执行端点拒绝服务（DoS）攻击以降低或阻断用户可用的服务。",
         "intel_refs": ["https://attack.mitre.org/techniques/T1499/"],
         "severity_hint": "high",
         "base_confidence": 0.75
@@ -124,9 +157,12 @@
       {
         "technique_id": "T1499.001",
         "technique_name": "OS Exhaustion Flood",
+        "technique_name_zh": "操作系统资源耗尽洪泛",
         "tactic_id": "TA0040",
         "tactic_name": "Impact",
+        "tactic_name_zh": "影响",
         "description": "Adversaries may launch a DoS attack targeting an endpoint's operating system to exhaust system resources.",
+        "description_zh": "攻击者可能发起针对端点操作系统的 DoS 攻击以耗尽系统资源。",
         "intel_refs": ["https://attack.mitre.org/techniques/T1499/001/"],
         "severity_hint": "high",
         "base_confidence": 0.65
@@ -139,9 +175,12 @@
       {
         "technique_id": "T1041",
         "technique_name": "Exfiltration Over C2 Channel",
+        "technique_name_zh": "通过 C2 通道窃取数据",
         "tactic_id": "TA0010",
         "tactic_name": "Exfiltration",
+        "tactic_name_zh": "数据窃取",
         "description": "Adversaries may steal data by exfiltrating it over an existing command and control channel.",
+        "description_zh": "攻击者可能通过现有的命令与控制通道窃取数据。",
         "intel_refs": ["https://attack.mitre.org/techniques/T1041/"],
         "severity_hint": "critical",
         "base_confidence": 0.80
@@ -149,9 +188,12 @@
       {
         "technique_id": "T1048",
         "technique_name": "Exfiltration Over Alternative Protocol",
+        "technique_name_zh": "通过替代协议窃取数据",
         "tactic_id": "TA0010",
         "tactic_name": "Exfiltration",
+        "tactic_name_zh": "数据窃取",
         "description": "Adversaries may steal data by exfiltrating it over a different protocol than the existing command and control channel.",
+        "description_zh": "攻击者可能通过与现有命令与控制通道不同的协议窃取数据。",
         "intel_refs": ["https://attack.mitre.org/techniques/T1048/"],
         "severity_hint": "critical",
         "base_confidence": 0.70
@@ -159,9 +201,12 @@
       {
         "technique_id": "T1071",
         "technique_name": "Application Layer Protocol",
+        "technique_name_zh": "应用层协议",
         "tactic_id": "TA0011",
         "tactic_name": "Command and Control",
+        "tactic_name_zh": "命令与控制",
         "description": "Adversaries may communicate using application layer protocols to avoid detection by blending in with existing traffic.",
+        "description_zh": "攻击者可能使用应用层协议进行通信，通过混入现有流量来规避检测。",
         "intel_refs": ["https://attack.mitre.org/techniques/T1071/"],
         "severity_hint": "high",
         "base_confidence": 0.60
@@ -169,9 +214,12 @@
       {
         "technique_id": "T1567",
         "technique_name": "Exfiltration Over Web Service",
+        "technique_name_zh": "通过 Web 服务窃取数据",
         "tactic_id": "TA0010",
         "tactic_name": "Exfiltration",
+        "tactic_name_zh": "数据窃取",
         "description": "Adversaries may use an existing, legitimate external web service to exfiltrate data.",
+        "description_zh": "攻击者可能利用现有的合法外部 Web 服务来窃取数据。",
         "intel_refs": ["https://attack.mitre.org/techniques/T1567/"],
         "severity_hint": "high",
         "base_confidence": 0.55
@@ -184,9 +232,12 @@
       {
         "technique_id": "T1071",
         "technique_name": "Application Layer Protocol",
+        "technique_name_zh": "应用层协议",
         "tactic_id": "TA0011",
         "tactic_name": "Command and Control",
+        "tactic_name_zh": "命令与控制",
         "description": "Adversaries may communicate using application layer protocols to avoid detection by blending in with existing traffic.",
+        "description_zh": "攻击者可能使用应用层协议进行通信，通过混入现有流量来规避检测。",
         "intel_refs": ["https://attack.mitre.org/techniques/T1071/"],
         "severity_hint": "medium",
         "base_confidence": 0.50
@@ -194,9 +245,12 @@
       {
         "technique_id": "T1571",
         "technique_name": "Non-Standard Port",
+        "technique_name_zh": "非标准端口",
         "tactic_id": "TA0011",
         "tactic_name": "Command and Control",
+        "tactic_name_zh": "命令与控制",
         "description": "Adversaries may communicate using a protocol and port pairing that are typically not associated.",
+        "description_zh": "攻击者可能使用通常不关联的协议和端口组合进行通信。",
         "intel_refs": ["https://attack.mitre.org/techniques/T1571/"],
         "severity_hint": "medium",
         "base_confidence": 0.45
@@ -204,9 +258,12 @@
       {
         "technique_id": "T1572",
         "technique_name": "Protocol Tunneling",
+        "technique_name_zh": "协议隧道",
         "tactic_id": "TA0011",
         "tactic_name": "Command and Control",
+        "tactic_name_zh": "命令与控制",
         "description": "Adversaries may tunnel network communications to and from a victim system within a separate protocol to avoid detection.",
+        "description_zh": "攻击者可能将与受害系统之间的网络通信封装在另一种协议中以规避检测。",
         "intel_refs": ["https://attack.mitre.org/techniques/T1572/"],
         "severity_hint": "medium",
         "base_confidence": 0.40
@@ -219,9 +276,12 @@
       {
         "technique_id": "T1071",
         "technique_name": "Application Layer Protocol",
+        "technique_name_zh": "应用层协议",
         "tactic_id": "TA0011",
         "tactic_name": "Command and Control",
+        "tactic_name_zh": "命令与控制",
         "description": "Adversaries may communicate using application layer protocols to avoid detection by blending in with existing traffic.",
+        "description_zh": "攻击者可能使用应用层协议进行通信，通过混入现有流量来规避检测。",
         "intel_refs": ["https://attack.mitre.org/techniques/T1071/"],
         "severity_hint": "low",
         "base_confidence": 0.30
