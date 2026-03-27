@@ -327,7 +327,11 @@
     "compileEmptyTitle": "Compilation complete, but no executable actions",
     "skippedActionsTitle": "The following actions were skipped:",
     "skipReason": "Reason",
-    "retryCompile": "Retry Compilation"
+    "retryCompile": "Retry Compilation",
+    "pairDrop": "Pair Reachability Drop",
+    "serviceDrop": "Service Reachability Drop",
+    "subnetDrop": "Subnet Reachability Drop",
+    "riskBreakdown": "Risk Breakdown"
   },
   "topology": {
     "loading": "Loading topology data...",
@@ -402,7 +406,10 @@
     "riskHeatLegend": "Risk Heat",
     "arrowLegend": "Direction arrow (src → dst)",
     "altPathEdge": "Alt path (dry-run)",
-    "locateNode": "Focus camera on node"
+    "locateNode": "Focus camera on node",
+    "pairDrop": "Pair Reachability Drop",
+    "serviceDrop": "Service Reachability Drop",
+    "subnetDrop": "Subnet Reachability Drop"
   },
   "pipeline": {
     "title": "Pipeline",

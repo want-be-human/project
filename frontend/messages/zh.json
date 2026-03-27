@@ -327,7 +327,11 @@
     "compileEmptyTitle": "编译完成，但无可执行动作",
     "skippedActionsTitle": "以下动作被跳过：",
     "skipReason": "原因",
-    "retryCompile": "重新编译"
+    "retryCompile": "重新编译",
+    "pairDrop": "节点对可达性下降",
+    "serviceDrop": "服务可达性下降",
+    "subnetDrop": "子网可达性下降",
+    "riskBreakdown": "风险分解"
   },
   "topology": {
     "loading": "正在加载拓扑数据...",
@@ -402,7 +406,10 @@
     "riskHeatLegend": "风险热力",
     "arrowLegend": "方向箭头 (源 → 目标)",
     "altPathEdge": "替代路径 (推演)",
-    "locateNode": "聚焦到节点"
+    "locateNode": "聚焦到节点",
+    "pairDrop": "节点对可达性下降",
+    "serviceDrop": "服务可达性下降",
+    "subnetDrop": "子网可达性下降"
   },
   "pipeline": {
     "title": "Pipeline",

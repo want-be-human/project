@@ -22,7 +22,7 @@ from app.schemas.pcap import PcapFileSchema, PcapProcessRequest, PcapProcessResp
 from app.services.ingestion.service import IngestionService
 from app.services.parsing.service import ParsingService
 from app.services.features.service import FeaturesService
-from app.services.detection.service import DetectionService
+from app.services.detection.composite import CompositeDetectionService
 from app.services.alerting.service import AlertingService
 from app.models.alert import Alert, alert_flows
 from app.services.pipeline import PipelineTracker, PipelineStage
@@ -109,7 +109,7 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
         if mode == "flows_and_detect":
             if tracker:
                 with tracker.stage(PipelineStage.DETECT) as stg:
-                    det_svc = DetectionService()
+                    det_svc = CompositeDetectionService()
                     stg.record_input({"flow_count": len(flow_dicts)})
                     flow_dicts = det_svc.score_flows(flow_dicts)
                     scored = [f for f in flow_dicts if f.get("anomaly_score") is not None]
@@ -119,7 +119,7 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
                     })
                     stg.record_output({"scored_flow_count": len(scored)})
             else:
-                det_svc = DetectionService()
+                det_svc = CompositeDetectionService()
                 flow_dicts = det_svc.score_flows(flow_dicts)
             pcap.progress = 70
             db.commit()

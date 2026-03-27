@@ -32,6 +32,11 @@ export interface FlowRecord {
   features: Record<string, any>;
   anomaly_score: number | null;
   label?: string | null;
+  // 复合检测扩展字段
+  baseline_score?: number | null;
+  rule_score?: number | null;
+  final_score?: number | null;
+  final_label?: string | null;
 }
 
 export interface Alert {

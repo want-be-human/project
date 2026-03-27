@@ -80,3 +80,21 @@ REACHABILITY_PAIR_SAMPLE_LIMIT: int = 200
 # ── 影响评估置信度 ──
 IMPACT_CONFIDENCE_BASE: float = 0.60
 IMPACT_CONFIDENCE_CAP: float = 0.95
+
+# ══════════════════════════════════════════════════════════════
+# 复合检测架构权重配置
+# ══════════════════════════════════════════════════════════════
+
+# Layer 3 fallback 模式加权融合权重（无监督模型时使用）
+COMPOSITE_DETECTION_WEIGHTS: dict[str, float] = {
+    "baseline_score": 0.50,
+    "rule_score": 0.35,
+    "graph_score": 0.15,
+}
+
+# 复合检测阈值
+COMPOSITE_DETECTION_THRESHOLDS: dict[str, float] = {
+    "anomaly_threshold": 0.7,       # final_score >= 此值视为异常
+    "rule_score_threshold": 0.5,    # rule_score >= 此值视为规则命中
+    "baseline_high": 0.8,           # baseline_score 高异常阈值
+}
