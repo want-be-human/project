@@ -1,6 +1,7 @@
 """
 Twin 相关 Schema：ActionPlan 与 DryRunResult。
 严格遵循 DOC C C2.1 与 C2.2。
+v1.2: 数据驱动影响评估扩展 — 多维可达性、风险分解、结构化解释。
 """
 
 from typing import Any, Literal
@@ -103,24 +104,103 @@ class ActionPlanSchema(BaseModel):
         from_attributes = True
 
 
-# DryRunResult Schema（DOC C C2.2）
+# ══════════════════════════════════════════════════════════════
+# DryRunResult Schema（DOC C C2.2，v1.2 数据驱动扩展）
+# ══════════════════════════════════════════════════════════════
+
 class GraphHash(BaseModel):
     """用于前后对比的图状态哈希。"""
     graph_hash: str = Field(..., description="图状态的 SHA256 哈希")
 
 
+# ── 多维可达性指标 ──────────────────────────────────────────
+
+class PairReachabilityMetric(BaseModel):
+    """源-目标对可达性指标。"""
+    source: str = Field(..., description="源节点 ID")
+    target: str = Field(..., description="目标节点 ID")
+    reachable_before: bool = Field(..., description="变更前是否可达")
+    reachable_after: bool = Field(..., description="变更后是否可达")
+    protocols: list[str] = Field(default_factory=list, description="该对涉及的协议/端口")
+
+
+class ReachabilityDetail(BaseModel):
+    """多维可达性分解。"""
+    pair_reachability_drop: float = Field(..., ge=0.0, le=1.0, description="源-目标对可达性损失率")
+    service_reachability_drop: float = Field(..., ge=0.0, le=1.0, description="按服务维度可达性损失率")
+    subnet_reachability_drop: float = Field(..., ge=0.0, le=1.0, description="按子网对可达性损失率")
+    pair_metrics: list[PairReachabilityMetric] = Field(default_factory=list, description="逐对可达性明细")
+
+
+# ── 逐服务影响明细 ──────────────────────────────────────────
+
+class ImpactedServiceDetail(BaseModel):
+    """单个受影响服务的详细分解。"""
+    service: str = Field(..., description="协议/端口，如 tcp/22")
+    importance_weight: float = Field(..., ge=0.0, le=1.0, description="服务重要性权重")
+    affected_edge_count: int = Field(default=0, description="受影响边数量")
+    affected_node_count: int = Field(default=0, description="受影响节点数量")
+    traffic_proportion: float = Field(default=0.0, ge=0.0, le=1.0, description="该服务在当前时间窗口的流量占比")
+    alert_severity_stats: dict[str, int] = Field(default_factory=dict, description="关联告警严重等级统计")
+    risk_contribution: float = Field(default=0.0, description="对总风险的贡献值")
+
+
+# ── 服务风险分解 ────────────────────────────────────────────
+
+class ServiceRiskBreakdown(BaseModel):
+    """服务中断风险的数据驱动分解。"""
+    weighted_service_score: float = Field(..., ge=0.0, le=1.0, description="加权服务重要性得分")
+    node_impact_score: float = Field(..., ge=0.0, le=1.0, description="节点影响得分")
+    edge_impact_score: float = Field(..., ge=0.0, le=1.0, description="边影响得分")
+    alert_severity_score: float = Field(..., ge=0.0, le=1.0, description="告警严重等级得分")
+    traffic_proportion_score: float = Field(..., ge=0.0, le=1.0, description="流量占比得分")
+    historical_score: float = Field(default=0.0, ge=0.0, le=1.0, description="历史演练/场景得分")
+    composite_risk: float = Field(..., ge=0.0, le=1.0, description="综合风险值")
+
+
+# ── 结构化解释（面向研究报告）──────────────────────────────
+
+class ExplainSection(BaseModel):
+    """结构化解释段落，适用于研究报告引用。"""
+    section: str = Field(..., description="段落类型：affected_objects / impact_reason / metric_changes / risk_judgment / recommended_actions")
+    title: str = Field(..., description="段落标题")
+    content: list[str] = Field(default_factory=list, description="段落内容条目")
+
+
+# ── 影响评估主模型 ──────────────────────────────────────────
+
 class DryRunImpact(BaseModel):
-    """演练影响评估 - DOC C C2.2。"""
+    """演练影响评估 - DOC C C2.2（v1.2 数据驱动扩展）。"""
+
+    # ── 保留原有字段（向后兼容）──
     impacted_nodes_count: int = Field(..., description="受影响节点数量")
     impacted_edges_count: int = Field(..., description="受影响边数量")
-    reachability_drop: float = Field(..., ge=0.0, le=1.0, description="可达性下降幅度")
-    service_disruption_risk: float = Field(..., ge=0.0, le=1.0, description="服务中断风险")
-    affected_services: list[str] = Field(default_factory=list, description="受影响服务")
+    reachability_drop: float = Field(..., ge=0.0, le=1.0, description="可达性下降幅度（兼容旧版，取 pair_reachability_drop）")
+    service_disruption_risk: float = Field(..., ge=0.0, le=1.0, description="服务中断风险（兼容旧版，取 composite_risk）")
+    affected_services: list[str] = Field(default_factory=list, description="受影响服务列表")
     warnings: list[str] = Field(default_factory=list, description="告警提示")
+
+    # ── 新增：对象 ID 集合 ──
+    removed_node_ids: list[str] = Field(default_factory=list, description="被移除的节点 ID")
+    removed_edge_ids: list[str] = Field(default_factory=list, description="被移除的边 ID")
+    affected_node_ids: list[str] = Field(default_factory=list, description="受波及的邻居节点 ID")
+    affected_edge_ids: list[str] = Field(default_factory=list, description="受波及的邻居边 ID")
+
+    # ── 新增：多维可达性 ──
+    reachability_detail: ReachabilityDetail | None = Field(default=None, description="多维可达性分解")
+
+    # ── 新增：逐服务影响明细 ──
+    impacted_services: list[ImpactedServiceDetail] = Field(default_factory=list, description="逐服务影响明细")
+
+    # ── 新增：风险分解 ──
+    service_risk_breakdown: ServiceRiskBreakdown | None = Field(default=None, description="服务风险数据驱动分解")
+
+    # ── 新增：置信度 ──
+    confidence: float = Field(default=0.5, ge=0.0, le=1.0, description="评估置信度")
 
 
 class AlternativePath(BaseModel):
-    """演练过程中发现的替代路径 - DOC C C2.2。"""
+    """演练过程中发现的可能绕行路径 - DOC C C2.2。"""
     source: str = Field(alias="from", description="源节点")  # 'from' 为保留字
     to: str = Field(..., description="目标节点")
     path: list[str] = Field(default_factory=list, description="路径节点列表")
@@ -131,10 +211,10 @@ class AlternativePath(BaseModel):
 
 class DryRunResultSchema(BaseModel):
     """
-    DryRunResult 输出模式 - DOC C C2.2。
+    DryRunResult 输出模式 - DOC C C2.2（v1.2 数据驱动扩展）。
     """
 
-    version: str = Field(default="1.1", description="模式版本")
+    version: str = Field(default="1.2", description="模式版本")
     id: str = Field(..., description="dry-run UUID")
     created_at: str = Field(..., description="ISO8601 UTC 时间戳")
     alert_id: str = Field(..., description="关联告警 ID")
@@ -142,8 +222,9 @@ class DryRunResultSchema(BaseModel):
     before: GraphHash = Field(..., description="变更前图状态")
     after: GraphHash = Field(..., description="变更后图状态")
     impact: DryRunImpact = Field(..., description="影响评估")
-    alternative_paths: list[AlternativePath] = Field(default_factory=list, description="替代路径列表")
-    explain: list[str] = Field(default_factory=list, description="解释文本")
+    alternative_paths: list[AlternativePath] = Field(default_factory=list, description="可能绕行路径列表")
+    explain: list[str] = Field(default_factory=list, description="解释文本（兼容旧版）")
+    explain_sections: list[ExplainSection] = Field(default_factory=list, description="结构化解释段落")
 
     class Config:
         from_attributes = True

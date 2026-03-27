@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { DryRunResult } from '@/lib/api/types';
-import { AlertTriangle, X, Activity, ArrowRight, Loader2 } from 'lucide-react';
+import { AlertTriangle, X, Activity, ArrowRight, Loader2, Shield } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 interface DryRunOverlayProps {
@@ -67,6 +67,11 @@ export default function DryRunOverlay({ result, loading, notFound }: DryRunOverl
             <div className="text-lg font-bold text-red-700">
               {((result.impact.service_disruption_risk || 0) * 100).toFixed(0)}%
             </div>
+            {result.impact.confidence != null && (
+              <div className="mt-0.5 inline-flex items-center gap-0.5 text-[9px] text-gray-500">
+                <Shield className="w-2.5 h-2.5" /> {(result.impact.confidence * 100).toFixed(0)}%
+              </div>
+            )}
           </div>
           <div className="text-center p-2 bg-orange-50 rounded border border-orange-100">
             <div className="text-[10px] text-orange-500 font-bold uppercase">{t('drop')}</div>
@@ -81,6 +86,30 @@ export default function DryRunOverlay({ result, loading, notFound }: DryRunOverl
             </div>
           </div>
         </div>
+
+        {/* 三维可达性（v1.2） */}
+        {result.impact.reachability_detail && (
+          <div className="grid grid-cols-3 gap-1.5 text-[10px]">
+            <div className="text-center p-1 bg-blue-50 rounded border border-blue-100">
+              <div className="text-blue-500 font-bold">{t('pairDrop')}</div>
+              <div className="font-bold text-blue-700">
+                {((result.impact.reachability_detail.pair_reachability_drop || 0) * 100).toFixed(0)}%
+              </div>
+            </div>
+            <div className="text-center p-1 bg-purple-50 rounded border border-purple-100">
+              <div className="text-purple-500 font-bold">{t('serviceDrop')}</div>
+              <div className="font-bold text-purple-700">
+                {((result.impact.reachability_detail.service_reachability_drop || 0) * 100).toFixed(0)}%
+              </div>
+            </div>
+            <div className="text-center p-1 bg-teal-50 rounded border border-teal-100">
+              <div className="text-teal-500 font-bold">{t('subnetDrop')}</div>
+              <div className="font-bold text-teal-700">
+                {((result.impact.reachability_detail.subnet_reachability_drop || 0) * 100).toFixed(0)}%
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Warnings */}
         {result.impact.warnings && result.impact.warnings.length > 0 && (

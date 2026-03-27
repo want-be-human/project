@@ -24,6 +24,9 @@ from app.schemas.twin import (
     PlanAction,
     ActionTarget,
     RollbackAction,
+    ReachabilityDetail,
+    ServiceRiskBreakdown,
+    ExplainSection,
 )
 from app.schemas.topology import (
     GraphResponseSchema,
@@ -290,6 +293,7 @@ class TestTwinDryRun:
         svc = TwinService.__new__(TwinService)
         svc.db = MagicMock()
         svc.db.query.return_value.filter.return_value.first.return_value = _make_alert()
+        svc.db.query.return_value.filter.return_value.order_by.return_value.limit.return_value.all.return_value = []
         svc.topology_service = MagicMock()
         svc.topology_service.build_graph.return_value = _make_simple_graph()
         svc.topology_service.compute_graph_hash.side_effect = ["hash_before", "hash_after"]
@@ -305,6 +309,10 @@ class TestTwinDryRun:
         assert result.impact.impacted_edges_count >= 1
         assert result.impact.reachability_drop > 0
         assert "TCP/22" in result.impact.affected_services
+        # v1.2 新增字段断言
+        assert len(result.impact.removed_edge_ids) >= 1
+        assert result.impact.reachability_detail is not None
+        assert result.impact.service_risk_breakdown is not None
 
     @patch.object(TwinService, "__init__", lambda self, db: None)
     def test_isolate_host_removes_node(self):
@@ -312,6 +320,7 @@ class TestTwinDryRun:
         svc = TwinService.__new__(TwinService)
         svc.db = MagicMock()
         svc.db.query.return_value.filter.return_value.first.return_value = _make_alert()
+        svc.db.query.return_value.filter.return_value.order_by.return_value.limit.return_value.all.return_value = []
         svc.topology_service = MagicMock()
         svc.topology_service.build_graph.return_value = _make_simple_graph()
         svc.topology_service.compute_graph_hash.side_effect = ["h1", "h2"]
@@ -325,6 +334,9 @@ class TestTwinDryRun:
         result = svc.dry_run(plan, _ts(0), _ts(300), "ip")
         assert result.impact.impacted_nodes_count >= 1
         assert result.impact.impacted_edges_count == 2  # both edges touch this node
+        # v1.2 新增字段断言
+        assert "ip:198.51.100.20" in result.impact.removed_node_ids
+        assert len(result.impact.affected_node_ids) > 0  # 邻居节点受波及
 
     @patch.object(TwinService, "__init__", lambda self, db: None)
     def test_rate_limit_marks_affected_services(self):
@@ -332,6 +344,7 @@ class TestTwinDryRun:
         svc = TwinService.__new__(TwinService)
         svc.db = MagicMock()
         svc.db.query.return_value.filter.return_value.first.return_value = _make_alert()
+        svc.db.query.return_value.filter.return_value.order_by.return_value.limit.return_value.all.return_value = []
         svc.topology_service = MagicMock()
         svc.topology_service.build_graph.return_value = _make_simple_graph()
         svc.topology_service.compute_graph_hash.side_effect = ["h1", "h2"]
@@ -349,10 +362,11 @@ class TestTwinDryRun:
 
     @patch.object(TwinService, "__init__", lambda self, db: None)
     def test_dryrun_result_structure(self):
-        """DryRunResult 必须包含 DOC C C2.2 所有字段。"""
+        """DryRunResult 必须包含 DOC C C2.2 v1.2 所有字段。"""
         svc = TwinService.__new__(TwinService)
         svc.db = MagicMock()
         svc.db.query.return_value.filter.return_value.first.return_value = _make_alert()
+        svc.db.query.return_value.filter.return_value.order_by.return_value.limit.return_value.all.return_value = []
         svc.topology_service = MagicMock()
         svc.topology_service.build_graph.return_value = _make_simple_graph()
         svc.topology_service.compute_graph_hash.side_effect = ["sha256:aaa", "sha256:bbb"]
@@ -365,11 +379,12 @@ class TestTwinDryRun:
 
         result = svc.dry_run(plan, _ts(0), _ts(300), "ip")
 
-        assert result.version == "1.1"
+        assert result.version == "1.2"
         assert result.plan_id == "plan-1"
         assert result.alert_id == "alert-1"
         assert result.before.graph_hash.startswith("sha256:")
         assert result.after.graph_hash.startswith("sha256:")
+        # 兼容旧字段
         assert isinstance(result.impact.impacted_nodes_count, int)
         assert isinstance(result.impact.impacted_edges_count, int)
         assert 0.0 <= result.impact.reachability_drop <= 1.0
@@ -379,6 +394,18 @@ class TestTwinDryRun:
         assert isinstance(result.alternative_paths, list)
         assert isinstance(result.explain, list)
         assert len(result.explain) >= 1
+        # v1.2 新增字段
+        assert isinstance(result.impact.removed_node_ids, list)
+        assert isinstance(result.impact.removed_edge_ids, list)
+        assert isinstance(result.impact.affected_node_ids, list)
+        assert isinstance(result.impact.affected_edge_ids, list)
+        assert result.impact.reachability_detail is not None
+        assert isinstance(result.impact.reachability_detail, ReachabilityDetail)
+        assert isinstance(result.impact.impacted_services, list)
+        assert result.impact.service_risk_breakdown is not None
+        assert isinstance(result.impact.service_risk_breakdown, ServiceRiskBreakdown)
+        assert 0.0 <= result.impact.confidence <= 1.0
+        assert isinstance(result.explain_sections, list)
 
     @patch.object(TwinService, "__init__", lambda self, db: None)
     def test_no_action_graph_unchanged(self):
@@ -386,6 +413,7 @@ class TestTwinDryRun:
         svc = TwinService.__new__(TwinService)
         svc.db = MagicMock()
         svc.db.query.return_value.filter.return_value.first.return_value = _make_alert()
+        svc.db.query.return_value.filter.return_value.order_by.return_value.limit.return_value.all.return_value = []
         svc.topology_service = MagicMock()
         svc.topology_service.build_graph.return_value = _make_simple_graph()
         svc.topology_service.compute_graph_hash.side_effect = ["same_hash", "same_hash"]
@@ -396,6 +424,11 @@ class TestTwinDryRun:
         assert result.impact.impacted_nodes_count == 0
         assert result.impact.impacted_edges_count == 0
         assert result.impact.reachability_drop == 0.0
+        # v1.2 新增字段应为空/零
+        assert result.impact.removed_node_ids == []
+        assert result.impact.removed_edge_ids == []
+        assert result.impact.reachability_detail is not None
+        assert result.impact.reachability_detail.pair_reachability_drop == 0.0
 
     @patch.object(TwinService, "__init__", lambda self, db: None)
     def test_dryrun_saves_to_db(self):
@@ -403,6 +436,7 @@ class TestTwinDryRun:
         svc = TwinService.__new__(TwinService)
         svc.db = MagicMock()
         svc.db.query.return_value.filter.return_value.first.return_value = _make_alert()
+        svc.db.query.return_value.filter.return_value.order_by.return_value.limit.return_value.all.return_value = []
         svc.topology_service = MagicMock()
         svc.topology_service.build_graph.return_value = _make_simple_graph()
         svc.topology_service.compute_graph_hash.side_effect = ["h1", "h2"]
@@ -423,6 +457,7 @@ class TestTwinDryRun:
         svc = TwinService.__new__(TwinService)
         svc.db = MagicMock()
         svc.db.query.return_value.filter.return_value.first.return_value = _make_alert()
+        svc.db.query.return_value.filter.return_value.order_by.return_value.limit.return_value.all.return_value = []
         svc.topology_service = MagicMock()
         svc.topology_service.build_graph.return_value = _make_simple_graph()
         svc.topology_service.compute_graph_hash.side_effect = ["h1", "h2"]
@@ -435,6 +470,86 @@ class TestTwinDryRun:
         }])
 
         result = svc.dry_run(plan, _ts(0), _ts(300), "ip")
-        assert result.impact.reachability_drop == 1.0
-        # Should trigger "significant reachability reduction" warning
-        assert any("reachability" in w.lower() or "Significant" in w for w in result.impact.warnings)
+        assert result.impact.reachability_drop > 0
+        # 应触发可达性下降告警
+        assert any("可达性" in w or "reachability" in w.lower() for w in result.impact.warnings)
+
+    @patch.object(TwinService, "__init__", lambda self, db: None)
+    def test_explain_sections_structure(self):
+        """explain_sections 应包含 5 个结构化段落。"""
+        svc = TwinService.__new__(TwinService)
+        svc.db = MagicMock()
+        svc.db.query.return_value.filter.return_value.first.return_value = _make_alert()
+        svc.db.query.return_value.filter.return_value.order_by.return_value.limit.return_value.all.return_value = []
+        svc.topology_service = MagicMock()
+        svc.topology_service.build_graph.return_value = _make_simple_graph()
+        svc.topology_service.compute_graph_hash.side_effect = ["h1", "h2"]
+
+        plan = self._make_plan([{
+            "action_type": "block_ip",
+            "target": {"type": "ip", "value": "192.0.2.10"},
+            "params": {},
+        }])
+
+        result = svc.dry_run(plan, _ts(0), _ts(300), "ip")
+
+        assert len(result.explain_sections) == 5
+        section_types = {s.section for s in result.explain_sections}
+        assert section_types == {
+            "affected_objects", "impact_reason", "metric_changes",
+            "risk_judgment", "recommended_actions",
+        }
+        for s in result.explain_sections:
+            assert isinstance(s, ExplainSection)
+            assert s.title
+            assert isinstance(s.content, list)
+
+    @patch.object(TwinService, "__init__", lambda self, db: None)
+    def test_confidence_range(self):
+        """confidence 应在 [0, IMPACT_CONFIDENCE_CAP] 范围内。"""
+        from app.core.scoring_policy import IMPACT_CONFIDENCE_CAP
+
+        svc = TwinService.__new__(TwinService)
+        svc.db = MagicMock()
+        svc.db.query.return_value.filter.return_value.first.return_value = _make_alert()
+        svc.db.query.return_value.filter.return_value.order_by.return_value.limit.return_value.all.return_value = []
+        svc.topology_service = MagicMock()
+        svc.topology_service.build_graph.return_value = _make_simple_graph()
+        svc.topology_service.compute_graph_hash.side_effect = ["h1", "h2"]
+
+        plan = self._make_plan([{
+            "action_type": "block_ip",
+            "target": {"type": "ip", "value": "192.0.2.10"},
+            "params": {},
+        }])
+
+        result = svc.dry_run(plan, _ts(0), _ts(300), "ip")
+        assert 0.0 <= result.impact.confidence <= IMPACT_CONFIDENCE_CAP
+
+    @patch.object(TwinService, "__init__", lambda self, db: None)
+    def test_impacted_services_detail(self):
+        """impacted_services 应包含正确的服务分解。"""
+        svc = TwinService.__new__(TwinService)
+        svc.db = MagicMock()
+        svc.db.query.return_value.filter.return_value.first.return_value = _make_alert()
+        svc.db.query.return_value.filter.return_value.order_by.return_value.limit.return_value.all.return_value = []
+        svc.topology_service = MagicMock()
+        svc.topology_service.build_graph.return_value = _make_simple_graph()
+        svc.topology_service.compute_graph_hash.side_effect = ["h1", "h2"]
+
+        plan = self._make_plan([{
+            "action_type": "block_ip",
+            "target": {"type": "ip", "value": "192.0.2.10"},
+            "params": {},
+        }])
+
+        result = svc.dry_run(plan, _ts(0), _ts(300), "ip")
+
+        # block_ip 192.0.2.10 影响 tcp/22 服务
+        services = result.impact.impacted_services
+        assert len(services) >= 1
+        svc_names = [s.service for s in services]
+        assert "TCP/22" in svc_names
+        for s in services:
+            assert s.importance_weight > 0
+            assert 0.0 <= s.traffic_proportion <= 1.0

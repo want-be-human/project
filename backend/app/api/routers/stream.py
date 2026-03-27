@@ -191,10 +191,13 @@ async def broadcast_alert_updated(alert_id: str, status: str):
     await bus.publish(make_event(ALERT_UPDATED, {"alert_id": alert_id, "status": status}))
 
 
-async def broadcast_dryrun_created(dry_run_id: str, alert_id: str, risk: float):
+async def broadcast_dryrun_created(dry_run_id: str, alert_id: str, risk: float, confidence: float = 0.5):
     """广播 dry-run 创建事件。"""
     bus = get_event_bus()
-    await bus.publish(make_event(TWIN_DRYRUN_CREATED, {"dry_run_id": dry_run_id, "alert_id": alert_id, "risk": risk}))
+    await bus.publish(make_event(TWIN_DRYRUN_CREATED, {
+        "dry_run_id": dry_run_id, "alert_id": alert_id,
+        "risk": risk, "confidence": confidence,
+    }))
 
 
 async def broadcast_scenario_done(scenario_id: str, status: str):

@@ -94,7 +94,8 @@ async def execute_dry_run(
     try:
         from app.api.routers.stream import broadcast_dryrun_created
         risk = result.impact.service_disruption_risk
-        asyncio.create_task(broadcast_dryrun_created(result.id, result.alert_id, risk))
+        confidence = result.impact.confidence
+        asyncio.create_task(broadcast_dryrun_created(result.id, result.alert_id, risk, confidence))
     except Exception:
         pass  # WS 失败不应影响主请求
 

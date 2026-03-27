@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { wsClient } from '@/lib/ws';
 import { DryRunResult } from '@/lib/api/types';
-import { Play, AlertTriangle, ArrowRight, Activity, Map, ExternalLink, RefreshCw } from 'lucide-react';
+import { Play, AlertTriangle, ArrowRight, Activity, Map, ExternalLink, RefreshCw, ChevronDown, ChevronUp, Shield } from 'lucide-react';
 import clsx from 'clsx';
 import { useTranslations } from 'next-intl';
 
@@ -28,6 +28,8 @@ export default function DryRunPanel({ alertId, planId, onDryRunCompleted }: DryR
   const [result, setResult] = useState<DryRunResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [showServiceDetail, setShowServiceDetail] = useState(false);
+  const [showRiskBreakdown, setShowRiskBreakdown] = useState(false);
   const processedDryRunIds = useRef<Set<string>>(new Set());
 
   // 订阅 twin.dryrun.created 的 WebSocket 事件
@@ -119,6 +121,11 @@ export default function DryRunPanel({ alertId, planId, onDryRunCompleted }: DryR
                 <div className="text-2xl font-bold text-red-700">
                   {((result.impact.service_disruption_risk || 0) * 100).toFixed(0)}%
                 </div>
+                {result.impact.confidence != null && (
+                  <div className="mt-1 inline-flex items-center gap-1 text-[10px] text-gray-500 bg-gray-100 rounded px-1.5 py-0.5">
+                    <Shield className="w-3 h-3" /> {t('confidence')}: {(result.impact.confidence * 100).toFixed(0)}%
+                  </div>
+                )}
               </div>
               <div className="p-3 bg-orange-50 rounded border border-orange-100 text-center">
                 <div className="text-xs text-orange-600 uppercase font-bold tracking-wider mb-1">{t('reachabilityDrop')}</div>
@@ -133,7 +140,7 @@ export default function DryRunPanel({ alertId, planId, onDryRunCompleted }: DryR
                 </div>
               </div>
               <div className="p-3 bg-gray-50 rounded border border-gray-100 flex items-center justify-center">
-                 <button 
+                 <button
                   onClick={handleOpenTopology}
                   className="flex flex-col items-center text-indigo-600 hover:text-indigo-800 transition-colors"
                 >
@@ -142,6 +149,105 @@ export default function DryRunPanel({ alertId, planId, onDryRunCompleted }: DryR
                 </button>
               </div>
             </div>
+
+            {/* 多维可达性指标（v1.2） */}
+            {result.impact.reachability_detail && (
+              <div className="grid grid-cols-3 gap-3">
+                <div className="p-2 bg-blue-50 rounded border border-blue-100 text-center">
+                  <div className="text-[10px] text-blue-500 font-bold uppercase">{t('pairDrop')}</div>
+                  <div className="text-lg font-bold text-blue-700">
+                    {((result.impact.reachability_detail.pair_reachability_drop || 0) * 100).toFixed(0)}%
+                  </div>
+                </div>
+                <div className="p-2 bg-purple-50 rounded border border-purple-100 text-center">
+                  <div className="text-[10px] text-purple-500 font-bold uppercase">{t('serviceDrop')}</div>
+                  <div className="text-lg font-bold text-purple-700">
+                    {((result.impact.reachability_detail.service_reachability_drop || 0) * 100).toFixed(0)}%
+                  </div>
+                </div>
+                <div className="p-2 bg-teal-50 rounded border border-teal-100 text-center">
+                  <div className="text-[10px] text-teal-500 font-bold uppercase">{t('subnetDrop')}</div>
+                  <div className="text-lg font-bold text-teal-700">
+                    {((result.impact.reachability_detail.subnet_reachability_drop || 0) * 100).toFixed(0)}%
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 服务影响明细（v1.2 可折叠） */}
+            {result.impact.impacted_services && result.impact.impacted_services.length > 0 && (
+              <div className="border border-gray-200 rounded">
+                <button
+                  onClick={() => setShowServiceDetail(!showServiceDetail)}
+                  className="w-full flex items-center justify-between px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                >
+                  <span>{t('serviceImpactDetails')}</span>
+                  {showServiceDetail ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+                {showServiceDetail && (
+                  <div className="px-3 pb-3">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-gray-500 border-b">
+                          <th className="text-left py-1">{t('service')}</th>
+                          <th className="text-right py-1">{t('importance')}</th>
+                          <th className="text-right py-1">{t('edges')}</th>
+                          <th className="text-right py-1">{t('traffic')}</th>
+                          <th className="text-right py-1">{t('riskContrib')}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {result.impact.impacted_services.map((svc, i) => (
+                          <tr key={i} className="border-b border-gray-100">
+                            <td className="py-1 font-mono">{svc.service}</td>
+                            <td className="text-right py-1">{(svc.importance_weight * 100).toFixed(0)}%</td>
+                            <td className="text-right py-1">{svc.affected_edge_count}</td>
+                            <td className="text-right py-1">{(svc.traffic_proportion * 100).toFixed(0)}%</td>
+                            <td className="text-right py-1">{(svc.risk_contribution * 100).toFixed(0)}%</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 风险分解（v1.2 可折叠） */}
+            {result.impact.service_risk_breakdown && (
+              <div className="border border-gray-200 rounded">
+                <button
+                  onClick={() => setShowRiskBreakdown(!showRiskBreakdown)}
+                  className="w-full flex items-center justify-between px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                >
+                  <span>{t('riskBreakdown')}</span>
+                  {showRiskBreakdown ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+                {showRiskBreakdown && (
+                  <div className="px-3 pb-3 space-y-2">
+                    {[
+                      { label: t('weightedService'), value: result.impact.service_risk_breakdown.weighted_service_score },
+                      { label: t('nodeImpact'), value: result.impact.service_risk_breakdown.node_impact_score },
+                      { label: t('edgeImpact'), value: result.impact.service_risk_breakdown.edge_impact_score },
+                      { label: t('alertSeverity'), value: result.impact.service_risk_breakdown.alert_severity_score },
+                      { label: t('trafficProportion'), value: result.impact.service_risk_breakdown.traffic_proportion_score },
+                      { label: t('historical'), value: result.impact.service_risk_breakdown.historical_score },
+                    ].map((item, i) => (
+                      <div key={i} className="flex items-center gap-2 text-xs">
+                        <span className="w-28 text-gray-600 shrink-0">{item.label}</span>
+                        <div className="flex-1 bg-gray-100 rounded-full h-2">
+                          <div
+                            className="bg-indigo-500 h-2 rounded-full"
+                            style={{ width: `${(item.value * 100).toFixed(0)}%` }}
+                          />
+                        </div>
+                        <span className="w-10 text-right text-gray-700 font-mono">{(item.value * 100).toFixed(0)}%</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Warnings */}
             {result.impact.warnings && result.impact.warnings.length > 0 && (
@@ -157,8 +263,23 @@ export default function DryRunPanel({ alertId, planId, onDryRunCompleted }: DryR
               </div>
             )}
 
-            {/* Explanations */}
-             {result.explain && result.explain.length > 0 && (
+            {/* Explanations — 优先使用结构化段落，回退到旧版列表 */}
+            {result.explain_sections && result.explain_sections.length > 0 ? (
+              <div className="space-y-3">
+                {result.explain_sections.map((sec, i) => (
+                  <div key={i}>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-1">{sec.title}</h4>
+                    <ul className="space-y-0.5 text-sm text-gray-600">
+                      {sec.content.map((txt, j) => (
+                        <li key={j} className="flex gap-2">
+                          <span className="text-indigo-400">•</span> {txt}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            ) : result.explain && result.explain.length > 0 ? (
                <div>
                   <h4 className="text-sm font-semibold text-gray-700 mb-2">{t('analysis')}</h4>
                   <ul className="space-y-1 text-sm text-gray-600">
@@ -169,7 +290,7 @@ export default function DryRunPanel({ alertId, planId, onDryRunCompleted }: DryR
                      ))}
                   </ul>
                </div>
-             )}
+            ) : null}
 
             {/* Alternative Paths */}
             {result.alternative_paths && result.alternative_paths.length > 0 && (

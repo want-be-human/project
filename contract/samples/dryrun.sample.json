@@ -1,5 +1,5 @@
 {
-  "version": "1.1",
+  "version": "1.2",
   "id": "f6a7b8c9-d0e1-2345-f012-678901234567",
   "created_at": "2026-01-31T10:55:00Z",
   "alert_id": "b2c3d4e5-f6a7-8901-bcde-f23456789012",
@@ -11,15 +11,77 @@
     "graph_hash": "sha256:def456789012345678901234567890123456789012345678901234abcdef1234"
   },
   "impact": {
-    "impacted_nodes_count": 2,
+    "impacted_nodes_count": 1,
     "impacted_edges_count": 3,
-    "reachability_drop": 0.18,
-    "service_disruption_risk": 0.62,
+    "reachability_drop": 0.33,
+    "service_disruption_risk": 0.72,
     "affected_services": ["tcp/22", "tcp/443"],
     "warnings": [
-      "May isolate internal admin host 198.51.100.20",
-      "Blocking 192.0.2.10 affects 3 active connections"
-    ]
+      "关键服务受影响: 2 个",
+      "子网可达性显著下降: 40%"
+    ],
+    "removed_node_ids": ["ip:192.0.2.10"],
+    "removed_edge_ids": ["e1", "e3", "e5"],
+    "affected_node_ids": ["ip:198.51.100.20", "ip:10.0.0.1"],
+    "affected_edge_ids": ["e2", "e4"],
+    "reachability_detail": {
+      "pair_reachability_drop": 0.33,
+      "service_reachability_drop": 0.50,
+      "subnet_reachability_drop": 0.40,
+      "pair_metrics": [
+        {
+          "source": "ip:192.0.2.10",
+          "target": "ip:198.51.100.20",
+          "reachable_before": true,
+          "reachable_after": false,
+          "protocols": ["tcp/22"]
+        },
+        {
+          "source": "ip:192.0.2.10",
+          "target": "ip:203.0.113.5",
+          "reachable_before": true,
+          "reachable_after": false,
+          "protocols": ["tcp/443"]
+        },
+        {
+          "source": "ip:198.51.100.20",
+          "target": "ip:203.0.113.5",
+          "reachable_before": true,
+          "reachable_after": true,
+          "protocols": ["tcp/443"]
+        }
+      ]
+    },
+    "impacted_services": [
+      {
+        "service": "tcp/22",
+        "importance_weight": 0.85,
+        "affected_edge_count": 1,
+        "affected_node_count": 2,
+        "traffic_proportion": 0.45,
+        "alert_severity_stats": { "high": 1 },
+        "risk_contribution": 0.38
+      },
+      {
+        "service": "tcp/443",
+        "importance_weight": 0.90,
+        "affected_edge_count": 2,
+        "affected_node_count": 2,
+        "traffic_proportion": 0.35,
+        "alert_severity_stats": {},
+        "risk_contribution": 0.34
+      }
+    ],
+    "service_risk_breakdown": {
+      "weighted_service_score": 0.88,
+      "node_impact_score": 0.33,
+      "edge_impact_score": 0.43,
+      "alert_severity_score": 0.80,
+      "traffic_proportion_score": 0.80,
+      "historical_score": 0.0,
+      "composite_risk": 0.72
+    },
+    "confidence": 0.68
   },
   "alternative_paths": [
     {
@@ -29,8 +91,66 @@
     }
   ],
   "explain": [
-    "Blocking ip:192.0.2.10 removes 2 edges from the graph",
-    "Reachability reduced for 18% of nodes in affected subnet",
-    "Alternative path exists via gateway 10.0.0.1 for critical traffic"
+    "被移除节点: ip:192.0.2.10",
+    "被移除边: e1, e3, e5（涉及 tcp/22, tcp/443）",
+    "受波及邻居节点: ip:198.51.100.20, ip:10.0.0.1",
+    "封锁 IP 192.0.2.10 移除了该节点的所有出入边",
+    "源-目标对可达性: 100% → 66.7%（下降 33.3%）",
+    "服务可达性下降: 50.0%",
+    "子网可达性下降: 40.0%",
+    "综合风险评分 0.72（高风险），置信度 0.68",
+    "主要风险因素: 关键服务权重 (0.88), 告警严重度 (0.80)",
+    "历史数据不足，置信度受限",
+    "建议在执行前验证替代访问路径可用性",
+    "考虑对 tcp/22 服务配置临时访问白名单",
+    "考虑对 tcp/443 服务配置临时访问白名单",
+    "建议在低流量时段执行该操作以降低影响"
+  ],
+  "explain_sections": [
+    {
+      "section": "affected_objects",
+      "title": "受影响对象",
+      "content": [
+        "被移除节点: ip:192.0.2.10",
+        "被移除边: e1, e3, e5（涉及 tcp/22, tcp/443）",
+        "受波及邻居节点: ip:198.51.100.20, ip:10.0.0.1"
+      ]
+    },
+    {
+      "section": "impact_reason",
+      "title": "影响原因",
+      "content": [
+        "封锁 IP 192.0.2.10 移除了该节点的所有出入边",
+        "tcp/22 服务的所有可达路径均经过该节点，导致服务完全中断"
+      ]
+    },
+    {
+      "section": "metric_changes",
+      "title": "指标变化",
+      "content": [
+        "源-目标对可达性: 100% → 66.7%（下降 33.3%）",
+        "服务可达性下降: 50.0%",
+        "子网可达性下降: 40.0%"
+      ]
+    },
+    {
+      "section": "risk_judgment",
+      "title": "风险判断",
+      "content": [
+        "综合风险评分 0.72（高风险），置信度 0.68",
+        "主要风险因素: 关键服务权重 (0.88), 告警严重度 (0.80)",
+        "历史数据不足，置信度受限"
+      ]
+    },
+    {
+      "section": "recommended_actions",
+      "title": "建议措施",
+      "content": [
+        "建议在执行前验证替代访问路径可用性",
+        "考虑对 tcp/22 服务配置临时访问白名单",
+        "考虑对 tcp/443 服务配置临时访问白名单",
+        "建议在低流量时段执行该操作以降低影响"
+      ]
+    }
   ]
 }

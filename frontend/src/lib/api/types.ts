@@ -244,6 +244,49 @@ export interface CompilePlanResponse {
     };
 }
 
+// ── Dry-Run 多维可达性与风险分解类型（v1.2）──
+
+export interface PairReachabilityMetric {
+  source: string;
+  target: string;
+  reachable_before: boolean;
+  reachable_after: boolean;
+  protocols: string[];
+}
+
+export interface ReachabilityDetail {
+  pair_reachability_drop: number;
+  service_reachability_drop: number;
+  subnet_reachability_drop: number;
+  pair_metrics: PairReachabilityMetric[];
+}
+
+export interface ImpactedServiceDetail {
+  service: string;
+  importance_weight: number;
+  affected_edge_count: number;
+  affected_node_count: number;
+  traffic_proportion: number;
+  alert_severity_stats: Record<string, number>;
+  risk_contribution: number;
+}
+
+export interface ServiceRiskBreakdown {
+  weighted_service_score: number;
+  node_impact_score: number;
+  edge_impact_score: number;
+  alert_severity_score: number;
+  traffic_proportion_score: number;
+  historical_score: number;
+  composite_risk: number;
+}
+
+export interface ExplainSection {
+  section: string;
+  title: string;
+  content: string[];
+}
+
 export interface DryRunResult {
     version?: string;
     id: string;
@@ -252,9 +295,20 @@ export interface DryRunResult {
     plan_id: string;
     impact: {
         impacted_nodes_count?: number;
+        impacted_edges_count?: number;
         reachability_drop?: number;
         service_disruption_risk?: number;
+        affected_services?: string[];
         warnings?: string[];
+        // v1.2 新增字段
+        removed_node_ids?: string[];
+        removed_edge_ids?: string[];
+        affected_node_ids?: string[];
+        affected_edge_ids?: string[];
+        reachability_detail?: ReachabilityDetail;
+        impacted_services?: ImpactedServiceDetail[];
+        service_risk_breakdown?: ServiceRiskBreakdown;
+        confidence?: number;
         /** 节点级风险分值变化：nodeId → 执行动作后的新风险值 */
         node_risk_deltas?: Record<string, number>;
         /** 边级权重变化：edgeId → 执行动作后的新权重 */
@@ -267,6 +321,7 @@ export interface DryRunResult {
         path: string[];
     }>;
     explain?: string[];
+    explain_sections?: ExplainSection[];
 }
 
 export interface Scenario {
