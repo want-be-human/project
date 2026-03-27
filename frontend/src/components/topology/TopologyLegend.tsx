@@ -13,6 +13,8 @@ const NODE_COLORS = [
   { color: '#eab308', labelKey: 'mediumRisk' },
   { color: '#6ee7b7', labelKey: 'minimalRisk' },
   { color: '#ef4444', labelKey: 'highlighted' },
+  { color: '#dc2626', labelKey: 'removedNode' },
+  { color: '#f59e0b', labelKey: 'affectedNode' },
 ];
 
 const EDGE_COLORS = [
@@ -20,6 +22,8 @@ const EDGE_COLORS = [
   { color: '#f97316', labelKey: 'edgeWithAlerts' },
   { color: '#9ca3af', labelKey: 'normalEdge' },
   { color: '#22c55e', labelKey: 'altPathEdge', dashed: true },
+  { color: '#dc2626', labelKey: 'removedEdge', dashed: true },
+  { color: '#f59e0b', labelKey: 'affectedEdge', dashed: true },
 ];
 
 export default function TopologyLegend() {

@@ -9,19 +9,31 @@ interface SideInspectorProps {
   selectedNode: GraphNode | null;
   selectedEdge: GraphEdge | null;
   dryRunResult?: DryRunResult | null;
-  impactedNodeIds?: Set<string>;
-  impactedEdgeIds?: Set<string>;
+  removedNodeIds?: Set<string>;
+  removedEdgeIds?: Set<string>;
+  affectedNodeIds?: Set<string>;
+  affectedEdgeIds?: Set<string>;
   /** 应用 dry-run 增量前的原始风险/权重值 */
   originalValues?: { nodeRisks: Record<string, number>; edgeWeights: Record<string, number> };
   onClose: () => void;
   onLocateNode?: (nodeId: string) => void;
 }
 
-export default function SideInspector({ selectedNode, selectedEdge, dryRunResult, impactedNodeIds, impactedEdgeIds, originalValues, onClose, onLocateNode }: SideInspectorProps) {
+export default function SideInspector({
+  selectedNode, selectedEdge, dryRunResult,
+  removedNodeIds, removedEdgeIds, affectedNodeIds, affectedEdgeIds,
+  originalValues, onClose, onLocateNode,
+}: SideInspectorProps) {
   const t = useTranslations('topology');
   const hasSelection = selectedNode || selectedEdge;
-  const nodeIsImpacted = selectedNode && impactedNodeIds?.has(selectedNode.id);
-  const edgeIsImpacted = selectedEdge && impactedEdgeIds?.has(selectedEdge.id);
+
+  // 节点状态判定
+  const nodeIsRemoved = selectedNode && removedNodeIds?.has(selectedNode.id);
+  const nodeIsAffected = selectedNode && affectedNodeIds?.has(selectedNode.id);
+
+  // 边状态判定
+  const edgeIsRemoved = selectedEdge && removedEdgeIds?.has(selectedEdge.id);
+  const edgeIsAffected = selectedEdge && affectedEdgeIds?.has(selectedEdge.id);
 
   return (
     <div className="w-80 border-l border-gray-200 bg-white flex flex-col overflow-hidden">
@@ -82,11 +94,23 @@ export default function SideInspector({ selectedNode, selectedEdge, dryRunResult
               )}
             </div>
 
-            {/* Dry-run 影响信息 */}
-            {nodeIsImpacted && dryRunResult && (
+            {/* 被移除节点：红色面板 */}
+            {nodeIsRemoved && dryRunResult && (
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex items-center gap-1.5 text-red-800 font-semibold text-xs mb-2">
+                  <AlertTriangle className="w-3.5 h-3.5" /> {t('nodeRemoved')}
+                </div>
+                <div className="text-xs text-red-900">
+                  {t('nodeRemovedDesc')}
+                </div>
+              </div>
+            )}
+
+            {/* 受波及节点：橙色面板 */}
+            {nodeIsAffected && !nodeIsRemoved && dryRunResult && (
               <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                 <div className="flex items-center gap-1.5 text-amber-800 font-semibold text-xs mb-2">
-                  <AlertTriangle className="w-3.5 h-3.5" /> {t('dryRunImpact')}
+                  <AlertTriangle className="w-3.5 h-3.5" /> {t('nodeAffected')}
                 </div>
                 <div className="space-y-1 text-xs text-amber-900">
                   <div>{t('reachabilityDrop')} <b>{((dryRunResult.impact.reachability_drop || 0) * 100).toFixed(0)}%</b></div>
@@ -181,15 +205,25 @@ export default function SideInspector({ selectedNode, selectedEdge, dryRunResult
               <div className="text-xs text-gray-400 italic">{t('noAlerts')}</div>
             )}
 
-            {/* Dry-run 影响信息 */}
-            {edgeIsImpacted && dryRunResult && (
+            {/* 被移除边：红色面板 */}
+            {edgeIsRemoved && dryRunResult && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex items-center gap-1.5 text-red-800 font-semibold text-xs mb-2">
+                  <AlertTriangle className="w-3.5 h-3.5" /> {t('edgeRemoved')}
+                </div>
+                <div className="text-xs text-red-900">
+                  {t('edgeRemovedDesc')}
+                </div>
+              </div>
+            )}
+
+            {/* 受波及边：橙色面板 */}
+            {edgeIsAffected && !edgeIsRemoved && dryRunResult && (
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
                 <div className="flex items-center gap-1.5 text-amber-800 font-semibold text-xs mb-2">
-                  <AlertTriangle className="w-3.5 h-3.5" /> {t('dryRunImpact')}
+                  <AlertTriangle className="w-3.5 h-3.5" /> {t('edgeAffected')}
                 </div>
                 <div className="space-y-1 text-xs text-amber-900">
-                  <div>{t('edgeImpacted')}</div>
-                  <div>{t('impactedNodesLabel')} <b>{dryRunResult.impact.impacted_nodes_count || 0}</b></div>
                   <div>{t('disruptionRisk')} <b>{((dryRunResult.impact.service_disruption_risk || 0) * 100).toFixed(0)}%</b></div>
                   {dryRunResult.alternative_paths?.map((p, i) => (
                     (p.from === selectedEdge.source || p.from === selectedEdge.target ||

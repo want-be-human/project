@@ -17,8 +17,12 @@ export interface Topology3DProps {
   edges: GraphEdge[];
   currentTime: number;       // unix ms
   highlightAlertId?: string | null;
-  impactedNodeIds?: Set<string>;
-  impactedEdgeIds?: Set<string>;
+  // 三类影响集合（替代旧的 impactedNodeIds / impactedEdgeIds）
+  removedNodeIds?: Set<string>;
+  removedEdgeIds?: Set<string>;
+  affectedNodeIds?: Set<string>;
+  affectedEdgeIds?: Set<string>;
+  altPathNodeIds?: Set<string>;
   layoutMode?: LayoutMode;
   showLabels?: boolean;
   showArrows?: boolean;
@@ -59,7 +63,7 @@ function AnimatedGroup({
   return <group ref={ref}>{children}</group>;
 }
 
-// ── Dry-run 受影响节点的脉冲环 ──
+// ── 脉冲环（可配色） ──
 function PulsingRing({ color }: { color: string }) {
   const ref = useRef<THREE.Mesh>(null);
   useFrame(({ clock }) => {
@@ -95,12 +99,14 @@ function BreathingPulse() {
   );
 }
 
-// ── 节点球体 ──
+// ── 节点球体（支持 removed / affected / altPath 三类视觉语义） ──
 function NodeSphere({
   node,
   position,
   highlighted,
-  impacted,
+  removed,
+  affected,
+  altPath,
   selected,
   dimmed,
   showLabel,
@@ -110,7 +116,9 @@ function NodeSphere({
   node: GraphNode;
   position: [number, number, number];
   highlighted: boolean;
-  impacted: boolean;
+  removed: boolean;     // 被移除：红色半透明
+  affected: boolean;    // 受波及：橙色脉冲
+  altPath: boolean;     // 替代路径：绿色
   selected: boolean;
   dimmed: boolean;
   showLabel: boolean;
@@ -122,7 +130,9 @@ function NodeSphere({
 
   const color = useMemo(() => {
     if (highlighted) return '#ef4444';
-    if (impacted) return '#f59e0b';
+    if (removed) return '#dc2626';      // 红色：被移除
+    if (affected) return '#f59e0b';     // 橙色：受波及
+    if (altPath) return '#22c55e';      // 绿色：替代路径
     if (node.type === 'gateway' || node.type === 'router') return '#22c55e';
     if (node.type === 'subnet') return '#8b5cf6';
     if (node.type === 'server') return '#06b6d4';
@@ -130,25 +140,31 @@ function NodeSphere({
     if (node.risk >= 0.4) return '#eab308';
     if (node.risk >= 0.2) return '#3b82f6';
     return '#6ee7b7';
-  }, [node, highlighted, impacted]);
+  }, [node, highlighted, removed, affected, altPath]);
 
-  // 基于风险的自发光：启用热力效果时风险越高发光越强
+  // 基于状态的自发光
   const emissiveColor = highlighted
     ? '#ef4444'
-    : impacted
-      ? '#f59e0b'
-      : riskHeatEnabled && node.risk >= 0.4
-        ? color
-        : '#000000';
+    : removed
+      ? '#dc2626'
+      : affected
+        ? '#f59e0b'
+        : riskHeatEnabled && node.risk >= 0.4
+          ? color
+          : '#000000';
   const emissiveVal = highlighted
     ? 0.4
-    : impacted
-      ? 0.3
-      : riskHeatEnabled
-        ? node.risk * 0.5
-        : 0;
-  const scale = selected ? 1.4 : hovered ? 1.2 : 1;
-  const opacity = dimmed ? 0.25 : 0.9;
+    : removed
+      ? 0.2
+      : affected
+        ? 0.3
+        : riskHeatEnabled
+          ? node.risk * 0.5
+          : 0;
+
+  // 被移除节点：缩小 + 半透明
+  const scale = removed ? 0.7 : selected ? 1.4 : hovered ? 1.2 : 1;
+  const opacity = removed ? 0.3 : dimmed ? 0.25 : 0.9;
 
   return (
     <AnimatedGroup targetPosition={position}>
@@ -175,18 +191,20 @@ function NodeSphere({
           <meshBasicMaterial color="#ffffff" side={THREE.DoubleSide} />
         </mesh>
       )}
-      {/* 受影响节点脉冲环 */}
-      {impacted && !selected && <PulsingRing color="#f59e0b" />}
+      {/* 被移除节点：红色脉冲环 */}
+      {removed && !selected && <PulsingRing color="#dc2626" />}
+      {/* 受波及节点：橙色脉冲环 */}
+      {affected && !removed && !selected && <PulsingRing color="#f59e0b" />}
       {/* 告警高亮呼吸脉冲 */}
       {highlighted && <BreathingPulse />}
       {/* 风险热力圆盘 */}
       {riskHeatEnabled && <RiskHeatDisk risk={node.risk} />}
-      {/* 标签 */}
+      {/* 标签（被移除节点用红色标签） */}
       {showLabel && (
         <Text
           position={[0, 1.2, 0]}
           fontSize={0.4}
-          color="#374151"
+          color={removed ? '#dc2626' : '#374151'}
           anchorX="center"
           anchorY="bottom"
         >
@@ -223,14 +241,15 @@ function FlowingDashLine({
   );
 }
 
-// ── 边线 ──
+// ── 边线（支持 removed / affected 两类视觉语义） ──
 function EdgeLine({
   edge,
   from,
   to,
   active,
   highlighted,
-  impacted,
+  removed,
+  affected,
   dimmed,
   showArrow,
   onClick,
@@ -240,7 +259,8 @@ function EdgeLine({
   to: [number, number, number];
   active: boolean;
   highlighted: boolean;
-  impacted: boolean;
+  removed: boolean;     // 被移除：红色静态虚线
+  affected: boolean;    // 受波及：橙色流动虚线
   dimmed: boolean;
   showArrow: boolean;
   onClick: () => void;
@@ -249,14 +269,19 @@ function EdgeLine({
 
   const color = useMemo(() => {
     if (highlighted) return '#ef4444';
-    if (impacted) return '#f59e0b';
+    if (removed) return '#dc2626';      // 红色
+    if (affected) return '#f59e0b';     // 橙色
     if ((edge.alert_ids ?? []).length > 0) return '#f97316';
     return '#9ca3af';
-  }, [edge, highlighted, impacted]);
+  }, [edge, highlighted, removed, affected]);
 
-  const baseOpacity = active ? (highlighted ? 1 : impacted ? 0.5 : 0.8) : 0.08;
+  const baseOpacity = removed
+    ? 0.2
+    : active
+      ? (highlighted ? 1 : affected ? 0.5 : 0.8)
+      : 0.08;
   const opacity = dimmed ? baseOpacity * 0.2 : baseOpacity;
-  const lineWidth = highlighted ? 3 : impacted ? 2.5 : hovered ? 2.5 : active ? 1.5 : 0.5;
+  const lineWidth = highlighted ? 3 : (removed || affected) ? 2.5 : hovered ? 2.5 : active ? 1.5 : 0.5;
 
   const { position: cylPos, rotation: cylRot, length } = useMemo(() => {
     const a = new THREE.Vector3(...from);
@@ -278,9 +303,23 @@ function EdgeLine({
 
   return (
     <group>
-      {impacted ? (
+      {/* 被移除边：红色静态虚线 */}
+      {removed ? (
+        <Line
+          points={[from, to]}
+          color={color}
+          lineWidth={1.5}
+          transparent
+          opacity={0.2}
+          dashed
+          dashSize={0.2}
+          gapSize={0.2}
+        />
+      ) : affected ? (
+        /* 受波及边：橙色流动虚线 */
         <FlowingDashLine from={from} to={to} color={color} lineWidth={lineWidth} />
       ) : (
+        /* 普通边：实线 */
         <Line
           points={[from, to]}
           color={color}
@@ -290,7 +329,7 @@ function EdgeLine({
         />
       )}
       {/* 箭头头部 */}
-      {showArrow && active && <ArrowHead from={from} to={to} color={color} opacity={opacity} />}
+      {showArrow && active && !removed && <ArrowHead from={from} to={to} color={color} opacity={opacity} />}
       {/* 用于点击检测的不可见圆柱 */}
       <mesh
         position={cylPos}
@@ -302,10 +341,20 @@ function EdgeLine({
         <cylinderGeometry args={[0.15, 0.15, length, 6]} />
         <meshBasicMaterial transparent opacity={0} />
       </mesh>
-      {/* 权重 / 影响标签 */}
-      {active && (highlighted || impacted) && (
-        <Text position={[mid[0], mid[1] + 0.5, mid[2]]} fontSize={0.3} color={impacted ? '#f59e0b' : '#ef4444'}>
-          {impacted ? '⚠ IMPACTED' : `${(edge.protocols ?? []).join(',')} w=${edge.weight}`}
+      {/* 状态标签 */}
+      {active && removed && (
+        <Text position={[mid[0], mid[1] + 0.5, mid[2]]} fontSize={0.3} color="#dc2626">
+          ✕ 已移除
+        </Text>
+      )}
+      {active && affected && !removed && (
+        <Text position={[mid[0], mid[1] + 0.5, mid[2]]} fontSize={0.3} color="#f59e0b">
+          ⚠ 受波及
+        </Text>
+      )}
+      {active && highlighted && !removed && !affected && (
+        <Text position={[mid[0], mid[1] + 0.5, mid[2]]} fontSize={0.3} color="#ef4444">
+          {`${(edge.protocols ?? []).join(',')} w=${edge.weight}`}
         </Text>
       )}
     </group>
@@ -357,8 +406,11 @@ function Scene({
   edges,
   currentTime,
   highlightAlertId,
-  impactedNodeIds,
-  impactedEdgeIds,
+  removedNodeIds,
+  removedEdgeIds,
+  affectedNodeIds,
+  affectedEdgeIds,
+  altPathNodeIds,
   layoutMode = 'circle',
   showLabels = true,
   showArrows = false,
@@ -477,7 +529,8 @@ function Scene({
             to={to}
             active={isEdgeActive(edge)}
             highlighted={highlightedEdgeIds.has(edge.id)}
-            impacted={impactedEdgeIds?.has(edge.id) ?? false}
+            removed={removedEdgeIds?.has(edge.id) ?? false}
+            affected={affectedEdgeIds?.has(edge.id) ?? false}
             dimmed={isEdgeDimmed(edge)}
             showArrow={shouldShowArrow(edge.id)}
             onClick={() => {
@@ -499,7 +552,9 @@ function Scene({
             node={node}
             position={pos}
             highlighted={highlightedNodeIds.has(node.id)}
-            impacted={impactedNodeIds?.has(node.id) ?? false}
+            removed={removedNodeIds?.has(node.id) ?? false}
+            affected={affectedNodeIds?.has(node.id) ?? false}
+            altPath={altPathNodeIds?.has(node.id) ?? false}
             selected={selectedNodeId === node.id}
             dimmed={isNodeDimmed(node.id)}
             showLabel={showLabels}

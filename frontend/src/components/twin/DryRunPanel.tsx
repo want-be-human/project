@@ -69,9 +69,15 @@ export default function DryRunPanel({ alertId, planId, onDryRunCompleted }: DryR
   };
 
   const handleOpenTopology = () => {
-    if (result) {
-      router.push(`/topology?highlightAlertId=${alertId}&dryRunId=${result.id}`);
-    }
+    if (!result) return;
+    const params = new URLSearchParams();
+    params.set('highlightAlertId', alertId);
+    params.set('dryRunId', result.id);
+    // 携带 dry-run 的时间窗口，避免拓扑页回退到查整库 live graph
+    if (result.dry_run_start) params.set('start', result.dry_run_start);
+    if (result.dry_run_end) params.set('end', result.dry_run_end);
+    if (result.dry_run_mode) params.set('mode', result.dry_run_mode);
+    router.push(`/topology?${params.toString()}`);
   };
 
   return (

@@ -4,14 +4,17 @@ import { useState } from 'react';
 import { DryRunResult } from '@/lib/api/types';
 import { AlertTriangle, X, Activity, ArrowRight, Loader2, Shield } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import type { DryRunViewMode } from '@/app/(main)/topology/page';
 
 interface DryRunOverlayProps {
   result: DryRunResult | null;
   loading: boolean;
   notFound?: boolean;
+  viewMode?: DryRunViewMode;
+  onViewModeChange?: (mode: DryRunViewMode) => void;
 }
 
-export default function DryRunOverlay({ result, loading, notFound }: DryRunOverlayProps) {
+export default function DryRunOverlay({ result, loading, notFound, viewMode, onViewModeChange }: DryRunOverlayProps) {
   const t = useTranslations('topology');
   const [collapsed, setCollapsed] = useState(false);
 
@@ -60,6 +63,25 @@ export default function DryRunOverlay({ result, loading, notFound }: DryRunOverl
       </div>
 
       <div className="p-3 space-y-3 text-xs">
+        {/* 视图模式切换：before / diff / after */}
+        {onViewModeChange && (
+          <div className="flex rounded-lg border border-gray-200 overflow-hidden text-[10px] font-medium">
+            {(['before', 'diff', 'after'] as const).map(m => (
+              <button
+                key={m}
+                onClick={() => onViewModeChange(m)}
+                className={`flex-1 px-2 py-1.5 transition-colors ${
+                  viewMode === m
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-white text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                {t(`viewMode_${m}`)}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Key Metrics */}
         <div className="grid grid-cols-3 gap-2">
           <div className="text-center p-2 bg-red-50 rounded border border-red-100">
@@ -86,6 +108,24 @@ export default function DryRunOverlay({ result, loading, notFound }: DryRunOverl
             </div>
           </div>
         </div>
+
+        {/* 已移除 / 受波及 计数 */}
+        {(result.impact.removed_node_ids?.length || result.impact.affected_node_ids?.length) ? (
+          <div className="grid grid-cols-2 gap-2 text-[10px]">
+            <div className="text-center p-1.5 bg-red-50 rounded border border-red-100">
+              <div className="text-red-500 font-bold">{t('removedCount')}</div>
+              <div className="font-bold text-red-700">
+                {result.impact.removed_node_ids?.length ?? 0} {t('nodes')} / {result.impact.removed_edge_ids?.length ?? 0} {t('edges')}
+              </div>
+            </div>
+            <div className="text-center p-1.5 bg-amber-50 rounded border border-amber-100">
+              <div className="text-amber-500 font-bold">{t('affectedCount')}</div>
+              <div className="font-bold text-amber-700">
+                {result.impact.affected_node_ids?.length ?? 0} {t('nodes')} / {result.impact.affected_edge_ids?.length ?? 0} {t('edges')}
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {/* 三维可达性（v1.2） */}
         {result.impact.reachability_detail && (

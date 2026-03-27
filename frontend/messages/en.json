@@ -331,7 +331,13 @@
     "pairDrop": "Pair Reachability Drop",
     "serviceDrop": "Service Reachability Drop",
     "subnetDrop": "Subnet Reachability Drop",
-    "riskBreakdown": "Risk Breakdown"
+    "riskBreakdown": "Risk Breakdown",
+    "weightedService": "Weighted Service",
+    "nodeImpact": "Node Impact",
+    "edgeImpact": "Edge Impact",
+    "alertSeverity": "Alert Severity",
+    "trafficProportion": "Traffic Proportion",
+    "historical": "Historical"
   },
   "topology": {
     "loading": "Loading topology data...",
@@ -409,7 +415,22 @@
     "locateNode": "Focus camera on node",
     "pairDrop": "Pair Reachability Drop",
     "serviceDrop": "Service Reachability Drop",
-    "subnetDrop": "Subnet Reachability Drop"
+    "subnetDrop": "Subnet Reachability Drop",
+    "viewMode_before": "Before",
+    "viewMode_after": "After",
+    "viewMode_diff": "Diff",
+    "removedNode": "Removed node",
+    "affectedNode": "Affected node",
+    "removedEdge": "Removed edge",
+    "affectedEdge": "Affected edge",
+    "removedCount": "Removed",
+    "affectedCount": "Affected",
+    "nodeRemoved": "Node Removed",
+    "nodeRemovedDesc": "This node will be removed after executing the action.",
+    "nodeAffected": "Node Affected",
+    "edgeRemoved": "Edge Removed",
+    "edgeRemovedDesc": "This edge will be removed after executing the action.",
+    "edgeAffected": "Edge Affected"
   },
   "pipeline": {
     "title": "Pipeline",

@@ -20,6 +20,7 @@ docker compose -f infra/docker-compose.yml down
 `infra/docker-compose.yml` is the only Compose file you need for local development.
 
 - Backend mounts source code and runs `uvicorn --reload`
+- Backend data is bind-mounted from host `backend/data` to container `/app/data`
 - Frontend mounts source code and runs `next dev --webpack`
 - Frontend uses polling-friendly file watching for Docker Desktop/Windows bind mounts
 - Frontend API URL defaults to `http://localhost:8000` so browser requests reach the backend correctly
@@ -51,3 +52,8 @@ cp env.example .env
 ## Development vs Production
 
 For development, SQLite is used by default. If you later need production-specific container settings, add them in a separate deployment location instead of changing this development compose file.
+
+The backend SQLite database and uploaded PCAPs now live in the host directory `backend/data/`.
+This means the host and the backend container read and write the same files.
+
+If you previously used the Docker named volume `backend_data`, migrate the data before recreating the backend container.

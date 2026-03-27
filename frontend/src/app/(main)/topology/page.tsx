@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo, Suspense } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { api } from '@/lib/api';
@@ -15,6 +15,28 @@ import DryRunOverlay from '@/components/topology/DryRunOverlay';
 import type { LayoutMode } from '@/components/topology/layouts/types';
 import type { CameraPreset } from '@/components/topology/CameraController';
 
+// dry-run 视图模式：before（原始图）/ after（变更后图）/ diff（差异高亮）
+export type DryRunViewMode = 'before' | 'after' | 'diff';
+
+// ── ISO UTC ↔ datetime-local 转换工具 ──
+
+/** ISO UTC 字符串 → datetime-local 输入值（本地时区，YYYY-MM-DDTHH:mm） */
+function isoToLocalInput(iso: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** datetime-local 输入值（本地时区）→ ISO UTC 字符串 */
+function localInputToIso(local: string): string {
+  if (!local) return '';
+  const d = new Date(local);
+  if (isNaN(d.getTime())) return '';
+  return d.toISOString();
+}
+
 // 3D 画布动态导入（不兼容 SSR）
 const Topology3D = dynamic(() => import('@/components/topology/Topology3D'), {
   ssr: false,
@@ -25,6 +47,39 @@ const Topology3D = dynamic(() => import('@/components/topology/Topology3D'), {
   ),
 });
 
+/** 本地构建 after 图（后端未返回 graph_after 时的回退方案） */
+function buildLocalAfterGraph(graph: GraphResponse, dr: DryRunResult): GraphResponse {
+  const removedN = new Set(dr.impact?.removed_node_ids ?? []);
+  const removedE = new Set(dr.impact?.removed_edge_ids ?? []);
+  const nd = dr.impact?.node_risk_deltas ?? {};
+  const ed = dr.impact?.edge_weight_deltas ?? {};
+
+  const nodes = graph.nodes
+    .filter(n => !removedN.has(n.id))
+    .map(n => nd[n.id] !== undefined ? { ...n, risk: nd[n.id] } : n);
+  const edges = graph.edges
+    .filter(e => !removedE.has(e.id))
+    .map(e => ed[e.id] !== undefined ? { ...e, weight: ed[e.id] } : e);
+
+  return { ...graph, nodes, edges };
+}
+
+/** 在原始图上叠加 deltas（diff 模式用） */
+function applyDeltasToGraph(graph: GraphResponse, dr: DryRunResult): GraphResponse {
+  const nd = dr.impact?.node_risk_deltas;
+  const ed = dr.impact?.edge_weight_deltas;
+  if (!nd && !ed) return graph;
+
+  const nodes = nd
+    ? graph.nodes.map(n => nd[n.id] !== undefined ? { ...n, risk: nd[n.id] } : n)
+    : graph.nodes;
+  const edges = ed
+    ? graph.edges.map(e => ed[e.id] !== undefined ? { ...e, weight: ed[e.id] } : e)
+    : graph.edges;
+
+  return { ...graph, nodes, edges };
+}
+
 function TopologyInner() {
   const t = useTranslations('topology');
   const searchParams = useSearchParams();
@@ -32,11 +87,15 @@ function TopologyInner() {
   const dryRunId = searchParams.get('dryRunId');
   const urlStart = searchParams.get('start');
   const urlEnd = searchParams.get('end');
+  const urlMode = searchParams.get('mode');
 
+  // live topology 图（无 dry-run 时使用，或作为 dry-run 快照缺失时的回退）
   const [graph, setGraph] = useState<GraphResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [mode, setMode] = useState<'ip' | 'subnet'>('ip');
+  const [mode, setMode] = useState<'ip' | 'subnet'>((urlMode === 'subnet' ? 'subnet' : 'ip'));
   const [currentTime, setCurrentTime] = useState(0);
+
+  // 时间过滤器：存储 ISO UTC 字符串
   const [filterStart, setFilterStart] = useState(urlStart || '');
   const [filterEnd, setFilterEnd] = useState(urlEnd || '');
 
@@ -44,6 +103,9 @@ function TopologyInner() {
   const [dryRunResult, setDryRunResult] = useState<DryRunResult | null>(null);
   const [dryRunLoading, setDryRunLoading] = useState(false);
   const [dryRunNotFound, setDryRunNotFound] = useState(false);
+
+  // dry-run 视图模式（默认 diff）
+  const [viewMode, setViewMode] = useState<DryRunViewMode>('diff');
 
   // SideInspector 选中状态
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
@@ -59,6 +121,15 @@ function TopologyInner() {
 
   // DAG 模式下自动启用箭头
   const effectiveShowArrows = layoutMode === 'dag' ? true : showArrows;
+
+  // searchParams 变化时同步时间过滤器
+  useEffect(() => {
+    const s = searchParams.get('start');
+    const e = searchParams.get('end');
+    if (s && s !== filterStart) setFilterStart(s);
+    if (e && e !== filterEnd) setFilterEnd(e);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   // 存在 dryRunId 时拉取 DryRunResult
   useEffect(() => {
@@ -81,61 +152,92 @@ function TopologyInner() {
       .finally(() => setDryRunLoading(false));
   }, [dryRunId]);
 
-  // 从 dry-run 结果计算受影响的节点 ID 与边 ID
-  const impactedNodeIds = useMemo(() => {
-    if (!dryRunResult) return undefined;
-    const ids = new Set<string>();
-    dryRunResult.alternative_paths?.forEach(p => {
-      if (p.from) ids.add(p.from);
-      if (p.to) ids.add(p.to);
-      p.path?.forEach(nodeId => ids.add(nodeId));
-    });
-    return ids.size > 0 ? ids : undefined;
+  // dry-run 加载完成后，用其窗口回填时间过滤器（如果 URL 没有 start/end）
+  const dryRunBackfilled = useRef(false);
+  useEffect(() => {
+    if (!dryRunResult || dryRunBackfilled.current) return;
+    dryRunBackfilled.current = true;
+    if (!filterStart && dryRunResult.dry_run_start) {
+      setFilterStart(dryRunResult.dry_run_start);
+    }
+    if (!filterEnd && dryRunResult.dry_run_end) {
+      setFilterEnd(dryRunResult.dry_run_end);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dryRunResult]);
 
-  // dry-run 受影响的边：source 或 target 命中受影响节点的边
-  const impactedEdgeIds = useMemo(() => {
-    if (!impactedNodeIds || !graph) return undefined;
-    const ids = new Set<string>();
-    graph.edges.forEach(e => {
-      if (impactedNodeIds.has(e.source) || impactedNodeIds.has(e.target)) {
-        ids.add(e.id);
-      }
-    });
-    return ids.size > 0 ? ids : undefined;
-  }, [impactedNodeIds, graph]);
+  // ── 直接使用后端返回的精确影响 ID 集合（不再从 alternative_paths 派生）──
 
-  // 应用 dry-run 增量，生成展示用的“after”图
+  const removedNodeIds = useMemo(() => {
+    if (!dryRunResult?.impact?.removed_node_ids) return undefined;
+    const s = new Set(dryRunResult.impact.removed_node_ids);
+    return s.size > 0 ? s : undefined;
+  }, [dryRunResult]);
+
+  const removedEdgeIds = useMemo(() => {
+    if (!dryRunResult?.impact?.removed_edge_ids) return undefined;
+    const s = new Set(dryRunResult.impact.removed_edge_ids);
+    return s.size > 0 ? s : undefined;
+  }, [dryRunResult]);
+
+  const affectedNodeIds = useMemo(() => {
+    if (!dryRunResult?.impact?.affected_node_ids) return undefined;
+    const s = new Set(dryRunResult.impact.affected_node_ids);
+    return s.size > 0 ? s : undefined;
+  }, [dryRunResult]);
+
+  const affectedEdgeIds = useMemo(() => {
+    if (!dryRunResult?.impact?.affected_edge_ids) return undefined;
+    const s = new Set(dryRunResult.impact.affected_edge_ids);
+    return s.size > 0 ? s : undefined;
+  }, [dryRunResult]);
+
+  // 替代路径节点 ID（仅用于绿色绕行高亮，不作为"受影响"判定依据）
+  const altPathNodeIds = useMemo(() => {
+    if (!dryRunResult?.alternative_paths) return undefined;
+    const s = new Set<string>();
+    dryRunResult.alternative_paths.forEach(p => {
+      p.path?.forEach(id => s.add(id));
+    });
+    return s.size > 0 ? s : undefined;
+  }, [dryRunResult]);
+
+  // dry-run 的 before 图快照
+  const dryRunBefore = dryRunResult?.graph_before ?? null;
+
+  // ── 根据 viewMode 生成展示用图（dry-run 快照优先，不依赖 live graph）──
   const displayGraph = useMemo<GraphResponse | null>(() => {
-    if (!graph) return null;
+    // 无 dry-run 时显示 live graph
     if (!dryRunResult) return graph;
 
-    const nodeDeltas = dryRunResult.impact?.node_risk_deltas;
-    const edgeDeltas = dryRunResult.impact?.edge_weight_deltas;
-    if (!nodeDeltas && !edgeDeltas) return graph;
+    switch (viewMode) {
+      case 'before':
+        // 优先使用 dry-run 快照的 before 图
+        return dryRunBefore ?? graph;
 
-    const newNodes = nodeDeltas
-      ? graph.nodes.map(n =>
-          nodeDeltas[n.id] !== undefined
-            ? { ...n, risk: nodeDeltas[n.id] }
-            : n
-        )
-      : graph.nodes;
+      case 'after': {
+        // 优先使用后端返回的 graph_after
+        if (dryRunResult.graph_after) return dryRunResult.graph_after;
+        // 回退：基于 before 快照本地计算
+        const base = dryRunBefore ?? graph;
+        return base ? buildLocalAfterGraph(base, dryRunResult) : null;
+      }
 
-    const newEdges = edgeDeltas
-      ? graph.edges.map(e =>
-          edgeDeltas[e.id] !== undefined
-            ? { ...e, weight: edgeDeltas[e.id] }
-            : e
-        )
-      : graph.edges;
+      case 'diff': {
+        // 基于 before 快照应用 deltas
+        const diffBase = dryRunBefore ?? graph;
+        return diffBase ? applyDeltasToGraph(diffBase, dryRunResult) : null;
+      }
 
-    return { ...graph, nodes: newNodes, edges: newEdges };
-  }, [graph, dryRunResult]);
+      default:
+        return graph;
+    }
+  }, [graph, dryRunResult, dryRunBefore, viewMode]);
 
   // 保留原始值映射，供 SideInspector 展示 before→after
   const originalValues = useMemo(() => {
-    if (!graph || !dryRunResult) return undefined;
+    const base = dryRunBefore ?? graph;
+    if (!base || !dryRunResult) return undefined;
     const nodeDeltas = dryRunResult.impact?.node_risk_deltas;
     const edgeDeltas = dryRunResult.impact?.edge_weight_deltas;
     if (!nodeDeltas && !edgeDeltas) return undefined;
@@ -143,24 +245,25 @@ function TopologyInner() {
     const nodeRisks: Record<string, number> = {};
     const edgeWeights: Record<string, number> = {};
     if (nodeDeltas) {
-      graph.nodes.forEach(n => {
+      base.nodes.forEach(n => {
         if (nodeDeltas[n.id] !== undefined) nodeRisks[n.id] = n.risk;
       });
     }
     if (edgeDeltas) {
-      graph.edges.forEach(e => {
+      base.edges.forEach(e => {
         if (edgeDeltas[e.id] !== undefined) edgeWeights[e.id] = e.weight;
       });
     }
     return { nodeRisks, edgeWeights };
-  }, [graph, dryRunResult]);
+  }, [dryRunBefore, graph, dryRunResult]);
 
   const fetchGraph = useCallback(async () => {
     setLoading(true);
     try {
       const params: Record<string, string> = { mode };
-      if (filterStart) params.start = new Date(filterStart).toISOString();
-      if (filterEnd) params.end = new Date(filterEnd).toISOString();
+      // filterStart/filterEnd 已经是 ISO UTC 字符串，直接传递
+      if (filterStart) params.start = filterStart;
+      if (filterEnd) params.end = filterEnd;
       const data = await api.getGraph(params);
       setGraph(data);
       // 将 currentTime 初始化为数据窗口起点
@@ -178,8 +281,18 @@ function TopologyInner() {
     fetchGraph();
   }, [fetchGraph]);
 
-  const startTime = graph?.meta?.start ? new Date(graph.meta.start).getTime() : 0;
-  const endTime = graph?.meta?.end ? new Date(graph.meta.end).getTime() : 0;
+  // TimeSlider 的时间范围：优先从 displayGraph 的 meta 获取，否则从 filterStart/filterEnd 获取
+  const sliderStartTime = useMemo(() => {
+    if (displayGraph?.meta?.start) return new Date(displayGraph.meta.start).getTime();
+    if (filterStart) return new Date(filterStart).getTime();
+    return 0;
+  }, [displayGraph, filterStart]);
+
+  const sliderEndTime = useMemo(() => {
+    if (displayGraph?.meta?.end) return new Date(displayGraph.meta.end).getTime();
+    if (filterEnd) return new Date(filterEnd).getTime();
+    return 0;
+  }, [displayGraph, filterEnd]);
 
   const handleClearSelection = useCallback(() => {
     setSelectedNode(null);
@@ -188,6 +301,9 @@ function TopologyInner() {
 
   // dry-run 产生的替代路径，用于 3D 场景渲染
   const altPaths = dryRunResult?.alternative_paths;
+
+  // diff 模式下才传递影响集合给 3D 组件
+  const isDiff = viewMode === 'diff';
 
   return (
     <div className="h-[calc(100vh-64px)] flex flex-col">
@@ -198,10 +314,10 @@ function TopologyInner() {
         highlightAlertId={highlightAlertId}
         onRefresh={fetchGraph}
         loading={loading}
-        startTime={filterStart}
-        endTime={filterEnd}
-        onStartTimeChange={setFilterStart}
-        onEndTimeChange={setFilterEnd}
+        startTime={isoToLocalInput(filterStart)}
+        endTime={isoToLocalInput(filterEnd)}
+        onStartTimeChange={(v) => setFilterStart(localInputToIso(v))}
+        onEndTimeChange={(v) => setFilterEnd(localInputToIso(v))}
         layoutMode={layoutMode}
         onLayoutModeChange={setLayoutMode}
         showLabels={showLabels}
@@ -217,22 +333,25 @@ function TopologyInner() {
       <div className="flex-grow flex overflow-hidden">
         {/* 3D 画布区域 */}
         <div className="flex-grow flex flex-col relative">
-          {loading && !graph ? (
+          {loading && !displayGraph ? (
             <div className="flex-grow flex items-center justify-center bg-slate-50">
               <div className="text-gray-400 flex flex-col items-center">
                 <RefreshCw className="w-8 h-8 animate-spin mb-2" />
                 <p>{t('loading')}</p>
               </div>
             </div>
-          ) : graph ? (
+          ) : displayGraph ? (
             <div className="flex-grow">
               <Topology3D
-                nodes={displayGraph!.nodes}
-                edges={displayGraph!.edges}
+                nodes={displayGraph.nodes}
+                edges={displayGraph.edges}
                 currentTime={currentTime}
                 highlightAlertId={highlightAlertId}
-                impactedNodeIds={impactedNodeIds}
-                impactedEdgeIds={impactedEdgeIds}
+                removedNodeIds={isDiff ? removedNodeIds : undefined}
+                removedEdgeIds={isDiff ? removedEdgeIds : undefined}
+                affectedNodeIds={isDiff ? affectedNodeIds : undefined}
+                affectedEdgeIds={isDiff ? affectedEdgeIds : undefined}
+                altPathNodeIds={isDiff ? altPathNodeIds : undefined}
                 layoutMode={layoutMode}
                 showLabels={showLabels}
                 showArrows={effectiveShowArrows}
@@ -241,7 +360,7 @@ function TopologyInner() {
                 onCameraPresetDone={() => setCameraPreset(null)}
                 focusNodeId={focusNodeId}
                 onFocusDone={() => setFocusNodeId(null)}
-                altPaths={altPaths}
+                altPaths={isDiff ? altPaths : undefined}
                 onSelectNode={(node) => {
                   setSelectedNode(node);
                   if (node !== null) setSelectedEdge(null);
@@ -261,15 +380,23 @@ function TopologyInner() {
           {/* 图例浮层 */}
           <TopologyLegend />
 
-          {/* Dry-Run 影响浮层 */}
-          {dryRunId && <DryRunOverlay result={dryRunResult} loading={dryRunLoading} notFound={dryRunNotFound} />}
+          {/* Dry-Run 影响浮层（含视图切换） */}
+          {dryRunId && (
+            <DryRunOverlay
+              result={dryRunResult}
+              loading={dryRunLoading}
+              notFound={dryRunNotFound}
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+            />
+          )}
 
           {/* TimeSlider 浮层 */}
-          {graph && startTime > 0 && endTime > 0 && (
+          {displayGraph && sliderStartTime > 0 && sliderEndTime > 0 && (
             <div className="absolute bottom-4 left-4 right-4">
               <TimeSlider
-                startTime={startTime}
-                endTime={endTime}
+                startTime={sliderStartTime}
+                endTime={sliderEndTime}
                 currentTime={currentTime}
                 onChange={setCurrentTime}
               />
@@ -282,8 +409,10 @@ function TopologyInner() {
           selectedNode={selectedNode}
           selectedEdge={selectedEdge}
           dryRunResult={dryRunResult}
-          impactedNodeIds={impactedNodeIds}
-          impactedEdgeIds={impactedEdgeIds}
+          removedNodeIds={removedNodeIds}
+          removedEdgeIds={removedEdgeIds}
+          affectedNodeIds={affectedNodeIds}
+          affectedEdgeIds={affectedEdgeIds}
           originalValues={originalValues}
           onClose={handleClearSelection}
           onLocateNode={(nodeId) => setFocusNodeId(nodeId)}

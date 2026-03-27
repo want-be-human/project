@@ -10,7 +10,7 @@ services:
       - ../backend/app:/app/app
       - ../backend/alembic:/app/alembic
       - ../backend/alembic.ini:/app/alembic.ini:ro
-      - backend_data:/app/data
+      - ../backend/data:/app/data
     environment:
       - DATABASE_URL=${DATABASE_URL:-sqlite:///./data/nettwin.db}
       - DATA_DIR=/app/data
@@ -69,7 +69,6 @@ services:
   #   restart: unless-stopped
 
 volumes:
-  backend_data:
   frontend_node_modules:
   frontend_next:
   # postgres_data:

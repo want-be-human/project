@@ -331,7 +331,13 @@
     "pairDrop": "节点对可达性下降",
     "serviceDrop": "服务可达性下降",
     "subnetDrop": "子网可达性下降",
-    "riskBreakdown": "风险分解"
+    "riskBreakdown": "风险分解",
+    "weightedService": "加权服务重要性",
+    "nodeImpact": "节点影响",
+    "edgeImpact": "边影响",
+    "alertSeverity": "告警严重度",
+    "trafficProportion": "流量占比",
+    "historical": "历史评分"
   },
   "topology": {
     "loading": "正在加载拓扑数据...",
@@ -409,7 +415,22 @@
     "locateNode": "聚焦到节点",
     "pairDrop": "节点对可达性下降",
     "serviceDrop": "服务可达性下降",
-    "subnetDrop": "子网可达性下降"
+    "subnetDrop": "子网可达性下降",
+    "viewMode_before": "变更前",
+    "viewMode_after": "变更后",
+    "viewMode_diff": "差异对比",
+    "removedNode": "已移除节点",
+    "affectedNode": "受波及节点",
+    "removedEdge": "已移除连线",
+    "affectedEdge": "受波及连线",
+    "removedCount": "已移除",
+    "affectedCount": "受波及",
+    "nodeRemoved": "节点已移除",
+    "nodeRemovedDesc": "该节点将在执行动作后被移除。",
+    "nodeAffected": "节点受波及",
+    "edgeRemoved": "连线已移除",
+    "edgeRemovedDesc": "该连线将在执行动作后被移除。",
+    "edgeAffected": "连线受波及"
   },
   "pipeline": {
     "title": "Pipeline",

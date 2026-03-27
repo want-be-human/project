@@ -20,13 +20,15 @@ def utc_now() -> datetime:
 
 def utc_now_iso() -> str:
     """获取当前 UTC 时间的 ISO8601 字符串。"""
-    return utc_now().strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime_to_iso(utc_now())
 
 
 def datetime_to_iso(dt: datetime) -> str:
-    """将 datetime 转换为 ISO8601 UTC 字符串。"""
+    """将 datetime 转换为 ISO8601 UTC 字符串（保留子秒精度）。"""
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
+    if dt.microsecond:
+        return dt.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
     return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 

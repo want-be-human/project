@@ -298,6 +298,16 @@ export interface DryRunResult {
     created_at?: string;
     alert_id: string;
     plan_id: string;
+    /** 变更前的完整图结构（用于 before/diff 视图渲染） */
+    graph_before?: GraphResponse;
+    /** 变更后的完整图结构（用于 after 视图渲染） */
+    graph_after?: GraphResponse;
+    /** dry-run 时间窗口起始（ISO8601 UTC） */
+    dry_run_start?: string;
+    /** dry-run 时间窗口结束（ISO8601 UTC） */
+    dry_run_end?: string;
+    /** dry-run 图模式（ip/subnet） */
+    dry_run_mode?: string;
     impact: {
         impacted_nodes_count?: number;
         impacted_edges_count?: number;

@@ -10,6 +10,39 @@
   "after": {
     "graph_hash": "sha256:def456789012345678901234567890123456789012345678901234abcdef1234"
   },
+  "graph_before": {
+    "version": "1.1",
+    "nodes": [
+      { "id": "ip:192.0.2.10", "label": "192.0.2.10", "type": "host", "risk": 0.8 },
+      { "id": "ip:198.51.100.20", "label": "198.51.100.20", "type": "host", "risk": 0.3 },
+      { "id": "ip:203.0.113.5", "label": "203.0.113.5", "type": "host", "risk": 0.1 },
+      { "id": "ip:10.0.0.1", "label": "10.0.0.1", "type": "host", "risk": 0.2 }
+    ],
+    "edges": [
+      { "id": "e1", "source": "ip:192.0.2.10", "target": "ip:198.51.100.20", "proto": "TCP", "dst_port": 22, "weight": 12, "risk": 0.7, "activeIntervals": [["2026-01-31T10:00:00Z", "2026-01-31T11:00:00Z"]], "alert_ids": ["b2c3d4e5-f6a7-8901-bcde-f23456789012"] },
+      { "id": "e2", "source": "ip:198.51.100.20", "target": "ip:10.0.0.1", "proto": "TCP", "dst_port": 22, "weight": 5, "risk": 0.2, "activeIntervals": [["2026-01-31T10:00:00Z", "2026-01-31T11:00:00Z"]], "alert_ids": [] },
+      { "id": "e3", "source": "ip:192.0.2.10", "target": "ip:203.0.113.5", "proto": "TCP", "dst_port": 443, "weight": 20, "risk": 0.6, "activeIntervals": [["2026-01-31T10:00:00Z", "2026-01-31T11:00:00Z"]], "alert_ids": [] },
+      { "id": "e4", "source": "ip:10.0.0.1", "target": "ip:203.0.113.5", "proto": "TCP", "dst_port": 443, "weight": 8, "risk": 0.1, "activeIntervals": [["2026-01-31T10:00:00Z", "2026-01-31T11:00:00Z"]], "alert_ids": [] },
+      { "id": "e5", "source": "ip:192.0.2.10", "target": "ip:10.0.0.1", "proto": "TCP", "dst_port": 80, "weight": 3, "risk": 0.3, "activeIntervals": [["2026-01-31T10:00:00Z", "2026-01-31T11:00:00Z"]], "alert_ids": [] }
+    ],
+    "meta": { "start": "2026-01-31T10:00:00Z", "end": "2026-01-31T11:00:00Z", "mode": "ip" }
+  },
+  "graph_after": {
+    "version": "1.1",
+    "nodes": [
+      { "id": "ip:198.51.100.20", "label": "198.51.100.20", "type": "host", "risk": 0.3 },
+      { "id": "ip:203.0.113.5", "label": "203.0.113.5", "type": "host", "risk": 0.1 },
+      { "id": "ip:10.0.0.1", "label": "10.0.0.1", "type": "host", "risk": 0.2 }
+    ],
+    "edges": [
+      { "id": "e2", "source": "ip:198.51.100.20", "target": "ip:10.0.0.1", "proto": "TCP", "dst_port": 22, "weight": 5, "risk": 0.2, "activeIntervals": [["2026-01-31T10:00:00Z", "2026-01-31T11:00:00Z"]], "alert_ids": [] },
+      { "id": "e4", "source": "ip:10.0.0.1", "target": "ip:203.0.113.5", "proto": "TCP", "dst_port": 443, "weight": 8, "risk": 0.1, "activeIntervals": [["2026-01-31T10:00:00Z", "2026-01-31T11:00:00Z"]], "alert_ids": [] }
+    ],
+    "meta": { "start": "2026-01-31T10:00:00Z", "end": "2026-01-31T11:00:00Z", "mode": "ip" }
+  },
+  "dry_run_start": "2026-01-31T10:00:00Z",
+  "dry_run_end": "2026-01-31T11:00:00Z",
+  "dry_run_mode": "ip",
   "impact": {
     "impacted_nodes_count": 1,
     "impacted_edges_count": 3,
@@ -81,7 +114,9 @@
       "historical_score": 0.0,
       "composite_risk": 0.72
     },
-    "confidence": 0.68
+    "confidence": 0.68,
+    "node_risk_deltas": {},
+    "edge_weight_deltas": {}
   },
   "alternative_paths": [
     {

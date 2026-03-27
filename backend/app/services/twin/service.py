@@ -163,6 +163,11 @@ class TwinService:
             plan_id=plan.id,
             before=GraphHash(graph_hash=hash_before),
             after=GraphHash(graph_hash=hash_after),
+            graph_before=graph_before,
+            graph_after=graph_after,
+            dry_run_start=datetime_to_iso(start),
+            dry_run_end=datetime_to_iso(end),
+            dry_run_mode=mode,
             impact=DryRunImpact(
                 # 兼容旧字段
                 impacted_nodes_count=impact["impacted_nodes"],
@@ -180,6 +185,8 @@ class TwinService:
                 impacted_services=impact["impacted_services"],
                 service_risk_breakdown=impact["service_risk_breakdown"],
                 confidence=impact["confidence"],
+                node_risk_deltas=impact["node_risk_deltas"],
+                edge_weight_deltas=impact["edge_weight_deltas"],
             ),
             alternative_paths=alt_paths,
             explain=explain,
@@ -387,7 +394,36 @@ class TwinService:
             "impacted_services": impacted_services,
             "service_risk_breakdown": risk_breakdown,
             "confidence": confidence,
+            # 节点/边级增量（供前端 diff 视图使用）
+            "node_risk_deltas": self._compute_node_risk_deltas(before, after),
+            "edge_weight_deltas": self._compute_edge_weight_deltas(before, after),
         }
+
+    @staticmethod
+    def _compute_node_risk_deltas(
+        before: GraphResponseSchema, after: GraphResponseSchema,
+    ) -> dict[str, float]:
+        """计算节点级风险增量：仅包含风险值发生变化的节点。"""
+        before_nodes = {n.id: n.risk for n in before.nodes}
+        deltas = {}
+        for node in after.nodes:
+            prev = before_nodes.get(node.id)
+            if prev is not None and node.risk != prev:
+                deltas[node.id] = node.risk
+        return deltas
+
+    @staticmethod
+    def _compute_edge_weight_deltas(
+        before: GraphResponseSchema, after: GraphResponseSchema,
+    ) -> dict[str, int]:
+        """计算边级权重增量：仅包含权重发生变化的边。"""
+        before_edges = {e.id: e.weight for e in before.edges}
+        deltas = {}
+        for edge in after.edges:
+            prev = before_edges.get(edge.id)
+            if prev is not None and edge.weight != prev:
+                deltas[edge.id] = edge.weight
+        return deltas
 
     def _generate_warnings(
         self,

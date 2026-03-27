@@ -6,6 +6,7 @@ v1.2: 数据驱动影响评估扩展 — 多维可达性、风险分解、结构
 
 from typing import Any, Literal
 from pydantic import BaseModel, Field, AliasChoices, model_validator
+from app.schemas.topology import GraphResponseSchema
 
 
 # Action 目标 - DOC C C2.1
@@ -198,6 +199,16 @@ class DryRunImpact(BaseModel):
     # ── 新增：置信度 ──
     confidence: float = Field(default=0.5, ge=0.0, le=1.0, description="评估置信度")
 
+    # ── 新增：节点/边级增量（供前端 diff 视图使用）──
+    node_risk_deltas: dict[str, float] = Field(
+        default_factory=dict,
+        description="节点级风险变化：nodeId → 动作后新风险值",
+    )
+    edge_weight_deltas: dict[str, int] = Field(
+        default_factory=dict,
+        description="边级权重变化：edgeId → 动作后新权重",
+    )
+
 
 class AlternativePath(BaseModel):
     """演练过程中发现的可能绕行路径 - DOC C C2.2。"""
@@ -221,6 +232,18 @@ class DryRunResultSchema(BaseModel):
     plan_id: str = Field(..., description="关联方案 ID")
     before: GraphHash = Field(..., description="变更前图状态")
     after: GraphHash = Field(..., description="变更后图状态")
+    graph_before: GraphResponseSchema | None = Field(
+        default=None,
+        description="变更前的完整图结构（用于前端 before/diff 视图渲染）",
+    )
+    graph_after: GraphResponseSchema | None = Field(
+        default=None,
+        description="变更后的完整图结构（用于前端 after 视图渲染）",
+    )
+    # dry-run 执行时的时间窗口参数（前端跳转和快照回放用）
+    dry_run_start: str | None = Field(default=None, description="dry-run 时间窗口起始（ISO8601 UTC）")
+    dry_run_end: str | None = Field(default=None, description="dry-run 时间窗口结束（ISO8601 UTC）")
+    dry_run_mode: str | None = Field(default=None, description="dry-run 图模式（ip/subnet）")
     impact: DryRunImpact = Field(..., description="影响评估")
     alternative_paths: list[AlternativePath] = Field(default_factory=list, description="可能绕行路径列表")
     explain: list[str] = Field(default_factory=list, description="解释文本（兼容旧版）")
