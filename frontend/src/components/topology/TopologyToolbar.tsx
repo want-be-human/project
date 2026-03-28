@@ -1,9 +1,10 @@
 'use client';
 
-import { RefreshCw, Crosshair, Layout, Eye, EyeOff, ArrowRight, Thermometer, Box, MonitorUp, RotateCcw } from 'lucide-react';
+import { RefreshCw, Crosshair, Layout, Eye, EyeOff, ArrowRight, Thermometer, Box, MonitorUp, RotateCcw, Layers, Maximize2, Minimize2, Filter } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { LayoutMode } from './layouts/types';
 import type { CameraPreset } from './CameraController';
+import type { ViewLevel, EdgeFilterConfig } from './optimization/types';
 
 interface TopologyToolbarProps {
   mode: 'ip' | 'subnet';
@@ -15,7 +16,7 @@ interface TopologyToolbarProps {
   endTime?: string;
   onStartTimeChange?: (value: string) => void;
   onEndTimeChange?: (value: string) => void;
-  // ── 新增属性 ──
+  // ── 布局与视觉 ──
   layoutMode?: LayoutMode;
   onLayoutModeChange?: (mode: LayoutMode) => void;
   showLabels?: boolean;
@@ -25,6 +26,13 @@ interface TopologyToolbarProps {
   riskHeatEnabled?: boolean;
   onRiskHeatChange?: (v: boolean) => void;
   onCameraPreset?: (preset: CameraPreset) => void;
+  // ── 大图优化层 ──
+  viewLevel?: ViewLevel;
+  onViewLevelChange?: (level: ViewLevel) => void;
+  onExpandAll?: () => void;
+  onCollapseAll?: () => void;
+  edgeFilter?: EdgeFilterConfig;
+  onEdgeFilterChange?: (config: Partial<EdgeFilterConfig>) => void;
 }
 
 const LAYOUT_OPTIONS: { value: LayoutMode; labelKey: string }[] = [
@@ -53,6 +61,12 @@ export default function TopologyToolbar({
   riskHeatEnabled = false,
   onRiskHeatChange,
   onCameraPreset,
+  viewLevel,
+  onViewLevelChange,
+  onExpandAll,
+  onCollapseAll,
+  edgeFilter,
+  onEdgeFilterChange,
 }: TopologyToolbarProps) {
   const t = useTranslations('topology');
   return (
@@ -148,6 +162,78 @@ export default function TopologyToolbar({
           <button onClick={() => onCameraPreset('fit')} className="p-1.5 text-gray-400 hover:bg-gray-100 rounded" title={t('cameraFit')}>
             <Box className="w-3.5 h-3.5" />
           </button>
+        </div>
+      )}
+
+      {/* ── 视图层级（大图优化） ── */}
+      {onViewLevelChange && viewLevel && (
+        <div className="flex items-center gap-1 border-l border-gray-200 pl-3">
+          <Layers className="w-3.5 h-3.5 text-gray-400" />
+          <div className="flex rounded-lg border border-gray-200 overflow-hidden text-[10px]">
+            <button
+              className={`px-2 py-1 font-medium transition-colors ${viewLevel === 'subnet' ? 'bg-purple-50 text-purple-600' : 'text-gray-500 hover:bg-gray-50'}`}
+              onClick={() => onViewLevelChange('subnet')}
+              title={t('viewLevelSubnet')}
+            >
+              {t('viewLevelSubnet')}
+            </button>
+            <button
+              className={`px-2 py-1 font-medium transition-colors ${viewLevel === 'host' ? 'bg-purple-50 text-purple-600' : 'text-gray-500 hover:bg-gray-50'}`}
+              onClick={() => onViewLevelChange('host')}
+              title={t('viewLevelHost')}
+            >
+              {t('viewLevelHost')}
+            </button>
+          </div>
+          {viewLevel === 'subnet' && (
+            <>
+              <button
+                onClick={onExpandAll}
+                className="p-1 text-gray-400 hover:bg-gray-100 rounded"
+                title={t('expandAll')}
+              >
+                <Maximize2 className="w-3 h-3" />
+              </button>
+              <button
+                onClick={onCollapseAll}
+                className="p-1 text-gray-400 hover:bg-gray-100 rounded"
+                title={t('collapseAll')}
+              >
+                <Minimize2 className="w-3 h-3" />
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── 边过滤 ── */}
+      {onEdgeFilterChange && edgeFilter && (
+        <div className="flex items-center gap-1.5 border-l border-gray-200 pl-3">
+          <Filter className="w-3.5 h-3.5 text-gray-400" />
+          <label className="text-[10px] text-gray-500">{t('edgeMinRisk')}</label>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            value={edgeFilter.minRisk}
+            onChange={(e) => onEdgeFilterChange({ minRisk: parseFloat(e.target.value) })}
+            className="w-14 h-1 accent-blue-500"
+            title={`${(edgeFilter.minRisk * 100).toFixed(0)}%`}
+          />
+          <span className="text-[10px] text-gray-400 w-6">{(edgeFilter.minRisk * 100).toFixed(0)}%</span>
+          <label className="text-[10px] text-gray-500">{t('edgeMinWeight')}</label>
+          <input
+            type="range"
+            min="0"
+            max="50"
+            step="1"
+            value={edgeFilter.minWeight}
+            onChange={(e) => onEdgeFilterChange({ minWeight: parseInt(e.target.value) })}
+            className="w-14 h-1 accent-blue-500"
+            title={String(edgeFilter.minWeight)}
+          />
+          <span className="text-[10px] text-gray-400 w-4">{edgeFilter.minWeight}</span>
         </div>
       )}
 

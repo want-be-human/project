@@ -116,6 +116,7 @@ export interface GraphEdge {
   services: Array<{proto: string, port: number}>;
   alert_ids: string[];
   activeIntervals: [string, string][];
+  risk?: number;  // 边级风险分值（后端已有，前端新增）
 }
 
 export interface GraphResponse {

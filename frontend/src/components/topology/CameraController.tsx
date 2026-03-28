@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { LayoutResult } from './layouts/types';
+import type { CameraLimits } from './optimization/types';
 
 export type CameraPreset = 'top' | 'front' | 'side' | 'fit' | null;
 
@@ -16,6 +17,8 @@ interface CameraControllerProps {
   /** 需要飞行聚焦的节点 ID */
   focusNodeId?: string | null;
   onFocusDone?: () => void;
+  /** 优化层提供的动态相机限制 */
+  cameraLimits?: CameraLimits;
 }
 
 const PRESET_POSITIONS: Record<string, THREE.Vector3> = {
@@ -36,30 +39,37 @@ export default function CameraController({
   positions,
   focusNodeId,
   onFocusDone,
+  cameraLimits,
 }: CameraControllerProps) {
   const { camera } = useThree();
   const targetPos = useRef<THREE.Vector3 | null>(null);
   const targetLookAt = useRef<THREE.Vector3>(new THREE.Vector3());
   const animating = useRef(false);
 
-  // 根据包围盒计算“全图适配”相机位置
+  // 根据包围盒计算”全图适配”相机位置
   useEffect(() => {
     if (!preset) return;
 
     if (preset === 'fit') {
-      const pts = Object.values(positions);
-      if (pts.length === 0) { onDone(); return; }
+      // 优先使用优化层提供的动态相机限制
+      if (cameraLimits) {
+        targetPos.current = new THREE.Vector3(...cameraLimits.fitPosition);
+        targetLookAt.current.set(...cameraLimits.fitTarget);
+      } else {
+        const pts = Object.values(positions);
+        if (pts.length === 0) { onDone(); return; }
 
-      const box = new THREE.Box3();
-      pts.forEach(([x, y, z]) => box.expandByPoint(new THREE.Vector3(x, y, z)));
-      const center = new THREE.Vector3();
-      box.getCenter(center);
-      const size = box.getSize(new THREE.Vector3());
-      const maxDim = Math.max(size.x, size.y, size.z, 5);
-      const dist = maxDim * 1.6;
+        const box = new THREE.Box3();
+        pts.forEach(([x, y, z]) => box.expandByPoint(new THREE.Vector3(x, y, z)));
+        const center = new THREE.Vector3();
+        box.getCenter(center);
+        const size = box.getSize(new THREE.Vector3());
+        const maxDim = Math.max(size.x, size.y, size.z, 5);
+        const dist = maxDim * 1.6;
 
-      targetPos.current = new THREE.Vector3(center.x, center.y + dist * 0.4, center.z + dist);
-      targetLookAt.current.copy(center);
+        targetPos.current = new THREE.Vector3(center.x, center.y + dist * 0.4, center.z + dist);
+        targetLookAt.current.copy(center);
+      }
     } else {
       const pos = PRESET_POSITIONS[preset];
       if (pos) {
@@ -68,7 +78,7 @@ export default function CameraController({
       }
     }
     animating.current = true;
-  }, [preset, positions, onDone]);
+  }, [preset, positions, onDone, cameraLimits]);
 
   // 聚焦到指定节点
   useEffect(() => {

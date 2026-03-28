@@ -1,29 +1,23 @@
 import type { LayoutConfig, LayoutResult } from './types';
-
-/**
- * 从节点 ID 中提取 /24 子网前缀。
- * "ip:192.168.1.10" → "192.168.1"
- * "subnet:10.0.0.0/24" → "10.0.0"
- */
-function subnetPrefix(nodeId: string): string {
-  const raw = nodeId.replace(/^(ip:|subnet:)/, '');
-  const m = raw.match(/^(\d+\.\d+\.\d+)/);
-  return m ? m[1] : 'other';
-}
+import { subnetPrefix } from '../optimization/aggregation';
 
 /**
  * 子网分簇布局。
  * 按 /24 子网前缀对节点分组，将各组排布在外环上，
  * 并把组内节点排布在更小的内环上。
+ * 已聚合的簇节点（id 以 "cluster:" 开头）直接作为独立组处理。
  */
 export function clusteredSubnetLayout(config: LayoutConfig): LayoutResult {
   const { nodes } = config;
   if (nodes.length === 0) return {};
 
-  // 按子网前缀分组
+  // 按子网前缀分组（簇节点使用其自身前缀）
   const groups = new Map<string, typeof nodes>();
   for (const node of nodes) {
-    const prefix = subnetPrefix(node.id);
+    // 已聚合的簇节点：提取前缀避免二次分组
+    const prefix = node.id.startsWith('cluster:')
+      ? node.id.replace('cluster:', '')
+      : subnetPrefix(node.id);
     if (!groups.has(prefix)) groups.set(prefix, []);
     groups.get(prefix)!.push(node);
   }

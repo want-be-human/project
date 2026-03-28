@@ -14,6 +14,39 @@ import TopologyLegend from '@/components/topology/TopologyLegend';
 import DryRunOverlay from '@/components/topology/DryRunOverlay';
 import type { LayoutMode } from '@/components/topology/layouts/types';
 import type { CameraPreset } from '@/components/topology/CameraController';
+import { OptimizationProvider } from '@/components/topology/optimization';
+import { useOptimization } from '@/components/topology/optimization/context';
+
+// 桥接组件：在 OptimizationProvider 内部消费 context，向 TopologyToolbar 传递优化层 props
+function OptimizedToolbar(props: React.ComponentProps<typeof TopologyToolbar>) {
+  const { state, setViewLevel, expandAll, collapseAll, setEdgeFilter } = useOptimization();
+  return (
+    <TopologyToolbar
+      {...props}
+      viewLevel={state.viewLevel}
+      onViewLevelChange={setViewLevel}
+      onExpandAll={expandAll}
+      onCollapseAll={collapseAll}
+      edgeFilter={state.edgeFilter}
+      onEdgeFilterChange={setEdgeFilter}
+    />
+  );
+}
+
+// 桥接组件：向 SideInspector 传递优化层统计信息
+function OptimizedSideInspector(props: React.ComponentProps<typeof SideInspector>) {
+  const { optimizedGraph, state } = useOptimization();
+  const clusterCount = optimizedGraph?.nodes.filter(n => n.cluster?.isCluster).length ?? 0;
+  const expandedClusterCount = state.expandedClusters.size;
+  return (
+    <SideInspector
+      {...props}
+      viewLevel={state.viewLevel}
+      clusterCount={clusterCount}
+      expandedClusterCount={expandedClusterCount}
+    />
+  );
+}
 
 // dry-run 视图模式：before（原始图）/ after（变更后图）/ diff（差异高亮）
 export type DryRunViewMode = 'before' | 'after' | 'diff';
@@ -299,6 +332,38 @@ function TopologyInner() {
     setSelectedEdge(null);
   }, []);
 
+  // ── 告警严重度映射（研判面板用） ──
+  const [alertSeverityMap, setAlertSeverityMap] = useState<Record<string, 'low' | 'medium' | 'high' | 'critical'>>({});
+  const alertsFetched = useRef(false);
+
+  useEffect(() => {
+    if (!displayGraph || alertsFetched.current) return;
+    // 检查图中是否有告警 ID
+    const hasAlerts = displayGraph.edges.some(e => (e.alert_ids ?? []).length > 0);
+    if (!hasAlerts) return;
+    alertsFetched.current = true;
+    // 拉取告警列表，构建 id→severity 映射
+    api.listAlerts({}).then((alerts) => {
+      const map: Record<string, 'low' | 'medium' | 'high' | 'critical'> = {};
+      for (const a of alerts) {
+        if (a.id && a.severity) map[a.id] = a.severity as any;
+      }
+      setAlertSeverityMap(map);
+    }).catch(() => { /* 静默失败，面板仍可用 */ });
+  }, [displayGraph]);
+
+  // 研判面板内交叉选中回调
+  const handleInspectorSelectNode = useCallback((node: GraphNode) => {
+    setSelectedNode(node);
+    setSelectedEdge(null);
+    setFocusNodeId(node.id);
+  }, []);
+
+  const handleInspectorSelectEdge = useCallback((edge: GraphEdge) => {
+    setSelectedEdge(edge);
+    setSelectedNode(null);
+  }, []);
+
   // dry-run 产生的替代路径，用于 3D 场景渲染
   const altPaths = dryRunResult?.alternative_paths;
 
@@ -306,9 +371,15 @@ function TopologyInner() {
   const isDiff = viewMode === 'diff';
 
   return (
+    <OptimizationProvider
+      graph={displayGraph}
+      currentTime={currentTime}
+      timeWindowStart={sliderStartTime}
+      timeWindowEnd={sliderEndTime}
+    >
     <div className="h-[calc(100vh-64px)] flex flex-col">
-      {/* 工具栏 */}
-      <TopologyToolbar
+      {/* 工具栏（通过桥接组件注入优化层 props） */}
+      <OptimizedToolbar
         mode={mode}
         onModeChange={setMode}
         highlightAlertId={highlightAlertId}
@@ -404,21 +475,30 @@ function TopologyInner() {
           )}
         </div>
 
-        {/* 侧边检查器 */}
-        <SideInspector
+        {/* 侧边检查器（研判面板，通过桥接组件注入优化层 props） */}
+        <OptimizedSideInspector
           selectedNode={selectedNode}
           selectedEdge={selectedEdge}
+          displayGraph={displayGraph}
+          currentTime={currentTime}
+          layoutMode={layoutMode}
+          viewMode={dryRunResult ? viewMode : undefined}
           dryRunResult={dryRunResult}
           removedNodeIds={removedNodeIds}
           removedEdgeIds={removedEdgeIds}
           affectedNodeIds={affectedNodeIds}
           affectedEdgeIds={affectedEdgeIds}
           originalValues={originalValues}
+          altPaths={altPaths}
+          alertSeverityMap={alertSeverityMap}
           onClose={handleClearSelection}
           onLocateNode={(nodeId) => setFocusNodeId(nodeId)}
+          onSelectNode={handleInspectorSelectNode}
+          onSelectEdge={handleInspectorSelectEdge}
         />
       </div>
     </div>
+    </OptimizationProvider>
   );
 }
 

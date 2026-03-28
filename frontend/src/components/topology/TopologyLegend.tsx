@@ -9,6 +9,7 @@ const NODE_COLORS = [
   { color: '#06b6d4', labelKey: 'server' },
   { color: '#22c55e', labelKey: 'gateway' },
   { color: '#8b5cf6', labelKey: 'subnetNode' },
+  { color: '#a78bfa', labelKey: 'clusterNode' },
   { color: '#f97316', labelKey: 'highRisk' },
   { color: '#eab308', labelKey: 'mediumRisk' },
   { color: '#6ee7b7', labelKey: 'minimalRisk' },

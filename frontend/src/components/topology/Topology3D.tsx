@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useMemo, useState, useEffect } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Text, Line } from '@react-three/drei';
 import * as THREE from 'three';
 import { GraphNode, GraphEdge } from '@/lib/api/types';
@@ -10,6 +10,19 @@ import { computeLayout, type LayoutMode, type LayoutResult } from './layouts';
 import ArrowHead from './ArrowHead';
 import RiskHeatDisk from './RiskHeatDisk';
 import CameraController, { type CameraPreset } from './CameraController';
+import {
+  useOptimization,
+  computeBoundingBox,
+  computeCameraLimits,
+  computeGridParams,
+  computeNodeLOD,
+  shouldShowLabel,
+  type OptimizedNode,
+  type OptimizedEdge,
+  type NodeLOD,
+  type CameraLimits,
+  type GridParams,
+} from './optimization';
 
 // ── 类型定义 ──
 export interface Topology3DProps {
@@ -99,7 +112,7 @@ function BreathingPulse() {
   );
 }
 
-// ── 节点球体（支持 removed / affected / altPath 三类视觉语义） ──
+// ── 节点球体（支持 removed / affected / altPath 三类视觉语义 + LOD） ──
 function NodeSphere({
   node,
   position,
@@ -111,6 +124,7 @@ function NodeSphere({
   dimmed,
   showLabel,
   riskHeatEnabled,
+  lodLevel,
   onClick,
 }: {
   node: GraphNode;
@@ -123,6 +137,7 @@ function NodeSphere({
   dimmed: boolean;
   showLabel: boolean;
   riskHeatEnabled: boolean;
+  lodLevel: NodeLOD;
   onClick: () => void;
 }) {
   const meshRef = useRef<THREE.Mesh>(null);
@@ -133,6 +148,7 @@ function NodeSphere({
     if (removed) return '#dc2626';      // 红色：被移除
     if (affected) return '#f59e0b';     // 橙色：受波及
     if (altPath) return '#22c55e';      // 绿色：替代路径
+    if (node.type === 'cluster') return '#a78bfa';  // 紫色：聚合簇节点
     if (node.type === 'gateway' || node.type === 'router') return '#22c55e';
     if (node.type === 'subnet') return '#8b5cf6';
     if (node.type === 'server') return '#06b6d4';
@@ -162,9 +178,27 @@ function NodeSphere({
           ? node.risk * 0.5
           : 0;
 
-  // 被移除节点：缩小 + 半透明
-  const scale = removed ? 0.7 : selected ? 1.4 : hovered ? 1.2 : 1;
-  const opacity = removed ? 0.3 : dimmed ? 0.25 : 0.9;
+  // 被移除节点：缩小 + 半透明；簇节点：放大
+  const isCluster = node.type === 'cluster';
+  const clusterScale = isCluster ? 1.6 : 1;
+  const scale = (removed ? 0.7 : selected ? 1.4 : hovered ? 1.2 : 1) * clusterScale;
+  const opacity = removed ? 0.3 : dimmed ? 0.25 : isCluster ? 0.7 : 0.9;
+
+  // dot 级别：极小球体，无任何装饰
+  if (lodLevel === 'dot') {
+    return (
+      <AnimatedGroup targetPosition={position}>
+        <mesh onClick={(e) => { e.stopPropagation(); onClick(); }}>
+          <sphereGeometry args={[0.15, 4, 4]} />
+          <meshBasicMaterial color={color} transparent opacity={dimmed ? 0.15 : 0.6} />
+        </mesh>
+      </AnimatedGroup>
+    );
+  }
+
+  // LOD 控制：是否显示标签和特效
+  const showLabelByLOD = showLabel && (lodLevel === 'full' || lodLevel === 'medium');
+  const showEffects = lodLevel === 'full';
 
   return (
     <AnimatedGroup targetPosition={position}>
@@ -175,15 +209,23 @@ function NodeSphere({
         onPointerOut={() => setHovered(false)}
         scale={scale}
       >
-        <sphereGeometry args={[0.5 + node.risk * 0.4, 16, 16]} />
+        <sphereGeometry args={[0.5 + node.risk * 0.4, isCluster ? 12 : 16, isCluster ? 12 : 16]} />
         <meshStandardMaterial
           color={color}
           emissive={emissiveColor}
           emissiveIntensity={emissiveVal}
           transparent
           opacity={opacity}
+          wireframe={isCluster}
         />
       </mesh>
+      {/* 簇节点：额外半透明内球 */}
+      {isCluster && (
+        <mesh scale={scale * 0.85}>
+          <sphereGeometry args={[0.5 + node.risk * 0.4, 12, 12]} />
+          <meshStandardMaterial color={color} transparent opacity={0.3} />
+        </mesh>
+      )}
       {/* 选中环 */}
       {selected && (
         <mesh rotation={[Math.PI / 2, 0, 0]}>
@@ -192,15 +234,15 @@ function NodeSphere({
         </mesh>
       )}
       {/* 被移除节点：红色脉冲环 */}
-      {removed && !selected && <PulsingRing color="#dc2626" />}
+      {showEffects && removed && !selected && <PulsingRing color="#dc2626" />}
       {/* 受波及节点：橙色脉冲环 */}
-      {affected && !removed && !selected && <PulsingRing color="#f59e0b" />}
+      {showEffects && affected && !removed && !selected && <PulsingRing color="#f59e0b" />}
       {/* 告警高亮呼吸脉冲 */}
-      {highlighted && <BreathingPulse />}
+      {showEffects && highlighted && <BreathingPulse />}
       {/* 风险热力圆盘 */}
-      {riskHeatEnabled && <RiskHeatDisk risk={node.risk} />}
-      {/* 标签（被移除节点用红色标签） */}
-      {showLabel && (
+      {showEffects && riskHeatEnabled && <RiskHeatDisk risk={node.risk} />}
+      {/* 标签 */}
+      {showLabelByLOD && (
         <Text
           position={[0, 1.2, 0]}
           fontSize={0.4}
@@ -425,11 +467,47 @@ function Scene({
 }: Topology3DProps) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const { camera } = useThree();
+
+  // 消费优化层
+  const { optimizedGraph, toggleCluster, setCameraDistance } = useOptimization();
+
+  // 使用优化后的节点/边（如果可用），否则回退到原始数据
+  const displayNodes = optimizedGraph?.nodes ?? nodes;
+  const displayEdges = (optimizedGraph?.edges ?? edges) as (GraphEdge & { visibility?: string; isMerged?: boolean })[];
 
   const positions = useMemo(
-    () => computeLayout(layoutMode, { nodes, edges }),
-    [nodes, edges, layoutMode],
+    () => computeLayout(layoutMode, { nodes: displayNodes, edges: displayEdges }),
+    [displayNodes, displayEdges, layoutMode],
   );
+
+  // 基于布局坐标计算包围盒、相机限制、网格参数
+  const boundingBox = useMemo(() => computeBoundingBox(positions), [positions]);
+  const cameraLimits = useMemo(() => computeCameraLimits(boundingBox), [boundingBox]);
+  const gridParams = useMemo(() => computeGridParams(boundingBox), [boundingBox]);
+
+  // 每帧回报相机距离（节流：每 3 帧一次）
+  const frameCounter = useRef(0);
+  useFrame(() => {
+    frameCounter.current++;
+    if (frameCounter.current % 3 !== 0) return;
+    const dist = camera.position.distanceTo(new THREE.Vector3(...boundingBox.center));
+    setCameraDistance(dist);
+  });
+
+  // 计算每个节点的 LOD
+  const nodeLODs = useMemo(() => {
+    const camPos = camera.position.toArray() as [number, number, number];
+    const totalVisible = displayNodes.length;
+    const lods = new Map<string, NodeLOD>();
+    for (const node of displayNodes) {
+      const pos = positions[node.id];
+      if (!pos) { lods.set(node.id, 'hidden'); continue; }
+      const isCluster = (node as OptimizedNode).cluster?.isCluster ?? false;
+      lods.set(node.id, computeNodeLOD(pos, camPos, totalVisible, isCluster));
+    }
+    return lods;
+  }, [displayNodes, positions, camera.position.x, camera.position.y, camera.position.z]);
 
   // 决定哪些边显示箭头
   const arrowEdgeIds = useMemo(() => {
@@ -438,7 +516,7 @@ function Scene({
     // 选中节点时，仅显示其相关边的箭头
     if (selectedNodeId) {
       return new Set(
-        edges
+        displayEdges
           .filter(e => e.source === selectedNodeId || e.target === selectedNodeId)
           .map(e => e.id),
       );
@@ -446,7 +524,7 @@ function Scene({
     // 选中边时，仅显示该边箭头
     if (selectedEdgeId) return new Set([selectedEdgeId]);
     return new Set<string>(); // empty = none
-  }, [layoutMode, showArrows, selectedNodeId, selectedEdgeId, edges]);
+  }, [layoutMode, showArrows, selectedNodeId, selectedEdgeId, displayEdges]);
 
   const shouldShowArrow = (edgeId: string) =>
     arrowEdgeIds === null || arrowEdgeIds.has(edgeId);
@@ -454,21 +532,21 @@ function Scene({
   const highlightedEdgeIds = useMemo(() => {
     if (!highlightAlertId) return new Set<string>();
     return new Set(
-      edges.filter(e => (e.alert_ids ?? []).includes(highlightAlertId)).map(e => e.id),
+      displayEdges.filter(e => (e.alert_ids ?? []).includes(highlightAlertId)).map(e => e.id),
     );
-  }, [edges, highlightAlertId]);
+  }, [displayEdges, highlightAlertId]);
 
   const highlightedNodeIds = useMemo(() => {
     if (!highlightAlertId) return new Set<string>();
     const nodeIds = new Set<string>();
-    edges.forEach(e => {
+    displayEdges.forEach(e => {
       if ((e.alert_ids ?? []).includes(highlightAlertId)) {
         nodeIds.add(e.source);
         nodeIds.add(e.target);
       }
     });
     return nodeIds;
-  }, [edges, highlightAlertId]);
+  }, [displayEdges, highlightAlertId]);
 
   // 变暗策略：有选中项时，弱化无关元素
   const hasSelection = selectedNodeId !== null || selectedEdgeId !== null;
@@ -477,12 +555,12 @@ function Scene({
     if (!hasSelection) return false;
     if (selectedNodeId === nodeId) return false;
     if (selectedEdgeId) {
-      const edge = edges.find(e => e.id === selectedEdgeId);
+      const edge = displayEdges.find(e => e.id === selectedEdgeId);
       if (edge && (edge.source === nodeId || edge.target === nodeId)) return false;
     }
     if (selectedNodeId) {
       // 直接邻居不做变暗
-      const isNeighbour = edges.some(
+      const isNeighbour = displayEdges.some(
         e =>
           (e.source === selectedNodeId && e.target === nodeId) ||
           (e.target === selectedNodeId && e.source === nodeId),
@@ -517,7 +595,9 @@ function Scene({
       <pointLight position={[-10, -10, -5]} intensity={0.3} />
 
       {/* 边 */}
-      {edges.map(edge => {
+      {displayEdges.map(edge => {
+        // 优化层标记为 hidden 的边不渲染
+        if (edge.visibility === 'hidden') return null;
         const from = positions[edge.source];
         const to = positions[edge.target];
         if (!from || !to) return null;
@@ -531,7 +611,7 @@ function Scene({
             highlighted={highlightedEdgeIds.has(edge.id)}
             removed={removedEdgeIds?.has(edge.id) ?? false}
             affected={affectedEdgeIds?.has(edge.id) ?? false}
-            dimmed={isEdgeDimmed(edge)}
+            dimmed={isEdgeDimmed(edge) || edge.visibility === 'dimmed'}
             showArrow={shouldShowArrow(edge.id)}
             onClick={() => {
               setSelectedEdgeId(edge.id);
@@ -543,9 +623,14 @@ function Scene({
       })}
 
       {/* 节点 */}
-      {nodes.map(node => {
+      {displayNodes.map(node => {
         const pos = positions[node.id];
         if (!pos) return null;
+        const lod = nodeLODs.get(node.id) ?? 'full';
+        // hidden 级别不渲染
+        if (lod === 'hidden') return null;
+        const optNode = node as OptimizedNode;
+        const isCluster = optNode.cluster?.isCluster ?? false;
         return (
           <NodeSphere
             key={node.id}
@@ -559,7 +644,13 @@ function Scene({
             dimmed={isNodeDimmed(node.id)}
             showLabel={showLabels}
             riskHeatEnabled={riskHeatEnabled}
+            lodLevel={lod}
             onClick={() => {
+              // 簇节点：点击展开/折叠
+              if (isCluster) {
+                toggleCluster(node.id);
+                return;
+              }
               setSelectedNodeId(node.id);
               setSelectedEdgeId(null);
               onSelectNode?.(node);
@@ -573,8 +664,11 @@ function Scene({
         <AltPathLines altPaths={altPaths} positions={positions} />
       )}
 
-      {/* 网格 */}
-      <gridHelper args={[20, 20, '#e5e7eb', '#f3f4f6']} position={[0, -3, 0]} />
+      {/* 网格（动态大小和位置） */}
+      <gridHelper
+        args={[gridParams.size, gridParams.divisions, '#e5e7eb', '#f3f4f6']}
+        position={[0, gridParams.positionY, 0]}
+      />
 
       {/* 相机控制器 */}
       <CameraController
@@ -583,14 +677,15 @@ function Scene({
         positions={positions}
         focusNodeId={focusNodeId}
         onFocusDone={onFocusDone}
+        cameraLimits={cameraLimits}
       />
 
       <OrbitControls
         makeDefault
         enableDamping
         dampingFactor={0.1}
-        minDistance={3}
-        maxDistance={50}
+        minDistance={cameraLimits.minDistance}
+        maxDistance={cameraLimits.maxDistance}
       />
     </>
   );
