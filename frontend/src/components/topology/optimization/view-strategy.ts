@@ -7,8 +7,7 @@ import { DEFAULT_EDGE_FILTER } from './types';
  * - 中图（51-200）：子网聚合，支持展开单个簇
  * - 大图（>200）：子网聚合 + 摘要模式
  */
-export function computeDefaultViewLevel(nodeCount: number): ViewLevel {
-  if (nodeCount <= 50) return 'host';
+export function computeDefaultViewLevel(_nodeCount: number): ViewLevel {
   return 'subnet';
 }
 
@@ -38,6 +37,6 @@ export function computeDefaultEdgeFilter(
       hideIntraCluster: true,
     };
   }
-  // 小图：不过滤
-  return { ...DEFAULT_EDGE_FILTER };
+  // 小图：隐藏簇内边，保持聚合边默认
+  return { ...DEFAULT_EDGE_FILTER, hideIntraCluster: true };
 }

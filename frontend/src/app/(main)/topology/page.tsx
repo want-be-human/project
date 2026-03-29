@@ -145,11 +145,11 @@ function TopologyInner() {
   const [selectedEdge, setSelectedEdge] = useState<GraphEdge | null>(null);
 
   // ── 布局与视觉增强状态 ──
-  const [layoutMode, setLayoutMode] = useState<LayoutMode>('circle');
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>('clustered-subnet');
   const [showLabels, setShowLabels] = useState(true);
   const [showArrows, setShowArrows] = useState(false);
   const [riskHeatEnabled, setRiskHeatEnabled] = useState(false);
-  const [cameraPreset, setCameraPreset] = useState<CameraPreset>(null);
+  const [cameraPreset, setCameraPreset] = useState<CameraPreset>('top');
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
 
   // DAG 模式下自动启用箭头
