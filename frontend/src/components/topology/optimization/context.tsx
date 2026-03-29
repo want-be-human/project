@@ -34,6 +34,12 @@ interface OptimizationProviderProps {
   timeWindowStart: number;
   /** 时间窗终点（unix ms） */
   timeWindowEnd: number;
+  /**
+   * 当前拓扑视图模式。
+   * overview → clustered-subnet，默认隐藏簇内边；
+   * analysis/explain → force/dag，不做簇聚合，簇内边可见。
+   */
+  topologyViewMode?: 'overview' | 'analysis' | 'explain';
   children: ReactNode;
 }
 
@@ -47,13 +53,18 @@ export function OptimizationProvider({
   currentTime,
   timeWindowStart,
   timeWindowEnd,
+  topologyViewMode = 'overview',
   children,
 }: OptimizationProviderProps) {
+  // overview 模式使用子网聚合；analysis/explain 使用 host 级别（力导向/DAG 不需要聚合）
+  const forcedViewLevel: ViewLevel | undefined =
+    topologyViewMode !== 'overview' ? 'host' : undefined;
+
   // 根据节点数量计算默认视图层级
   const defaultViewLevel = useMemo(
-    () => (graph ? computeDefaultViewLevel(graph.nodes.length) : 'host' as ViewLevel),
+    () => forcedViewLevel ?? (graph ? computeDefaultViewLevel(graph.nodes.length) : 'host' as ViewLevel),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [graph?.nodes.length],
+    [graph?.nodes.length, forcedViewLevel],
   );
 
   const [viewLevel, setViewLevel] = useState<ViewLevel>(defaultViewLevel);
@@ -61,15 +72,21 @@ export function OptimizationProvider({
   const [edgeFilter, setEdgeFilterState] = useState<EdgeFilterConfig>(DEFAULT_EDGE_FILTER);
   const [cameraDistance, setCameraDistance] = useState(20);
 
-  // graph 变化时重置状态
+  // graph 或视图模式变化时重置状态
   useEffect(() => {
     if (!graph) return;
-    const newLevel = computeDefaultViewLevel(graph.nodes.length);
+    const newLevel = forcedViewLevel ?? computeDefaultViewLevel(graph.nodes.length);
     setViewLevel(newLevel);
     setExpandedClusters(new Set());
-    setEdgeFilterState(computeDefaultEdgeFilter(graph.nodes.length, graph.edges.length));
+    // analysis/explain 模式不隐藏簇内边（没有簇）
+    const baseFilter = computeDefaultEdgeFilter(graph.nodes.length, graph.edges.length);
+    setEdgeFilterState(
+      topologyViewMode !== 'overview'
+        ? { ...baseFilter, hideIntraCluster: false }
+        : baseFilter,
+    );
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [graph?.nodes.length]);
+  }, [graph?.nodes.length, topologyViewMode]);
 
   // 聚合计算
   const aggregated = useMemo(() => {

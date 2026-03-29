@@ -37,6 +37,7 @@ export interface Topology3DProps {
   affectedEdgeIds?: Set<string>;
   altPathNodeIds?: Set<string>;
   layoutMode?: LayoutMode;
+  topologyViewMode?: 'overview' | 'analysis' | 'explain';
   showLabels?: boolean;
   showArrows?: boolean;
   riskHeatEnabled?: boolean;
@@ -196,8 +197,15 @@ function NodeSphere({
     );
   }
 
-  // LOD 控制：是否显示标签和特效
-  const showLabelByLOD = showLabel && (lodLevel === 'full' || lodLevel === 'medium');
+  // LOD 控制：标签显示策略
+  // - cluster 节点：medium+ 始终显示（总览必要信息）
+  // - 高风险节点（≥0.7）：medium+ 显示（风险优先）
+  // - 普通节点：仅 full LOD 显示，且需要 showLabel 全局开关
+  const showLabelByLOD = isCluster
+    ? (lodLevel === 'full' || lodLevel === 'medium')
+    : node.risk >= 0.7
+      ? (lodLevel === 'full' || lodLevel === 'medium')
+      : showLabel && lodLevel === 'full';
   const showEffects = lodLevel === 'full';
 
   return (
@@ -454,6 +462,7 @@ function Scene({
   affectedEdgeIds,
   altPathNodeIds,
   layoutMode = 'circle',
+  topologyViewMode = 'overview',
   showLabels = true,
   showArrows = false,
   riskHeatEnabled = false,
@@ -483,7 +492,10 @@ function Scene({
 
   // 基于布局坐标计算包围盒、相机限制、网格参数
   const boundingBox = useMemo(() => computeBoundingBox(positions), [positions]);
-  const cameraLimits = useMemo(() => computeCameraLimits(boundingBox), [boundingBox]);
+  const cameraLimits = useMemo(
+    () => computeCameraLimits(boundingBox, { viewMode: topologyViewMode }),
+    [boundingBox, topologyViewMode],
+  );
   const gridParams = useMemo(() => computeGridParams(boundingBox), [boundingBox]);
 
   // 每帧回报相机距离（节流：每 3 帧一次）
@@ -686,6 +698,7 @@ function Scene({
         dampingFactor={0.1}
         minDistance={cameraLimits.minDistance}
         maxDistance={cameraLimits.maxDistance}
+        target={new THREE.Vector3(...cameraLimits.fitTarget)}
       />
     </>
   );

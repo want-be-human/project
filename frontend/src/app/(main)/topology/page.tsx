@@ -156,8 +156,17 @@ function TopologyInner() {
   // DAG 模式下强制启用箭头
   const effectiveShowArrows = layoutMode === 'dag' ? true : showArrowsBase;
 
-  const [cameraPreset, setCameraPreset] = useState<CameraPreset>('top');
+  const [cameraPreset, setCameraPreset] = useState<CameraPreset>(null);
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
+
+  // 切换视图模式时自动 fit 相机
+  const prevTopoViewMode = useRef(topoViewMode);
+  useEffect(() => {
+    if (prevTopoViewMode.current !== topoViewMode) {
+      prevTopoViewMode.current = topoViewMode;
+      setCameraPreset('fit');
+    }
+  }, [topoViewMode]);
 
   // searchParams 变化时同步时间过滤器
   useEffect(() => {
@@ -271,6 +280,15 @@ function TopologyInner() {
     }
   }, [graph, dryRunResult, dryRunBefore, viewMode]);
 
+  // 图数据首次就绪时触发 fit（数据加载完成后 positions 才有意义）
+  const graphFitted = useRef(false);
+  useEffect(() => {
+    if (displayGraph && !graphFitted.current) {
+      graphFitted.current = true;
+      setCameraPreset('fit');
+    }
+  }, [displayGraph]);
+
   // 保留原始值映射，供 SideInspector 展示 before→after
   const originalValues = useMemo(() => {
     const base = dryRunBefore ?? graph;
@@ -380,6 +398,7 @@ function TopologyInner() {
       currentTime={currentTime}
       timeWindowStart={sliderStartTime}
       timeWindowEnd={sliderEndTime}
+      topologyViewMode={topoViewMode}
     >
     <div className="h-[calc(100vh-64px)] flex flex-col">
       {/* 工具栏（通过桥接组件注入优化层 props） */}
@@ -423,6 +442,7 @@ function TopologyInner() {
                 affectedEdgeIds={isDiff ? affectedEdgeIds : undefined}
                 altPathNodeIds={isDiff ? altPathNodeIds : undefined}
                 layoutMode={layoutMode}
+                topologyViewMode={topoViewMode}
                 showLabels={showLabels}
                 showArrows={effectiveShowArrows}
                 riskHeatEnabled={riskHeatEnabled}

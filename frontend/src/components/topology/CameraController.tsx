@@ -21,12 +21,6 @@ interface CameraControllerProps {
   cameraLimits?: CameraLimits;
 }
 
-const PRESET_POSITIONS: Record<string, THREE.Vector3> = {
-  top:   new THREE.Vector3(0, 25, 0.01), // 轻微 z 偏移以避免万向节锁
-  front: new THREE.Vector3(0, 5, 25),
-  side:  new THREE.Vector3(25, 5, 0),
-};
-
 const LERP_SPEED = 4; // 数值越大，动画越快
 
 /**
@@ -50,32 +44,46 @@ export default function CameraController({
   useEffect(() => {
     if (!preset) return;
 
+    // 所有预设都看向图中心（而非固定原点）
+    const center = cameraLimits
+      ? new THREE.Vector3(...cameraLimits.fitTarget)
+      : new THREE.Vector3(0, 0, 0);
+
     if (preset === 'fit') {
-      // 优先使用优化层提供的动态相机限制
       if (cameraLimits) {
         targetPos.current = new THREE.Vector3(...cameraLimits.fitPosition);
-        targetLookAt.current.set(...cameraLimits.fitTarget);
+        targetLookAt.current.copy(center);
       } else {
         const pts = Object.values(positions);
         if (pts.length === 0) { onDone(); return; }
-
         const box = new THREE.Box3();
         pts.forEach(([x, y, z]) => box.expandByPoint(new THREE.Vector3(x, y, z)));
-        const center = new THREE.Vector3();
         box.getCenter(center);
         const size = box.getSize(new THREE.Vector3());
         const maxDim = Math.max(size.x, size.y, size.z, 5);
-        const dist = maxDim * 1.6;
-
-        targetPos.current = new THREE.Vector3(center.x, center.y + dist * 0.4, center.z + dist);
+        const dist = maxDim * 1.8;
+        targetPos.current = new THREE.Vector3(center.x, center.y + dist * 0.5, center.z + dist);
         targetLookAt.current.copy(center);
       }
     } else {
-      const pos = PRESET_POSITIONS[preset];
-      if (pos) {
-        targetPos.current = pos.clone();
-        targetLookAt.current.set(0, 0, 0);
+      // top / front / side：基于图对角线缩放偏移量，看向图中心
+      const d = cameraLimits
+        ? Math.max(
+            Math.abs(cameraLimits.fitPosition[0] - cameraLimits.fitTarget[0]),
+            Math.abs(cameraLimits.fitPosition[1] - cameraLimits.fitTarget[1]),
+            Math.abs(cameraLimits.fitPosition[2] - cameraLimits.fitTarget[2]),
+            10,
+          )
+        : 25;
+
+      if (preset === 'top') {
+        targetPos.current = new THREE.Vector3(center.x, center.y + d, center.z + 0.01);
+      } else if (preset === 'front') {
+        targetPos.current = new THREE.Vector3(center.x, center.y + d * 0.2, center.z + d);
+      } else if (preset === 'side') {
+        targetPos.current = new THREE.Vector3(center.x + d, center.y + d * 0.2, center.z);
       }
+      targetLookAt.current.copy(center);
     }
     animating.current = true;
   }, [preset, positions, onDone, cameraLimits]);
