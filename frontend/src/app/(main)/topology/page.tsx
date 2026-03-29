@@ -7,7 +7,7 @@ import { api } from '@/lib/api';
 import { GraphResponse, GraphNode, GraphEdge, DryRunResult } from '@/lib/api/types';
 import { RefreshCw } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import TopologyToolbar from '@/components/topology/TopologyToolbar';
+import TopologyToolbar, { type TopologyViewMode, VIEW_MODE_LAYOUT, VIEW_MODE_LABELS } from '@/components/topology/TopologyToolbar';
 import TimeSlider from '@/components/topology/TimeSlider';
 import SideInspector from '@/components/topology/SideInspector';
 import TopologyLegend from '@/components/topology/TopologyLegend';
@@ -144,16 +144,20 @@ function TopologyInner() {
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<GraphEdge | null>(null);
 
-  // ── 布局与视觉增强状态 ──
-  const [layoutMode, setLayoutMode] = useState<LayoutMode>('clustered-subnet');
-  const [showLabels, setShowLabels] = useState(true);
-  const [showArrows, setShowArrows] = useState(false);
-  const [riskHeatEnabled, setRiskHeatEnabled] = useState(false);
+  // ── 主视图模式（驱动布局 + 标签策略） ──
+  const [topoViewMode, setTopoViewMode] = useState<TopologyViewMode>('overview');
+  // 高级覆盖：允许手动切换到非默认布局（undefined = 跟随视图模式）
+  const [layoutOverride, setLayoutOverride] = useState<LayoutMode | undefined>(undefined);
+
+  // 派生：实际布局 = 覆盖 ?? 视图模式默认
+  const layoutMode = layoutOverride ?? VIEW_MODE_LAYOUT[topoViewMode];
+  // 派生：标签/箭头策略由视图模式决定
+  const { showLabels, showArrows: showArrowsBase, riskHeatEnabled } = VIEW_MODE_LABELS[topoViewMode];
+  // DAG 模式下强制启用箭头
+  const effectiveShowArrows = layoutMode === 'dag' ? true : showArrowsBase;
+
   const [cameraPreset, setCameraPreset] = useState<CameraPreset>('top');
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
-
-  // DAG 模式下自动启用箭头
-  const effectiveShowArrows = layoutMode === 'dag' ? true : showArrows;
 
   // searchParams 变化时同步时间过滤器
   useEffect(() => {
@@ -380,8 +384,8 @@ function TopologyInner() {
     <div className="h-[calc(100vh-64px)] flex flex-col">
       {/* 工具栏（通过桥接组件注入优化层 props） */}
       <OptimizedToolbar
-        mode={mode}
-        onModeChange={setMode}
+        viewMode={topoViewMode}
+        onViewModeChange={(m) => { setTopoViewMode(m); setLayoutOverride(undefined); }}
         highlightAlertId={highlightAlertId}
         onRefresh={fetchGraph}
         loading={loading}
@@ -390,14 +394,9 @@ function TopologyInner() {
         onStartTimeChange={(v) => setFilterStart(localInputToIso(v))}
         onEndTimeChange={(v) => setFilterEnd(localInputToIso(v))}
         layoutMode={layoutMode}
-        onLayoutModeChange={setLayoutMode}
-        showLabels={showLabels}
-        onShowLabelsChange={setShowLabels}
-        showArrows={effectiveShowArrows}
-        onShowArrowsChange={setShowArrows}
-        riskHeatEnabled={riskHeatEnabled}
-        onRiskHeatChange={setRiskHeatEnabled}
+        onLayoutModeChange={setLayoutOverride}
         onCameraPreset={setCameraPreset}
+        dryRunActive={!!dryRunResult}
       />
 
       {/* 主体：3D 视图 + 侧边检查器 */}
