@@ -115,8 +115,15 @@ export function computeCameraLimits(
     const finalDist = isElongated ? Math.max(dist, bb.diagonal * 0.9) : dist;
     fitPosition = [cx, cy + finalDist, cz + 0.01];
   } else if (viewMode === 'analysis') {
-    // angled-fit：45° 俯角斜视，同时容纳 XZ 和 XY
-    const dist = distToFit(sizeX / 2, Math.max(sizeZ, sizeY) / 2) * 1.2;
+    // 斜视相机（仰角~37°，camDir=[0,-0.6,-0.8]）的正确 FOV fit：
+    // 将 bounding box 8 角点投影到相机屏幕平面
+    // camRight=[0,0.8,-0.6], camUp=[1,0,0]（纯数学展开，无需 THREE）
+    // maxH = max|0.8*dy - 0.6*dz| = 0.8*(sizeY/2) + 0.6*(sizeZ/2)
+    // maxV = max|dx| = sizeX/2
+    const maxH = 0.8 * (sizeY / 2) + 0.6 * (sizeZ / 2);
+    const maxV = sizeX / 2;
+    const baseDist = distToFit(maxH, maxV);
+    const dist = isElongated ? Math.max(baseDist, bb.diagonal * 0.85) : baseDist;
     fitPosition = [cx, cy + dist * 0.6, cz + dist * 0.8];
   } else {
     // explain（DAG）：正面偏上，保证路径链完整可见
