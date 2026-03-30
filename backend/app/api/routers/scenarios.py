@@ -9,7 +9,6 @@ PATCH  /scenarios/{scenario_id}/unarchive
 DELETE /scenarios/{scenario_id}
 """
 
-import asyncio
 import json
 
 from fastapi import APIRouter, Depends, Query, Path
@@ -26,7 +25,6 @@ from app.schemas.scenario import (
     CreateScenarioRequest,
 )
 from app.services.scenarios.service import ScenariosService
-from app.api.routers.stream import broadcast_scenario_done
 
 router = APIRouter(prefix="/scenarios", tags=["scenarios"])
 
@@ -77,7 +75,8 @@ async def list_scenarios(
     "/{scenario_id}/run",
     response_model=ApiResponse[ScenarioRunResultSchema],
     summary="Run Scenario",
-    description="Execute a scenario and return results. Returns 409 if scenario is archived.",
+    description="Execute a scenario and return results. Returns 409 if scenario is archived. "
+                "Emits real-time WS events: scenario.run.started, scenario.stage.*, scenario.run.done.",
 )
 async def run_scenario(
     scenario_id: str = Path(..., description="Scenario ID"),
@@ -88,11 +87,8 @@ async def run_scenario(
     if not scenario:
         raise NotFoundError(message=f"Scenario {scenario_id} not found")
 
+    # ScenarioRunTracker 内部已发布所有事件（started / stage.* / progress / done）
     result = svc.run_scenario(scenario)
-
-    asyncio.create_task(
-        broadcast_scenario_done(scenario_id=scenario.id, status=result.status)
-    )
 
     return ApiResponse.success(result)
 

@@ -23,6 +23,13 @@ ALERT_UPDATED = "alert.updated"
 TWIN_DRYRUN_CREATED = "twin.dryrun.created"
 SCENARIO_RUN_DONE = "scenario.run.done"
 
+# 场景运行实时阶段流事件
+SCENARIO_RUN_STARTED     = "scenario.run.started"
+SCENARIO_STAGE_STARTED   = "scenario.stage.started"
+SCENARIO_STAGE_COMPLETED = "scenario.stage.completed"
+SCENARIO_STAGE_FAILED    = "scenario.stage.failed"
+SCENARIO_RUN_PROGRESS    = "scenario.run.progress"
+
 # 流水线可观测性事件
 PIPELINE_RUN_STARTED = "pipeline.run.started"
 PIPELINE_STAGE_COMPLETED = "pipeline.stage.completed"
@@ -36,6 +43,11 @@ ALL_EVENT_TYPES = [
     ALERT_UPDATED,
     TWIN_DRYRUN_CREATED,
     SCENARIO_RUN_DONE,
+    SCENARIO_RUN_STARTED,
+    SCENARIO_STAGE_STARTED,
+    SCENARIO_STAGE_COMPLETED,
+    SCENARIO_STAGE_FAILED,
+    SCENARIO_RUN_PROGRESS,
     PIPELINE_RUN_STARTED,
     PIPELINE_STAGE_COMPLETED,
     PIPELINE_STAGE_FAILED,

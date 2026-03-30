@@ -391,12 +391,50 @@ export interface ScenarioRunResult {
         alert_count: number;
         high_severity_count: number;
         avg_dry_run_risk: number;
-        processing_time_ms?: number;
+        validation_latency_ms?: number;  // 新增：校验耗时
+        pipeline_latency_ms?: number;    // 新增：Pipeline 耗时
         [key: string]: number | undefined;
     };
+    timeline?: ScenarioRunTimeline;  // 新增：阶段时间线
 }
 
 export type PipelineStageStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
+
+// 结构化失败归因（新增）
+export interface FailureAttribution {
+    check_name: string;
+    expected: any;
+    actual: any;
+    category: 'data_missing' | 'assertion_failed' | 'service_error' | 'timeout';
+}
+
+// 场景阶段记录（新增）
+export interface ScenarioStageRecord {
+    stage_name: string;
+    status: PipelineStageStatus;
+    started_at: string | null;
+    completed_at: string | null;
+    latency_ms: number | null;
+    key_metrics: Record<string, any>;
+    error_summary: string | null;
+    failure_attribution: FailureAttribution | null;
+    input_summary: Record<string, any>;
+    output_summary: Record<string, any>;
+}
+
+// 场景运行时间线（新增）
+export interface ScenarioRunTimeline {
+    id: string;
+    scenario_id: string;
+    status: string;
+    started_at: string | null;
+    completed_at: string | null;
+    total_latency_ms: number | null;
+    validation_latency_ms: number | null;
+    pipeline_latency_ms: number | null;
+    stages: ScenarioStageRecord[];
+    failed_stage: string | null;
+}
 
 export interface StageRecord {
     stage_name: string;

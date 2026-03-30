@@ -201,10 +201,97 @@ async def broadcast_dryrun_created(dry_run_id: str, alert_id: str, risk: float, 
 
 
 async def broadcast_scenario_done(scenario_id: str, status: str):
-    """广播场景运行完成事件。"""
+    """
+    广播场景运行完成事件（已废弃，由 ScenarioRunTracker 内部发布）。
+    保留此函数以兼容旧代码，但不再执行双重广播。
+    """
     bus = get_event_bus()
     await bus.publish(make_event(SCENARIO_RUN_DONE, {"scenario_id": scenario_id, "status": status}))
-    await manager.broadcast(
-        "scenario.run.done",
-        {"scenario_id": scenario_id, "status": status}
-    )
+
+
+# ── 场景运行实时阶段流事件广播 helpers ──────────────────────────
+
+async def broadcast_scenario_run_started(
+    scenario_id: str, run_id: str, scenario_name: str, total_stages: int
+):
+    """广播场景运行开始事件。"""
+    bus = get_event_bus()
+    await bus.publish(make_event(
+        "scenario.run.started",
+        {
+            "scenario_id": scenario_id,
+            "run_id": run_id,
+            "scenario_name": scenario_name,
+            "total_stages": total_stages,
+        }
+    ))
+
+
+async def broadcast_scenario_stage_started(
+    scenario_id: str, run_id: str, stage: str, stage_index: int, total_stages: int
+):
+    """广播场景阶段开始事件。"""
+    bus = get_event_bus()
+    await bus.publish(make_event(
+        "scenario.stage.started",
+        {
+            "scenario_id": scenario_id,
+            "run_id": run_id,
+            "stage": stage,
+            "stage_index": stage_index,
+            "total_stages": total_stages,
+        }
+    ))
+
+
+async def broadcast_scenario_stage_completed(
+    scenario_id: str, run_id: str, stage: str, latency_ms: float, key_metrics: dict
+):
+    """广播场景阶段完成事件。"""
+    bus = get_event_bus()
+    await bus.publish(make_event(
+        "scenario.stage.completed",
+        {
+            "scenario_id": scenario_id,
+            "run_id": run_id,
+            "stage": stage,
+            "status": "completed",
+            "latency_ms": latency_ms,
+            "key_metrics": key_metrics,
+        }
+    ))
+
+
+async def broadcast_scenario_stage_failed(
+    scenario_id: str, run_id: str, stage: str, error_summary: str, failure_attribution: dict | None
+):
+    """广播场景阶段失败事件。"""
+    bus = get_event_bus()
+    await bus.publish(make_event(
+        "scenario.stage.failed",
+        {
+            "scenario_id": scenario_id,
+            "run_id": run_id,
+            "stage": stage,
+            "status": "failed",
+            "error_summary": error_summary,
+            "failure_attribution": failure_attribution,
+        }
+    ))
+
+
+async def broadcast_scenario_run_progress(
+    scenario_id: str, run_id: str, completed_stages: int, total_stages: int, percent: float
+):
+    """广播场景运行进度事件。"""
+    bus = get_event_bus()
+    await bus.publish(make_event(
+        "scenario.run.progress",
+        {
+            "scenario_id": scenario_id,
+            "run_id": run_id,
+            "completed_stages": completed_stages,
+            "total_stages": total_stages,
+            "percent": percent,
+        }
+    ))

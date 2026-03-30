@@ -1,22 +1,30 @@
 'use client';
 
-import { Scenario, ScenarioRunResult, PipelineRun } from '@/lib/api/types';
+import { Scenario, ScenarioRunResult, ScenarioStageRecord, ScenarioRunTimeline, FailureAttribution } from '@/lib/api/types';
 import { api } from '@/lib/api';
 import { wsClient } from '@/lib/ws';
 import { useState, useEffect } from 'react';
-import { Play, CheckCircle2, XCircle, Clock, Activity, ShieldAlert, BarChart3, RefreshCw } from 'lucide-react';
+import { Play, CheckCircle2, XCircle, Clock, Activity, ShieldAlert, BarChart3, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import PipelineStageTimeline from '@/components/pipeline/PipelineStageTimeline';
+import StageTimeline from '@/components/shared/StageTimeline';
 
 interface Props {
   scenario: Scenario | null;
   onRunStatusChange: (scenarioId: string | undefined) => void;
 }
 
-interface ScenarioRunDoneEvent {
-  scenario_id: string;
-  status: string;
-}
+// 场景阶段名称到 i18n 键名的映射
+const SCENARIO_STAGE_I18N_KEY_MAP: Record<string, string> = {
+  load_scenario:                  'stageLoadScenario',
+  load_alerts:                    'stageLoadAlerts',
+  check_alert_volume:             'stageCheckAlertVolume',
+  check_required_patterns:        'stageCheckRequiredPatterns',
+  check_evidence_chain:           'stageCheckEvidenceChain',
+  check_dry_run:                  'stageCheckDryRun',
+  check_entities_and_features:    'stageCheckEntitiesAndFeatures',
+  check_pipeline_constraints:     'stageCheckPipelineConstraints',
+  summarize_result:               'stageSummarizeResult',
+};
 
 export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props) {
   const t = useTranslations('scenarios');
@@ -24,35 +32,102 @@ export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props)
   const [result, setResult] = useState<ScenarioRunResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [pipelineRun, setPipelineRun] = useState<PipelineRun | null>(null);
-  const [pipelineLoading, setPipelineLoading] = useState(false);
+
+  // 实时阶段流状态
+  const [liveStages, setLiveStages] = useState<ScenarioStageRecord[]>([]);
+  const [liveTimeline, setLiveTimeline] = useState<ScenarioRunTimeline | null>(null);
+  const [stageProgress, setStageProgress] = useState<{ completed: number; total: number } | null>(null);
 
   // 选择新场景时清空旧结果
   useEffect(() => {
     setResult(null);
     setError(null);
-    setPipelineRun(null);
+    setLiveStages([]);
+    setLiveTimeline(null);
+    setStageProgress(null);
   }, [scenario?.id]);
 
-  // 订阅 scenario.run.done 的 WebSocket 事件
-  // 事件载荷较轻：{ scenario_id, status }
-  // 当未处于主动运行中（POST 未在进行）时，通过 scenario_id 拉取完整运行结果
+  // 订阅 6 个 WebSocket 事件实现实时阶段流
   useEffect(() => {
-    const unsub = wsClient.onEvent('scenario.run.done', async (payload: ScenarioRunDoneEvent) => {
-      if (!scenario || payload.scenario_id !== scenario.id) return;
-      // 若当前已在处理 POST 发起的运行则跳过（其会直接写入结果）
-      if (running) return;
-      setRefreshing(true);
-      try {
-        const full = await api.getLatestScenarioRun(payload.scenario_id);
-        setResult(full);
-      } catch (e) {
-        console.error('Failed to fetch scenario run detail:', e);
-      } finally {
-        setRefreshing(false);
-      }
-    });
-    return unsub;
+    if (!scenario) return;
+
+    const unsubs = [
+      // 1. scenario.run.started - 运行开始
+      wsClient.onEvent('scenario.run.started', (p: any) => {
+        if (p.scenario_id !== scenario.id) return;
+        setLiveStages([]);
+        setLiveTimeline(null);
+        setStageProgress({ completed: 0, total: p.total_stages || 9 });
+      }),
+
+      // 2. scenario.stage.started - 阶段开始
+      wsClient.onEvent('scenario.stage.started', (p: any) => {
+        if (p.scenario_id !== scenario.id) return;
+        setLiveStages(prev => [...prev, {
+          stage_name: p.stage,
+          status: 'running',
+          started_at: null,
+          completed_at: null,
+          latency_ms: null,
+          key_metrics: {},
+          error_summary: null,
+          failure_attribution: null,
+          input_summary: {},
+          output_summary: {},
+        }]);
+      }),
+
+      // 3. scenario.stage.completed - 阶段完成
+      wsClient.onEvent('scenario.stage.completed', (p: any) => {
+        if (p.scenario_id !== scenario.id) return;
+        setLiveStages(prev => prev.map(s =>
+          s.stage_name === p.stage
+            ? { ...s, status: 'completed', latency_ms: p.latency_ms, key_metrics: p.key_metrics || {} }
+            : s
+        ));
+      }),
+
+      // 4. scenario.stage.failed - 阶段失败
+      wsClient.onEvent('scenario.stage.failed', (p: any) => {
+        if (p.scenario_id !== scenario.id) return;
+        setLiveStages(prev => prev.map(s =>
+          s.stage_name === p.stage
+            ? {
+                ...s,
+                status: 'failed',
+                error_summary: p.error_summary,
+                failure_attribution: p.failure_attribution,
+              }
+            : s
+        ));
+      }),
+
+      // 5. scenario.run.progress - 进度更新
+      wsClient.onEvent('scenario.run.progress', (p: any) => {
+        if (p.scenario_id !== scenario.id) return;
+        setStageProgress({ completed: p.completed_stages, total: p.total_stages });
+      }),
+
+      // 6. scenario.run.done - 运行完成（仅在非主动运行时补拉）
+      wsClient.onEvent('scenario.run.done', async (p: any) => {
+        if (p.scenario_id !== scenario.id) return;
+        if (running) return;
+        setRefreshing(true);
+        try {
+          const full = await api.getLatestScenarioRun(p.scenario_id);
+          setResult(full);
+          if (full.timeline) {
+            setLiveTimeline(full.timeline);
+          }
+        } catch (e) {
+          console.error('Failed to fetch scenario run detail:', e);
+        } finally {
+          setRefreshing(false);
+        }
+      }),
+    ];
+
+    return () => unsubs.forEach(u => u());
   }, [scenario?.id, running]);
 
   const handleRun = async () => {
@@ -60,20 +135,16 @@ export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props)
     setRunning(true);
     setError(null);
     setResult(null);
-    setPipelineRun(null);
+    setLiveStages([]);
+    setLiveTimeline(null);
+    setStageProgress(null);
     onRunStatusChange(scenario.id);
 
     try {
       const res = await api.runScenario(scenario.id);
       setResult(res);
-
-      // 以 fire-and-forget 方式获取流水线结果：错误静默处理（功能开关可能关闭）
-      if (scenario.pcap_ref?.pcap_id) {
-        setPipelineLoading(true);
-        api.getPipelineRun(scenario.pcap_ref.pcap_id)
-          .then(run => setPipelineRun(run))
-          .catch(() => { /* 404 or feature flag disabled — show graceful empty state */ })
-          .finally(() => setPipelineLoading(false));
+      if (res.timeline) {
+        setLiveTimeline(res.timeline);
       }
     } catch (e: any) {
       setError(e.message || t('runError'));
@@ -158,11 +229,45 @@ export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props)
           </div>
         )}
 
-        {/* Loading state */}
+        {/* Loading state with real-time progress */}
         {running && (
-          <div className="flex flex-col items-center justify-center h-40">
-            <p className="text-indigo-600 font-medium animate-pulse mb-2">{t('executing')}</p>
-            <p className="text-sm text-gray-500">{t('executingDetail')}</p>
+          <div className="space-y-4">
+            <div className="flex flex-col items-center justify-center py-6">
+              <p className="text-indigo-600 font-medium animate-pulse mb-2">{t('executing')}</p>
+              <p className="text-sm text-gray-500">{t('executingDetail')}</p>
+              {stageProgress && (
+                <div className="mt-4 w-full max-w-md">
+                  <div className="flex justify-between text-xs text-gray-600 mb-1">
+                    <span>{t('progress')}</span>
+                    <span>{stageProgress.completed} / {stageProgress.total}</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${(stageProgress.completed / stageProgress.total) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+            {/* 实时阶段列表 */}
+            {liveStages.length > 0 && (
+              <div className="mt-4">
+                <h3 className="text-sm font-semibold text-gray-700 mb-2">{t('liveStages')}</h3>
+                <StageTimeline
+                  run={{
+                    status: 'running',
+                    started_at: null,
+                    total_latency_ms: null,
+                    stages: liveStages,
+                  }}
+                  loading={false}
+                  error={null}
+                  stageI18nKeyMap={SCENARIO_STAGE_I18N_KEY_MAP}
+                  i18nNamespace="scenarios"
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -191,7 +296,7 @@ export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props)
               </div>
             </div>
 
-            {/* Metrics */}
+            {/* Metrics with Latency Breakdown */}
             {result.metrics && (
               <div>
                 <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
@@ -201,8 +306,16 @@ export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props)
                   <MetricCard label={t('totalAlerts')} value={result.metrics.alert_count} />
                   <MetricCard label={t('highSeverity')} value={result.metrics.high_severity_count} color="text-red-600" />
                   <MetricCard label={t('avgRisk')} value={result.metrics.avg_dry_run_risk?.toFixed(2)} />
-                  <MetricCard label={t('processingTime')} value={result.metrics.processing_time_ms != null ? `${result.metrics.processing_time_ms} ms` : '-'} />
+                  <MetricCard
+                    label={t('validationLatency')}
+                    value={result.metrics.validation_latency_ms != null ? `${result.metrics.validation_latency_ms.toFixed(0)} ms` : '-'}
+                  />
                 </div>
+                {result.metrics.pipeline_latency_ms != null && (
+                  <div className="mt-2 text-xs text-gray-500">
+                    {t('pipelineLatency')}: {result.metrics.pipeline_latency_ms.toFixed(0)} ms
+                  </div>
+                )}
               </div>
             )}
 
@@ -240,17 +353,46 @@ export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props)
               </div>
             )}
 
-            {/* Pipeline Stage Timeline */}
-            <div>
-              <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                <Activity className="w-4 h-4" /> Pipeline Execution
-              </h3>
-              <PipelineStageTimeline
-                pipelineRun={pipelineRun}
-                loading={pipelineLoading}
-                error={null}
-              />
-            </div>
+            {/* Scenario Stage Timeline */}
+            {liveTimeline && (
+              <div>
+                <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <Activity className="w-4 h-4" /> {t('stageTimeline')}
+                </h3>
+                {liveTimeline.failed_stage && (
+                  <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-md flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                    <div className="text-sm text-red-700">
+                      <span className="font-medium">{t('failedStage')}:</span> {liveTimeline.failed_stage}
+                    </div>
+                  </div>
+                )}
+                <StageTimeline
+                  run={liveTimeline}
+                  loading={false}
+                  error={null}
+                  stageI18nKeyMap={SCENARIO_STAGE_I18N_KEY_MAP}
+                  i18nNamespace="scenarios"
+                  renderExtraDetail={(stage) => {
+                    if (stage.failure_attribution) {
+                      const attr = stage.failure_attribution as FailureAttribution;
+                      return (
+                        <div>
+                          <div className="font-medium text-red-700 mb-1">{t('failureAttribution')}</div>
+                          <div className="bg-red-50 px-3 py-2 rounded border border-red-200 text-xs space-y-1">
+                            <div><span className="font-semibold">{t('checkName')}:</span> {attr.check_name}</div>
+                            <div><span className="font-semibold">{t('expected')}:</span> {JSON.stringify(attr.expected)}</div>
+                            <div><span className="font-semibold">{t('actual')}:</span> {JSON.stringify(attr.actual)}</div>
+                            <div><span className="font-semibold">{t('category')}:</span> {attr.category}</div>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+              </div>
+            )}
 
           </div>
         )}

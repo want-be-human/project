@@ -3,7 +3,7 @@ Scenario 相关 Schema：Scenario 与 ScenarioRunResult。
 严格遵循 DOC C C4.1 与 C4.2。
 """
 
-from typing import Literal
+from typing import Any, Literal
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
@@ -91,6 +91,58 @@ class ScenarioSchema(BaseModel):
 
 
 # ScenarioRunResult Schema（DOC C C4.2）
+
+# 结构化失败归因（新增）
+class FailureAttribution(BaseModel):
+    """结构化失败归因，精确描述哪个检查项失败及原因。"""
+    check_name: str = Field(..., description="失败的检查项名称")
+    expected: Any = Field(..., description="期望值")
+    actual: Any = Field(..., description="实际值")
+    category: Literal["data_missing", "assertion_failed", "service_error", "timeout"] = Field(
+        ..., description="失败类别"
+    )
+
+
+# 阶段记录（新增）
+class ScenarioStageRecordSchema(BaseModel):
+    """单个阶段的执行记录，与 pipeline StageRecord 结构对齐。"""
+    stage_name: str = Field(..., description="阶段名称")
+    status: Literal["pending", "running", "completed", "failed", "skipped"] = Field(
+        ..., description="阶段状态"
+    )
+    started_at: str | None = Field(default=None, description="ISO8601 开始时间")
+    completed_at: str | None = Field(default=None, description="ISO8601 完成时间")
+    latency_ms: float | None = Field(default=None, description="阶段耗时（毫秒）")
+    key_metrics: dict[str, Any] = Field(default_factory=dict, description="关键指标")
+    error_summary: str | None = Field(default=None, description="错误摘要")
+    failure_attribution: FailureAttribution | None = Field(
+        default=None, description="结构化失败归因"
+    )
+    input_summary: dict[str, Any] = Field(default_factory=dict, description="输入摘要")
+    output_summary: dict[str, Any] = Field(default_factory=dict, description="输出摘要")
+
+
+# 场景运行时间线（新增）
+class ScenarioRunTimeline(BaseModel):
+    """场景运行完整时间线，汇总所有阶段结果和延迟指标。"""
+    id: str = Field(..., description="运行 ID（与 ScenarioRun.id 一致）")
+    scenario_id: str = Field(..., description="关联场景 ID")
+    status: Literal["pending", "running", "completed", "failed"] = Field(
+        ..., description="整体运行状态"
+    )
+    started_at: str | None = Field(default=None, description="ISO8601 运行开始时间")
+    completed_at: str | None = Field(default=None, description="ISO8601 运行完成时间")
+    total_latency_ms: float | None = Field(default=None, description="总耗时（毫秒）")
+    validation_latency_ms: float | None = Field(
+        default=None, description="校验耗时：阶段 1-8 耗时之和（毫秒）"
+    )
+    pipeline_latency_ms: float | None = Field(
+        default=None, description="Pipeline 耗时：来自 PipelineRunModel（毫秒）"
+    )
+    stages: list[ScenarioStageRecordSchema] = Field(default_factory=list, description="各阶段记录")
+    failed_stage: str | None = Field(default=None, description="第一个失败阶段名称")
+
+
 class ScenarioCheck(BaseModel):
     """场景运行中的单项检查结果 - DOC C C4.2。"""
     name: str = Field(..., description="检查项名称")
@@ -106,6 +158,9 @@ class ScenarioMetrics(BaseModel):
     alert_count: int = Field(default=0, description="告警总数")
     high_severity_count: int = Field(default=0, description="高严重等级告警数")
     avg_dry_run_risk: float = Field(default=0.0, description="平均 dry run 风险")
+    # 延迟指标（拆分，不合并）
+    validation_latency_ms: float | None = Field(default=None, description="校验耗时（毫秒）")
+    pipeline_latency_ms: float | None = Field(default=None, description="Pipeline 耗时（毫秒）")
 
 
 class ScenarioRunResultSchema(BaseModel):
@@ -120,6 +175,7 @@ class ScenarioRunResultSchema(BaseModel):
     status: Literal["pass", "fail"] = Field(..., description="整体状态")
     checks: list[ScenarioCheck] = Field(default_factory=list, description="检查结果")
     metrics: ScenarioMetrics = Field(default_factory=ScenarioMetrics, description="运行指标")
+    timeline: ScenarioRunTimeline | None = Field(default=None, description="阶段时间线（新增）")
 
     class Config:
         from_attributes = True

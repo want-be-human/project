@@ -3,8 +3,9 @@
 遵循附录F第 10、11 节（scenarios 与 scenario_runs 表）。
 """
 
-from sqlalchemy import String, Text, ForeignKey, Index, UniqueConstraint
+from sqlalchemy import String, Text, ForeignKey, Index, UniqueConstraint, Float
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from typing import Optional
 
 from app.models.base import BaseModel
 
@@ -71,6 +72,13 @@ class ScenarioRun(BaseModel):
 
     # 完整 ScenarioRunResult JSON 载荷
     payload: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # 阶段时间线 JSON（list[ScenarioStageRecord]），与 pipeline_runs.stages_log 结构对齐
+    stages_log: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # 延迟指标（拆分，不合并）
+    validation_latency_ms: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    pipeline_latency_ms: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
     # 关联关系
     scenario = relationship("Scenario", backref="runs")

@@ -20,7 +20,11 @@ from app.schemas.scenario import (
     ScenarioCheck,
     ScenarioMetrics,
     ScenarioPcapRef,
+    ScenarioRunTimeline,
+    FailureAttribution,
 )
+from app.services.scenarios.tracker import ScenarioRunTracker
+from app.services.scenarios.models import ScenarioStage
 
 logger = get_logger(__name__)
 
@@ -110,32 +114,155 @@ class ScenariosService:
 
     def run_scenario(self, scenario: Scenario) -> ScenarioRunResultSchema:
         """
-        执行场景并校验期望结果。
+        执行场景并校验期望结果（重构为 9 阶段实时流）。
 
         参数：
             scenario: 场景模型
 
         返回：
-            ScenarioRunResult Schema
+            ScenarioRunResult Schema（含 timeline）
         """
         logger.info(f"Running scenario {scenario.id}: {scenario.name}")
 
         if scenario.status == "archived":
             raise HTTPException(status_code=409, detail="Cannot run an archived scenario")
-        
-        # 解析 expectations
+
+        run_id = generate_uuid()
+        tracker = ScenarioRunTracker(scenario.id, run_id, self.db)
+        self._publish_run_started(scenario, run_id)
+
+        try:
+            # 阶段 1: 加载场景配置
+            with tracker.stage(ScenarioStage.LOAD_SCENARIO) as stg:
+                expectations, tags = self._stage_load_scenario(scenario, stg)
+
+            # 阶段 2: 加载告警数据
+            with tracker.stage(ScenarioStage.LOAD_ALERTS) as stg:
+                alerts = self._stage_load_alerts(scenario, stg)
+
+            # 阶段 3: 检查告警数量
+            checks_vol = []
+            with tracker.stage(ScenarioStage.CHECK_ALERT_VOLUME) as stg:
+                checks_vol = self._stage_check_alert_volume(alerts, expectations, stg)
+
+            # 阶段 4: 检查必需模式
+            checks_pat = []
+            with tracker.stage(ScenarioStage.CHECK_REQUIRED_PATTERNS) as stg:
+                checks_pat = self._stage_check_required_patterns(alerts, expectations, stg)
+
+            # 阶段 5: 检查证据链
+            checks_ev = []
+            with tracker.stage(ScenarioStage.CHECK_EVIDENCE_CHAIN) as stg:
+                checks_ev = self._stage_check_evidence_chain(alerts, expectations, stg)
+
+            # 阶段 6: 检查 dry-run
+            checks_dr = []
+            with tracker.stage(ScenarioStage.CHECK_DRY_RUN) as stg:
+                checks_dr = self._stage_check_dry_run(alerts, expectations, stg)
+
+            # 阶段 7: 检查实体和特征
+            checks_ef = []
+            with tracker.stage(ScenarioStage.CHECK_ENTITIES_AND_FEATURES) as stg:
+                checks_ef = self._stage_check_entities_and_features(alerts, expectations, stg)
+
+            # 阶段 8: 检查 pipeline 约束
+            checks_pc = []
+            with tracker.stage(ScenarioStage.CHECK_PIPELINE_CONSTRAINTS) as stg:
+                checks_pc, pipeline_latency_ms = self._stage_check_pipeline_constraints(
+                    scenario, expectations, stg
+                )
+                tracker.set_pipeline_latency(pipeline_latency_ms)
+
+            # 阶段 9: 汇总结果
+            with tracker.stage(ScenarioStage.SUMMARIZE_RESULT) as stg:
+                all_checks = checks_vol + checks_pat + checks_ev + checks_dr + checks_ef + checks_pc
+                metrics = self._stage_summarize_result(alerts, stg)
+
+        except Exception as exc:
+            tracker.fail(str(exc))
+            raise
+
+        # 完成跟踪，获取时间线
+        timeline_model = tracker.finish()
+
+        # 构建最终结果
+        all_checks = checks_vol + checks_pat + checks_ev + checks_dr + checks_ef + checks_pc
+        all_pass = all(c.pass_ for c in all_checks)
+        status = "pass" if all_pass else "fail"
+        now = utc_now()
+
+        # 将 models.ScenarioRunTimeline 转换为 schemas.ScenarioRunTimeline
+        timeline_schema = ScenarioRunTimeline(**timeline_model.model_dump())
+
+        result = ScenarioRunResultSchema(
+            version="1.1",
+            id=run_id,
+            created_at=datetime_to_iso(now),
+            scenario_id=scenario.id,
+            status=status,
+            checks=all_checks,
+            metrics=metrics,
+            timeline=timeline_schema,
+        )
+
+        # 持久化到数据库
+        run_model = ScenarioRun(
+            id=run_id,
+            created_at=now,
+            scenario_id=scenario.id,
+            status=status,
+            payload=result.model_dump_json(),
+            stages_log=json.dumps([s.model_dump() for s in timeline_model.stages]),
+            validation_latency_ms=timeline_model.validation_latency_ms,
+            pipeline_latency_ms=timeline_model.pipeline_latency_ms,
+        )
+        self.db.add(run_model)
+        self.db.commit()
+
+        logger.info(f"Scenario run {run_id} completed: {status}")
+        return result
+
+    # ── 私有阶段方法 ──────────────────────────────────────────────
+
+    def _publish_run_started(self, scenario: Scenario, run_id: str) -> None:
+        """发布 scenario.run.started 事件（fire-and-forget）。"""
+        try:
+            import asyncio
+            from app.core.events import get_event_bus
+            from app.core.events.models import make_event, SCENARIO_RUN_STARTED
+            from app.core.loop import get_main_loop
+            from app.services.scenarios.models import TOTAL_STAGES
+
+            event = make_event(SCENARIO_RUN_STARTED, {
+                "scenario_id": scenario.id,
+                "run_id": run_id,
+                "scenario_name": scenario.name,
+                "total_stages": TOTAL_STAGES,
+            })
+            loop = get_main_loop()
+            if loop and loop.is_running():
+                asyncio.run_coroutine_threadsafe(get_event_bus().publish(event), loop)
+        except Exception:
+            pass
+
+    def _stage_load_scenario(self, scenario: Scenario, stg) -> tuple[dict, list[str]]:
+        """阶段 1: 加载场景配置（expectations + tags）。"""
         payload = json.loads(scenario.payload) if isinstance(scenario.payload, str) else scenario.payload
         expectations = payload.get("expectations", {})
-        
-        # 查询该 PCAP 对应的 alerts
+        tags = payload.get("tags", [])
+        stg.record_metrics({"tag_count": len(tags)})
+        stg.record_output({"expectations_keys": list(expectations.keys())})
+        return expectations, tags
+
+    def _stage_load_alerts(self, scenario: Scenario, stg) -> list[Alert]:
+        """阶段 2: 加载该 PCAP 对应的所有告警。"""
         from app.models.flow import Flow
         from app.models.alert import alert_flows
-        
-        # 获取该 PCAP 的 flow ID 列表
+
         flows = self.db.query(Flow).filter(Flow.pcap_id == scenario.pcap_id).all()
         flow_ids = [f.id for f in flows]
-        
-        # 获取关联这些 flow 的 alerts
+        stg.record_metrics({"flow_count": len(flow_ids)})
+
         alerts = []
         if flow_ids:
             alerts = self.db.query(Alert).join(
@@ -144,16 +271,19 @@ class ScenariosService:
             ).filter(
                 alert_flows.c.flow_id.in_(flow_ids)
             ).distinct().all()
-        
-        # 执行检查项
+
+        stg.record_metrics({"alert_count": len(alerts)})
+        stg.record_output({"alert_ids": [a.id for a in alerts[:10]]})  # 只记录前 10 个
+        return alerts
+
+    def _stage_check_alert_volume(
+        self, alerts: list[Alert], expectations: dict, stg
+    ) -> list[ScenarioCheck]:
+        """阶段 3: 检查告警数量（min/max/exact + min_high_severity）。"""
         checks = []
-        all_pass = True
         actual_alerts = len(alerts)
-        severity_order = ["low", "medium", "high", "critical"]
 
-        # === 第一层：基础结果类检查 ===
-
-        # 检查项：min_alerts
+        # min_alerts
         min_alerts = expectations.get("min_alerts", 0)
         if min_alerts > 0:
             min_pass = actual_alerts >= min_alerts
@@ -162,9 +292,15 @@ class ScenariosService:
                 "pass": min_pass,
                 "details": {"expected_min": min_alerts, "actual": actual_alerts},
             }))
-            all_pass = all_pass and min_pass
+            if not min_pass:
+                stg.record_failure_attribution(FailureAttribution(
+                    check_name="min_alerts",
+                    expected=min_alerts,
+                    actual=actual_alerts,
+                    category="assertion_failed",
+                ))
 
-        # 检查项：max_alerts
+        # max_alerts
         max_alerts = expectations.get("max_alerts")
         if max_alerts is not None:
             max_pass = actual_alerts <= max_alerts
@@ -173,9 +309,15 @@ class ScenariosService:
                 "pass": max_pass,
                 "details": {"expected_max": max_alerts, "actual": actual_alerts},
             }))
-            all_pass = all_pass and max_pass
+            if not max_pass:
+                stg.record_failure_attribution(FailureAttribution(
+                    check_name="max_alerts",
+                    expected=max_alerts,
+                    actual=actual_alerts,
+                    category="assertion_failed",
+                ))
 
-        # 检查项：exact_alerts（优先级高于 min/max）
+        # exact_alerts
         exact_alerts = expectations.get("exact_alerts")
         if exact_alerts is not None:
             exact_pass = actual_alerts == exact_alerts
@@ -184,9 +326,15 @@ class ScenariosService:
                 "pass": exact_pass,
                 "details": {"expected": exact_alerts, "actual": actual_alerts},
             }))
-            all_pass = all_pass and exact_pass
+            if not exact_pass:
+                stg.record_failure_attribution(FailureAttribution(
+                    check_name="exact_alerts",
+                    expected=exact_alerts,
+                    actual=actual_alerts,
+                    category="assertion_failed",
+                ))
 
-        # 检查项：min_high_severity_count
+        # min_high_severity_count
         min_high = expectations.get("min_high_severity_count", 0)
         high_severity_count = sum(1 for a in alerts if a.severity in ["high", "critical"])
         if min_high > 0:
@@ -196,242 +344,16 @@ class ScenariosService:
                 "pass": high_pass,
                 "details": {"expected_min": min_high, "actual": high_severity_count},
             }))
-            all_pass = all_pass and high_pass
+            if not high_pass:
+                stg.record_failure_attribution(FailureAttribution(
+                    check_name="min_high_severity_count",
+                    expected=min_high,
+                    actual=high_severity_count,
+                    category="assertion_failed",
+                ))
 
-        # === 第二层：模式匹配类检查 ===
-
-        # 检查项：must_have
-        must_have = expectations.get("must_have", [])
-        for must in must_have:
-            must_type = must.get("type", "")
-            must_severity = must.get("severity_at_least", "low")
-            min_sev_idx = severity_order.index(must_severity) if must_severity in severity_order else 0
-
-            matched = False
-            matched_alert = None
-            for alert in alerts:
-                if alert.type == must_type:
-                    alert_sev_idx = severity_order.index(alert.severity) if alert.severity in severity_order else 0
-                    if alert_sev_idx >= min_sev_idx:
-                        matched = True
-                        matched_alert = alert
-                        break
-
-            checks.append(ScenarioCheck.model_validate({
-                "name": f"must_have_{must_type}",
-                "pass": matched,
-                "details": {
-                    "type": must_type,
-                    "severity_at_least": must_severity,
-                    "matched": matched_alert.id if matched_alert else None,
-                },
-            }))
-            all_pass = all_pass and matched
-
-        # 检查项：forbidden_types
-        forbidden = expectations.get("forbidden_types", [])
-        for ftype in forbidden:
-            found_forbidden = any(a.type == ftype for a in alerts)
-            checks.append(ScenarioCheck.model_validate({
-                "name": f"forbidden_type_{ftype}",
-                "pass": not found_forbidden,
-                "details": {"type": ftype, "found": found_forbidden},
-            }))
-            all_pass = all_pass and not found_forbidden
-
-        # === 第三层：解释链与证据类检查 ===
-        
-        # === 第三层：解释链与证据类检查 ===
-
-        # 检查项：evidence_chain_contains
-        evidence_contains = expectations.get("evidence_chain_contains", [])
-        if evidence_contains and alerts:
-            from app.services.evidence.service import EvidenceService
-            evidence_service = EvidenceService(self.db)
-
-            for required_node in evidence_contains:
-                found = False
-                for alert in alerts:
-                    chain = evidence_service.build_evidence_chain(alert)
-                    if any(n.id == required_node or required_node in n.id for n in chain.nodes):
-                        found = True
-                        break
-
-                checks.append(ScenarioCheck.model_validate({
-                    "name": f"evidence_contains_{required_node}",
-                    "pass": found,
-                    "details": {"node": required_node, "found": found},
-                }))
-                all_pass = all_pass and found
-
-        # 检查项：required_entities（从 alert 的 primary_src_ip/dst_ip 或 evidence JSON 中提取）
-        required_entities = expectations.get("required_entities", [])
-        for entity in required_entities:
-            found = False
-            for alert in alerts:
-                # 检查 IP 字段
-                if entity in [alert.primary_src_ip, alert.primary_dst_ip]:
-                    found = True
-                    break
-                # 检查 evidence JSON
-                evidence = json.loads(alert.evidence) if isinstance(alert.evidence, str) else alert.evidence
-                if entity in str(evidence):
-                    found = True
-                    break
-            checks.append(ScenarioCheck.model_validate({
-                "name": f"required_entity_{entity}",
-                "pass": found,
-                "details": {"entity": entity, "found": found},
-            }))
-            all_pass = all_pass and found
-
-        # 检查项：required_feature_names（从 flow.features JSON 中提取）
-        required_features = expectations.get("required_feature_names", [])
-        for feature_name in required_features:
-            found = False
-            for alert in alerts:
-                for flow in alert.flows:
-                    features = json.loads(flow.features) if isinstance(flow.features, str) else flow.features
-                    if feature_name in features:
-                        found = True
-                        break
-                if found:
-                    break
-            checks.append(ScenarioCheck.model_validate({
-                "name": f"required_feature_{feature_name}",
-                "pass": found,
-                "details": {"feature": feature_name, "found": found},
-            }))
-            all_pass = all_pass and found
-
-        # === 第四层：性能与稳定性类检查 ===
-        
-        # === 第四层：性能与稳定性类检查 ===
-
-        # 查询 pipeline run 数据
-        from app.models.pipeline import PipelineRunModel
-        pipeline_run = self.db.query(PipelineRunModel).filter(
-            PipelineRunModel.pcap_id == scenario.pcap_id
-        ).order_by(PipelineRunModel.created_at.desc()).first()
-
-        if pipeline_run:
-            # 检查项：max_pipeline_latency_ms
-            max_latency = expectations.get("max_pipeline_latency_ms")
-            if max_latency is not None:
-                actual_latency = pipeline_run.total_latency_ms or 0
-                latency_pass = actual_latency <= max_latency
-                checks.append(ScenarioCheck.model_validate({
-                    "name": "max_pipeline_latency_ms",
-                    "pass": latency_pass,
-                    "details": {"expected_max": max_latency, "actual": actual_latency},
-                }))
-                all_pass = all_pass and latency_pass
-
-            # 检查项：required_pipeline_stages
-            required_stages = expectations.get("required_pipeline_stages", [])
-            stages_log = json.loads(pipeline_run.stages_log) if isinstance(pipeline_run.stages_log, str) else pipeline_run.stages_log
-            stage_names = [s["stage_name"] for s in stages_log] if stages_log else []
-            for req_stage in required_stages:
-                found = req_stage in stage_names
-                checks.append(ScenarioCheck.model_validate({
-                    "name": f"required_stage_{req_stage}",
-                    "pass": found,
-                    "details": {"stage": req_stage, "found": found, "available": stage_names},
-                }))
-                all_pass = all_pass and found
-
-            # 检查项：no_failed_stages
-            if expectations.get("no_failed_stages", False):
-                failed_stages = [s["stage_name"] for s in stages_log if s.get("status") == "failed"] if stages_log else []
-                no_fail_pass = len(failed_stages) == 0
-                checks.append(ScenarioCheck.model_validate({
-                    "name": "no_failed_stages",
-                    "pass": no_fail_pass,
-                    "details": {"failed_stages": failed_stages},
-                }))
-                all_pass = all_pass and no_fail_pass
-
-        # === 其他检查 ===
-
-        # 检查项：dry_run_required
-        dry_run_required = expectations.get("dry_run_required", False)
-        if dry_run_required:
-            # 检查是否存在带 dry-run 的 alert
-            has_dry_run = False
-            dry_run_risk = 0.0
-            
-            for alert in alerts:
-                twin_data = json.loads(alert.twin) if isinstance(alert.twin, str) else alert.twin
-                if twin_data.get("dry_run_id"):
-                    has_dry_run = True
-                    
-                    # 获取 dry-run 风险
-                    from app.models.twin import DryRun
-                    dry_run = self.db.query(DryRun).filter(
-                        DryRun.id == twin_data["dry_run_id"]
-                    ).first()
-                    if dry_run:
-                        dr_payload = json.loads(dry_run.payload) if isinstance(dry_run.payload, str) else dry_run.payload
-                        dry_run_risk = dr_payload.get("impact", {}).get("service_disruption_risk", 0)
-                    break
-            
-            checks.append(ScenarioCheck.model_validate({
-                "name": "dry_run",
-                "pass": has_dry_run,
-                "details": {"required": True, "found": has_dry_run, "risk": dry_run_risk},
-            }))
-            all_pass = all_pass and has_dry_run
-        
-        # 计算指标
-        high_severity_count = sum(1 for a in alerts if a.severity in ["high", "critical"])
-        
-        # 计算平均 dry-run 风险
-        dry_run_risks = []
-        for alert in alerts:
-            twin_data = json.loads(alert.twin) if isinstance(alert.twin, str) else alert.twin
-            if twin_data.get("dry_run_id"):
-                from app.models.twin import DryRun
-                dry_run = self.db.query(DryRun).filter(DryRun.id == twin_data["dry_run_id"]).first()
-                if dry_run:
-                    dr_payload = json.loads(dry_run.payload) if isinstance(dry_run.payload, str) else dry_run.payload
-                    dry_run_risks.append(dr_payload.get("impact", {}).get("service_disruption_risk", 0))
-        
-        avg_risk = sum(dry_run_risks) / len(dry_run_risks) if dry_run_risks else 0.0
-        
-        metrics = ScenarioMetrics(
-            alert_count=actual_alerts,
-            high_severity_count=high_severity_count,
-            avg_dry_run_risk=round(avg_risk, 3),
-        )
-        
-        # 创建运行结果
-        run_id = generate_uuid()
-        now = utc_now()
-        status = "pass" if all_pass else "fail"
-        
-        result = ScenarioRunResultSchema(
-            version="1.1",
-            id=run_id,
-            created_at=datetime_to_iso(now),
-            scenario_id=scenario.id,
-            status=status,
-            checks=checks,
-            metrics=metrics,
-        )
-        
-        # 保存到数据库
-        run_model = ScenarioRun(
-            id=run_id,
-            created_at=now,
-            scenario_id=scenario.id,
-            status=status,
-            payload=result.model_dump_json(),
-        )
-        self.db.add(run_model)
-        self.db.commit()
-        
-        logger.info(f"Scenario run {run_id} completed: {status}")
-        return result
+        stg.record_metrics({"checks_count": len(checks), "passed": sum(c.pass_ for c in checks)})
+        return checks
 
     def _model_to_schema(self, model: Scenario) -> ScenarioSchema:
         """将 Scenario 模型转换为 Schema。"""
@@ -483,3 +405,296 @@ class ScenariosService:
         self.db.delete(scenario)
         self.db.commit()
         logger.info(f"Hard-deleted scenario {scenario_id}")
+    def _stage_check_required_patterns(
+        self, alerts: list[Alert], expectations: dict, stg
+    ) -> list[ScenarioCheck]:
+        """阶段 4: 检查必需模式（must_have + forbidden_types）。"""
+        checks = []
+        severity_order = ["low", "medium", "high", "critical"]
+
+        # must_have
+        must_have = expectations.get("must_have", [])
+        for must in must_have:
+            must_type = must.get("type", "")
+            must_severity = must.get("severity_at_least", "low")
+            min_sev_idx = severity_order.index(must_severity) if must_severity in severity_order else 0
+
+            matched = False
+            matched_alert = None
+            for alert in alerts:
+                if alert.type == must_type:
+                    alert_sev_idx = severity_order.index(alert.severity) if alert.severity in severity_order else 0
+                    if alert_sev_idx >= min_sev_idx:
+                        matched = True
+                        matched_alert = alert
+                        break
+
+            checks.append(ScenarioCheck.model_validate({
+                "name": f"must_have_{must_type}",
+                "pass": matched,
+                "details": {
+                    "type": must_type,
+                    "severity_at_least": must_severity,
+                    "matched": matched_alert.id if matched_alert else None,
+                },
+            }))
+            if not matched:
+                stg.record_failure_attribution(FailureAttribution(
+                    check_name=f"must_have_{must_type}",
+                    expected=f"{must_type} (severity >= {must_severity})",
+                    actual="not found",
+                    category="data_missing",
+                ))
+
+        # forbidden_types
+        forbidden = expectations.get("forbidden_types", [])
+        for ftype in forbidden:
+            found_forbidden = any(a.type == ftype for a in alerts)
+            checks.append(ScenarioCheck.model_validate({
+                "name": f"forbidden_type_{ftype}",
+                "pass": not found_forbidden,
+                "details": {"type": ftype, "found": found_forbidden},
+            }))
+            if found_forbidden:
+                stg.record_failure_attribution(FailureAttribution(
+                    check_name=f"forbidden_type_{ftype}",
+                    expected="not present",
+                    actual="found",
+                    category="assertion_failed",
+                ))
+
+        stg.record_metrics({"checks_count": len(checks), "passed": sum(c.pass_ for c in checks)})
+        return checks
+
+    def _stage_check_evidence_chain(
+        self, alerts: list[Alert], expectations: dict, stg
+    ) -> list[ScenarioCheck]:
+        """阶段 5: 检查证据链（evidence_chain_contains）。"""
+        checks = []
+        evidence_contains = expectations.get("evidence_chain_contains", [])
+
+        if evidence_contains and alerts:
+            from app.services.evidence.service import EvidenceService
+            evidence_service = EvidenceService(self.db)
+
+            for required_node in evidence_contains:
+                found = False
+                for alert in alerts:
+                    chain = evidence_service.build_evidence_chain(alert)
+                    if any(n.id == required_node or required_node in n.id for n in chain.nodes):
+                        found = True
+                        break
+
+                checks.append(ScenarioCheck.model_validate({
+                    "name": f"evidence_contains_{required_node}",
+                    "pass": found,
+                    "details": {"node": required_node, "found": found},
+                }))
+                if not found:
+                    stg.record_failure_attribution(FailureAttribution(
+                        check_name=f"evidence_contains_{required_node}",
+                        expected=required_node,
+                        actual="not found in evidence chain",
+                        category="data_missing",
+                    ))
+
+        stg.record_metrics({"checks_count": len(checks), "passed": sum(c.pass_ for c in checks)})
+        return checks
+
+    def _stage_check_dry_run(
+        self, alerts: list[Alert], expectations: dict, stg
+    ) -> list[ScenarioCheck]:
+        """阶段 6: 检查 dry-run 要求。"""
+        checks = []
+        dry_run_required = expectations.get("dry_run_required", False)
+
+        if dry_run_required:
+            has_dry_run = False
+            dry_run_risk = 0.0
+
+            for alert in alerts:
+                twin_data = json.loads(alert.twin) if isinstance(alert.twin, str) else alert.twin
+                if twin_data.get("dry_run_id"):
+                    has_dry_run = True
+
+                    from app.models.twin import DryRun
+                    dry_run = self.db.query(DryRun).filter(
+                        DryRun.id == twin_data["dry_run_id"]
+                    ).first()
+                    if dry_run:
+                        dr_payload = json.loads(dry_run.payload) if isinstance(dry_run.payload, str) else dry_run.payload
+                        dry_run_risk = dr_payload.get("impact", {}).get("service_disruption_risk", 0)
+                    break
+
+            checks.append(ScenarioCheck.model_validate({
+                "name": "dry_run",
+                "pass": has_dry_run,
+                "details": {"required": True, "found": has_dry_run, "risk": dry_run_risk},
+            }))
+            if not has_dry_run:
+                stg.record_failure_attribution(FailureAttribution(
+                    check_name="dry_run",
+                    expected="dry-run present",
+                    actual="no dry-run found",
+                    category="data_missing",
+                ))
+
+        stg.record_metrics({"checks_count": len(checks), "passed": sum(c.pass_ for c in checks)})
+        return checks
+
+    def _stage_check_entities_and_features(
+        self, alerts: list[Alert], expectations: dict, stg
+    ) -> list[ScenarioCheck]:
+        """阶段 7: 检查实体和特征（required_entities + required_feature_names）。"""
+        checks = []
+
+        # required_entities
+        required_entities = expectations.get("required_entities", [])
+        for entity in required_entities:
+            found = False
+            for alert in alerts:
+                if entity in [alert.primary_src_ip, alert.primary_dst_ip]:
+                    found = True
+                    break
+                evidence = json.loads(alert.evidence) if isinstance(alert.evidence, str) else alert.evidence
+                if entity in str(evidence):
+                    found = True
+                    break
+            checks.append(ScenarioCheck.model_validate({
+                "name": f"required_entity_{entity}",
+                "pass": found,
+                "details": {"entity": entity, "found": found},
+            }))
+            if not found:
+                stg.record_failure_attribution(FailureAttribution(
+                    check_name=f"required_entity_{entity}",
+                    expected=entity,
+                    actual="not found",
+                    category="data_missing",
+                ))
+
+        # required_feature_names
+        required_features = expectations.get("required_feature_names", [])
+        for feature_name in required_features:
+            found = False
+            for alert in alerts:
+                for flow in alert.flows:
+                    features = json.loads(flow.features) if isinstance(flow.features, str) else flow.features
+                    if feature_name in features:
+                        found = True
+                        break
+                if found:
+                    break
+            checks.append(ScenarioCheck.model_validate({
+                "name": f"required_feature_{feature_name}",
+                "pass": found,
+                "details": {"feature": feature_name, "found": found},
+            }))
+            if not found:
+                stg.record_failure_attribution(FailureAttribution(
+                    check_name=f"required_feature_{feature_name}",
+                    expected=feature_name,
+                    actual="not found",
+                    category="data_missing",
+                ))
+
+        stg.record_metrics({"checks_count": len(checks), "passed": sum(c.pass_ for c in checks)})
+        return checks
+
+    def _stage_check_pipeline_constraints(
+        self, scenario: Scenario, expectations: dict, stg
+    ) -> tuple[list[ScenarioCheck], float | None]:
+        """阶段 8: 检查 pipeline 约束（max_latency + required_stages + no_failed_stages）。"""
+        checks = []
+        pipeline_latency_ms = None
+
+        from app.models.pipeline import PipelineRunModel
+        pipeline_run = self.db.query(PipelineRunModel).filter(
+            PipelineRunModel.pcap_id == scenario.pcap_id
+        ).order_by(PipelineRunModel.created_at.desc()).first()
+
+        if pipeline_run:
+            pipeline_latency_ms = pipeline_run.total_latency_ms
+            stg.record_metrics({"pipeline_latency_ms": pipeline_latency_ms})
+
+            # max_pipeline_latency_ms
+            max_latency = expectations.get("max_pipeline_latency_ms")
+            if max_latency is not None:
+                actual_latency = pipeline_run.total_latency_ms or 0
+                latency_pass = actual_latency <= max_latency
+                checks.append(ScenarioCheck.model_validate({
+                    "name": "max_pipeline_latency_ms",
+                    "pass": latency_pass,
+                    "details": {"expected_max": max_latency, "actual": actual_latency},
+                }))
+                if not latency_pass:
+                    stg.record_failure_attribution(FailureAttribution(
+                        check_name="max_pipeline_latency_ms",
+                        expected=max_latency,
+                        actual=actual_latency,
+                        category="assertion_failed",
+                    ))
+
+            # required_pipeline_stages
+            required_stages = expectations.get("required_pipeline_stages", [])
+            stages_log = json.loads(pipeline_run.stages_log) if isinstance(pipeline_run.stages_log, str) else pipeline_run.stages_log
+            stage_names = [s["stage_name"] for s in stages_log] if stages_log else []
+            for req_stage in required_stages:
+                found = req_stage in stage_names
+                checks.append(ScenarioCheck.model_validate({
+                    "name": f"required_stage_{req_stage}",
+                    "pass": found,
+                    "details": {"stage": req_stage, "found": found, "available": stage_names},
+                }))
+                if not found:
+                    stg.record_failure_attribution(FailureAttribution(
+                        check_name=f"required_stage_{req_stage}",
+                        expected=req_stage,
+                        actual=f"missing (available: {stage_names})",
+                        category="data_missing",
+                    ))
+
+            # no_failed_stages
+            if expectations.get("no_failed_stages", False):
+                failed_stages = [s["stage_name"] for s in stages_log if s.get("status") == "failed"] if stages_log else []
+                no_fail_pass = len(failed_stages) == 0
+                checks.append(ScenarioCheck.model_validate({
+                    "name": "no_failed_stages",
+                    "pass": no_fail_pass,
+                    "details": {"failed_stages": failed_stages},
+                }))
+                if not no_fail_pass:
+                    stg.record_failure_attribution(FailureAttribution(
+                        check_name="no_failed_stages",
+                        expected="no failures",
+                        actual=f"failed: {failed_stages}",
+                        category="assertion_failed",
+                    ))
+
+        stg.record_metrics({"checks_count": len(checks), "passed": sum(c.pass_ for c in checks)})
+        return checks, pipeline_latency_ms
+
+    def _stage_summarize_result(self, alerts: list[Alert], stg) -> ScenarioMetrics:
+        """阶段 9: 汇总指标（alert_count + high_severity_count + avg_dry_run_risk）。"""
+        high_severity_count = sum(1 for a in alerts if a.severity in ["high", "critical"])
+
+        # 计算平均 dry-run 风险
+        dry_run_risks = []
+        for alert in alerts:
+            twin_data = json.loads(alert.twin) if isinstance(alert.twin, str) else alert.twin
+            if twin_data.get("dry_run_id"):
+                from app.models.twin import DryRun
+                dry_run = self.db.query(DryRun).filter(DryRun.id == twin_data["dry_run_id"]).first()
+                if dry_run:
+                    dr_payload = json.loads(dry_run.payload) if isinstance(dry_run.payload, str) else dry_run.payload
+                    dry_run_risks.append(dr_payload.get("impact", {}).get("service_disruption_risk", 0))
+
+        avg_risk = sum(dry_run_risks) / len(dry_run_risks) if dry_run_risks else 0.0
+
+        metrics = ScenarioMetrics(
+            alert_count=len(alerts),
+            high_severity_count=high_severity_count,
+            avg_dry_run_risk=round(avg_risk, 3),
+        )
+        stg.record_metrics(metrics.model_dump())
+        return metrics

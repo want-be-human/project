@@ -51,6 +51,10 @@ async def lifespan(app: FastAPI):
     await ws_consumer.register()
     logger.info("EventBus initialised, WebSocket consumer registered")
 
+    # 初始化 OpenTelemetry 可观测（tracer / meter）
+    from app.core.observability import init_observability
+    init_observability()
+
     # 保存主事件循环引用，供后台线程安全调度异步广播
     loop = asyncio.get_running_loop()
     set_main_loop(loop)
