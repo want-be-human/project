@@ -185,6 +185,10 @@ class ScenariosService:
         # 完成跟踪，获取时间线
         timeline_model = tracker.finish()
 
+        # 更新 metrics 中的延迟指标（必须在 tracker.finish() 之后）
+        metrics.validation_latency_ms = timeline_model.validation_latency_ms
+        metrics.pipeline_latency_ms = timeline_model.pipeline_latency_ms
+
         # 构建最终结果
         all_checks = checks_vol + checks_pat + checks_ev + checks_dr + checks_ef + checks_pc
         all_pass = all(c.pass_ for c in all_checks)
@@ -675,26 +679,57 @@ class ScenariosService:
         return checks, pipeline_latency_ms
 
     def _stage_summarize_result(self, alerts: list[Alert], stg) -> ScenarioMetrics:
-        """阶段 9: 汇总指标（alert_count + high_severity_count + avg_dry_run_risk）。"""
+        """阶段 9: 汇总指标（alert_count + high_severity_count + avg_dry_run_risk）。
+
+        注意：延迟指标（validation_latency_ms 和 pipeline_latency_ms）在此阶段尚未计算，
+        将在 tracker.finish() 后由调用方更新到 metrics 中。
+        """
         high_severity_count = sum(1 for a in alerts if a.severity in ["high", "critical"])
 
-        # 计算平均 dry-run 风险
-        dry_run_risks = []
+        # 计算加权平均 dry-run 风险（优化：批量查询 + 严重度加权）
+        dry_run_ids = []
+        alert_severities = {}  # dry_run_id -> severity_weight
+
+        # 严重度权重映射
+        severity_weights = {"critical": 4, "high": 3, "medium": 2, "low": 1}
+
         for alert in alerts:
             twin_data = json.loads(alert.twin) if isinstance(alert.twin, str) else alert.twin
-            if twin_data.get("dry_run_id"):
-                from app.models.twin import DryRun
-                dry_run = self.db.query(DryRun).filter(DryRun.id == twin_data["dry_run_id"]).first()
-                if dry_run:
-                    dr_payload = json.loads(dry_run.payload) if isinstance(dry_run.payload, str) else dry_run.payload
-                    dry_run_risks.append(dr_payload.get("impact", {}).get("service_disruption_risk", 0))
+            dry_run_id = twin_data.get("dry_run_id") if twin_data else None
+            if dry_run_id:
+                dry_run_ids.append(dry_run_id)
+                alert_severities[dry_run_id] = severity_weights.get(alert.severity, 1)
 
-        avg_risk = sum(dry_run_risks) / len(dry_run_risks) if dry_run_risks else 0.0
+        # 批量查询 DryRun（优化：避免 N+1 查询）
+        weighted_risks = []
+        total_weight = 0
+        if dry_run_ids:
+            from app.models.twin import DryRun
+            dry_runs = self.db.query(DryRun).filter(DryRun.id.in_(dry_run_ids)).all()
+
+            for dry_run in dry_runs:
+                dr_payload = json.loads(dry_run.payload) if isinstance(dry_run.payload, str) else dry_run.payload
+                impact = dr_payload.get("impact", {})
+
+                # 综合风险评分：service_disruption_risk + reachability_drop（归一化）
+                disruption_risk = impact.get("service_disruption_risk", 0)
+                reachability_drop = impact.get("reachability_drop", 0)
+                composite_risk = disruption_risk * 0.7 + reachability_drop * 0.3
+
+                # 应用严重度权重
+                weight = alert_severities.get(dry_run.id, 1)
+                weighted_risks.append(composite_risk * weight)
+                total_weight += weight
+
+        avg_risk = sum(weighted_risks) / total_weight if total_weight > 0 else 0.0
 
         metrics = ScenarioMetrics(
             alert_count=len(alerts),
             high_severity_count=high_severity_count,
             avg_dry_run_risk=round(avg_risk, 3),
+            # 延迟指标将在 tracker.finish() 后更新
+            validation_latency_ms=None,
+            pipeline_latency_ms=None,
         )
         stg.record_metrics(metrics.model_dump())
         return metrics

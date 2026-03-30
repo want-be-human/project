@@ -649,6 +649,7 @@
     "category": "Category",
     "validationLatency": "Validation Latency",
     "pipelineLatency": "Pipeline Latency",
+    "noPipelineData": "No Pipeline Data",
     "stageLoadScenario": "Load Scenario",
     "stageLoadAlerts": "Load Alerts",
     "stageCheckAlertVolume": "Check Alert Volume",

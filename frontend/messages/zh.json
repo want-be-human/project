@@ -649,6 +649,7 @@
     "category": "类别",
     "validationLatency": "校验耗时",
     "pipelineLatency": "Pipeline 耗时",
+    "noPipelineData": "无 Pipeline 数据",
     "stageLoadScenario": "加载场景",
     "stageLoadAlerts": "加载告警",
     "stageCheckAlertVolume": "检查告警数量",

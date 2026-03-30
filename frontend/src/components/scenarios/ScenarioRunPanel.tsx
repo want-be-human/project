@@ -302,6 +302,7 @@ export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props)
                 <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
                   <BarChart3 className="w-4 h-4" /> {t('metricsDashboard')}
                 </h3>
+                {/* 第一行：4 个主要指标 */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <MetricCard label={t('totalAlerts')} value={result.metrics.alert_count} />
                   <MetricCard label={t('highSeverity')} value={result.metrics.high_severity_count} color="text-red-600" />
@@ -311,11 +312,18 @@ export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props)
                     value={result.metrics.validation_latency_ms != null ? `${result.metrics.validation_latency_ms.toFixed(0)} ms` : '-'}
                   />
                 </div>
-                {result.metrics.pipeline_latency_ms != null && (
-                  <div className="mt-2 text-xs text-gray-500">
-                    {t('pipelineLatency')}: {result.metrics.pipeline_latency_ms.toFixed(0)} ms
-                  </div>
-                )}
+                {/* 第二行：Pipeline 延迟（独立卡片） */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                  <MetricCard
+                    label={t('pipelineLatency')}
+                    value={
+                      result.metrics.pipeline_latency_ms != null
+                        ? `${result.metrics.pipeline_latency_ms.toFixed(0)} ms`
+                        : t('noPipelineData')
+                    }
+                    color={result.metrics.pipeline_latency_ms != null ? "text-gray-900" : "text-gray-400"}
+                  />
+                </div>
               </div>
             )}
 
