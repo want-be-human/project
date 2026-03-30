@@ -7,6 +7,8 @@ import json
 
 from sqlalchemy.orm import Session
 
+from fastapi import HTTPException
+
 from app.core.logging import get_logger
 from app.core.utils import generate_uuid, utc_now, datetime_to_iso
 from app.models.scenario import Scenario, ScenarioRun
@@ -93,12 +95,13 @@ class ScenariosService:
         self,
         limit: int = 50,
         offset: int = 0,
+        include_archived: bool = False,
     ) -> list[ScenarioSchema]:
-        """列出所有场景。"""
-        scenarios = self.db.query(Scenario).order_by(
-            Scenario.created_at.desc()
-        ).offset(offset).limit(limit).all()
-        
+        """列出场景。默认只返回 active 场景。"""
+        q = self.db.query(Scenario)
+        if not include_archived:
+            q = q.filter(Scenario.status == "active")
+        scenarios = q.order_by(Scenario.created_at.desc()).offset(offset).limit(limit).all()
         return [self._model_to_schema(s) for s in scenarios]
 
     def get_scenario(self, scenario_id: str) -> Scenario | None:
@@ -116,6 +119,9 @@ class ScenariosService:
             ScenarioRunResult Schema
         """
         logger.info(f"Running scenario {scenario.id}: {scenario.name}")
+
+        if scenario.status == "archived":
+            raise HTTPException(status_code=409, detail="Cannot run an archived scenario")
         
         # 解析 expectations
         payload = json.loads(scenario.payload) if isinstance(scenario.payload, str) else scenario.payload
@@ -142,28 +148,65 @@ class ScenariosService:
         # 执行检查项
         checks = []
         all_pass = True
-        
+        actual_alerts = len(alerts)
+        severity_order = ["low", "medium", "high", "critical"]
+
+        # === 第一层：基础结果类检查 ===
+
         # 检查项：min_alerts
         min_alerts = expectations.get("min_alerts", 0)
-        actual_alerts = len(alerts)
-        min_alerts_pass = actual_alerts >= min_alerts
-        checks.append(ScenarioCheck.model_validate({
-            "name": "min_alerts",
-            "pass": min_alerts_pass,
-            "details": {"expected": min_alerts, "actual": actual_alerts},
-        }))
-        all_pass = all_pass and min_alerts_pass
-        
+        if min_alerts > 0:
+            min_pass = actual_alerts >= min_alerts
+            checks.append(ScenarioCheck.model_validate({
+                "name": "min_alerts",
+                "pass": min_pass,
+                "details": {"expected_min": min_alerts, "actual": actual_alerts},
+            }))
+            all_pass = all_pass and min_pass
+
+        # 检查项：max_alerts
+        max_alerts = expectations.get("max_alerts")
+        if max_alerts is not None:
+            max_pass = actual_alerts <= max_alerts
+            checks.append(ScenarioCheck.model_validate({
+                "name": "max_alerts",
+                "pass": max_pass,
+                "details": {"expected_max": max_alerts, "actual": actual_alerts},
+            }))
+            all_pass = all_pass and max_pass
+
+        # 检查项：exact_alerts（优先级高于 min/max）
+        exact_alerts = expectations.get("exact_alerts")
+        if exact_alerts is not None:
+            exact_pass = actual_alerts == exact_alerts
+            checks.append(ScenarioCheck.model_validate({
+                "name": "exact_alerts",
+                "pass": exact_pass,
+                "details": {"expected": exact_alerts, "actual": actual_alerts},
+            }))
+            all_pass = all_pass and exact_pass
+
+        # 检查项：min_high_severity_count
+        min_high = expectations.get("min_high_severity_count", 0)
+        high_severity_count = sum(1 for a in alerts if a.severity in ["high", "critical"])
+        if min_high > 0:
+            high_pass = high_severity_count >= min_high
+            checks.append(ScenarioCheck.model_validate({
+                "name": "min_high_severity_count",
+                "pass": high_pass,
+                "details": {"expected_min": min_high, "actual": high_severity_count},
+            }))
+            all_pass = all_pass and high_pass
+
+        # === 第二层：模式匹配类检查 ===
+
         # 检查项：must_have
         must_have = expectations.get("must_have", [])
         for must in must_have:
             must_type = must.get("type", "")
             must_severity = must.get("severity_at_least", "low")
-            
-            # 查找匹配告警
-            severity_order = ["low", "medium", "high", "critical"]
             min_sev_idx = severity_order.index(must_severity) if must_severity in severity_order else 0
-            
+
             matched = False
             matched_alert = None
             for alert in alerts:
@@ -173,7 +216,7 @@ class ScenariosService:
                         matched = True
                         matched_alert = alert
                         break
-            
+
             checks.append(ScenarioCheck.model_validate({
                 "name": f"must_have_{must_type}",
                 "pass": matched,
@@ -184,13 +227,28 @@ class ScenariosService:
                 },
             }))
             all_pass = all_pass and matched
+
+        # 检查项：forbidden_types
+        forbidden = expectations.get("forbidden_types", [])
+        for ftype in forbidden:
+            found_forbidden = any(a.type == ftype for a in alerts)
+            checks.append(ScenarioCheck.model_validate({
+                "name": f"forbidden_type_{ftype}",
+                "pass": not found_forbidden,
+                "details": {"type": ftype, "found": found_forbidden},
+            }))
+            all_pass = all_pass and not found_forbidden
+
+        # === 第三层：解释链与证据类检查 ===
         
+        # === 第三层：解释链与证据类检查 ===
+
         # 检查项：evidence_chain_contains
         evidence_contains = expectations.get("evidence_chain_contains", [])
         if evidence_contains and alerts:
             from app.services.evidence.service import EvidenceService
             evidence_service = EvidenceService(self.db)
-            
+
             for required_node in evidence_contains:
                 found = False
                 for alert in alerts:
@@ -198,14 +256,103 @@ class ScenariosService:
                     if any(n.id == required_node or required_node in n.id for n in chain.nodes):
                         found = True
                         break
-                
+
                 checks.append(ScenarioCheck.model_validate({
                     "name": f"evidence_contains_{required_node}",
                     "pass": found,
                     "details": {"node": required_node, "found": found},
                 }))
                 all_pass = all_pass and found
+
+        # 检查项：required_entities（从 alert 的 primary_src_ip/dst_ip 或 evidence JSON 中提取）
+        required_entities = expectations.get("required_entities", [])
+        for entity in required_entities:
+            found = False
+            for alert in alerts:
+                # 检查 IP 字段
+                if entity in [alert.primary_src_ip, alert.primary_dst_ip]:
+                    found = True
+                    break
+                # 检查 evidence JSON
+                evidence = json.loads(alert.evidence) if isinstance(alert.evidence, str) else alert.evidence
+                if entity in str(evidence):
+                    found = True
+                    break
+            checks.append(ScenarioCheck.model_validate({
+                "name": f"required_entity_{entity}",
+                "pass": found,
+                "details": {"entity": entity, "found": found},
+            }))
+            all_pass = all_pass and found
+
+        # 检查项：required_feature_names（从 flow.features JSON 中提取）
+        required_features = expectations.get("required_feature_names", [])
+        for feature_name in required_features:
+            found = False
+            for alert in alerts:
+                for flow in alert.flows:
+                    features = json.loads(flow.features) if isinstance(flow.features, str) else flow.features
+                    if feature_name in features:
+                        found = True
+                        break
+                if found:
+                    break
+            checks.append(ScenarioCheck.model_validate({
+                "name": f"required_feature_{feature_name}",
+                "pass": found,
+                "details": {"feature": feature_name, "found": found},
+            }))
+            all_pass = all_pass and found
+
+        # === 第四层：性能与稳定性类检查 ===
         
+        # === 第四层：性能与稳定性类检查 ===
+
+        # 查询 pipeline run 数据
+        from app.models.pipeline import PipelineRunModel
+        pipeline_run = self.db.query(PipelineRunModel).filter(
+            PipelineRunModel.pcap_id == scenario.pcap_id
+        ).order_by(PipelineRunModel.created_at.desc()).first()
+
+        if pipeline_run:
+            # 检查项：max_pipeline_latency_ms
+            max_latency = expectations.get("max_pipeline_latency_ms")
+            if max_latency is not None:
+                actual_latency = pipeline_run.total_latency_ms or 0
+                latency_pass = actual_latency <= max_latency
+                checks.append(ScenarioCheck.model_validate({
+                    "name": "max_pipeline_latency_ms",
+                    "pass": latency_pass,
+                    "details": {"expected_max": max_latency, "actual": actual_latency},
+                }))
+                all_pass = all_pass and latency_pass
+
+            # 检查项：required_pipeline_stages
+            required_stages = expectations.get("required_pipeline_stages", [])
+            stages_log = json.loads(pipeline_run.stages_log) if isinstance(pipeline_run.stages_log, str) else pipeline_run.stages_log
+            stage_names = [s["stage_name"] for s in stages_log] if stages_log else []
+            for req_stage in required_stages:
+                found = req_stage in stage_names
+                checks.append(ScenarioCheck.model_validate({
+                    "name": f"required_stage_{req_stage}",
+                    "pass": found,
+                    "details": {"stage": req_stage, "found": found, "available": stage_names},
+                }))
+                all_pass = all_pass and found
+
+            # 检查项：no_failed_stages
+            if expectations.get("no_failed_stages", False):
+                failed_stages = [s["stage_name"] for s in stages_log if s.get("status") == "failed"] if stages_log else []
+                no_fail_pass = len(failed_stages) == 0
+                checks.append(ScenarioCheck.model_validate({
+                    "name": "no_failed_stages",
+                    "pass": no_fail_pass,
+                    "details": {"failed_stages": failed_stages},
+                }))
+                all_pass = all_pass and no_fail_pass
+
+        # === 其他检查 ===
+
         # 检查项：dry_run_required
         dry_run_required = expectations.get("dry_run_required", False)
         if dry_run_required:
@@ -289,14 +436,50 @@ class ScenariosService:
     def _model_to_schema(self, model: Scenario) -> ScenarioSchema:
         """将 Scenario 模型转换为 Schema。"""
         payload = json.loads(model.payload) if isinstance(model.payload, str) else model.payload
-        
+
         return ScenarioSchema(
             version=model.version,
             id=model.id,
             created_at=datetime_to_iso(model.created_at),
             name=model.name,
             description=model.description,
+            status=model.status or "active",
             pcap_ref=ScenarioPcapRef(pcap_id=model.pcap_id),
             expectations=ScenarioExpectations(**payload.get("expectations", {})),
             tags=payload.get("tags", []),
         )
+
+    def archive_scenario(self, scenario_id: str) -> ScenarioSchema:
+        """将场景归档。已归档场景返回 409。"""
+        scenario = self.get_scenario(scenario_id)
+        if not scenario:
+            raise HTTPException(status_code=404, detail=f"Scenario {scenario_id} not found")
+        if scenario.status == "archived":
+            raise HTTPException(status_code=409, detail="Scenario is already archived")
+        scenario.status = "archived"
+        self.db.commit()
+        logger.info(f"Archived scenario {scenario_id}")
+        return self._model_to_schema(scenario)
+
+    def unarchive_scenario(self, scenario_id: str) -> ScenarioSchema:
+        """恢复已归档场景。已激活场景返回 409。"""
+        scenario = self.get_scenario(scenario_id)
+        if not scenario:
+            raise HTTPException(status_code=404, detail=f"Scenario {scenario_id} not found")
+        if scenario.status == "active":
+            raise HTTPException(status_code=409, detail="Scenario is already active")
+        scenario.status = "active"
+        self.db.commit()
+        logger.info(f"Unarchived scenario {scenario_id}")
+        return self._model_to_schema(scenario)
+
+    def delete_scenario(self, scenario_id: str) -> None:
+        """物理删除场景及其所有运行记录。"""
+        scenario = self.get_scenario(scenario_id)
+        if not scenario:
+            raise HTTPException(status_code=404, detail=f"Scenario {scenario_id} not found")
+        # ScenarioRun 有 ondelete="CASCADE"，但显式删除更安全
+        self.db.query(ScenarioRun).filter(ScenarioRun.scenario_id == scenario_id).delete()
+        self.db.delete(scenario)
+        self.db.commit()
+        logger.info(f"Hard-deleted scenario {scenario_id}")

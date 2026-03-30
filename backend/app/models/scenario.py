@@ -22,6 +22,9 @@ class Scenario(BaseModel):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
+    # 生命周期状态：active | archived
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
+
     # 引用 pcap（拆分后便于 join）
     pcap_id: Mapped[str] = mapped_column(
         String(36),
@@ -40,6 +43,7 @@ class Scenario(BaseModel):
         UniqueConstraint("name", name="uq_scenario_name"),
         Index("idx_scenario_created", "created_at"),
         Index("idx_scenario_pcap", "pcap_id"),
+        Index("idx_scenario_status", "status"),
     )
 
     def __repr__(self) -> str:

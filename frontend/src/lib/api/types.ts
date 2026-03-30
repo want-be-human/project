@@ -346,15 +346,33 @@ export interface Scenario {
     created_at?: string;
     name: string;
     description?: string;
+    status: 'active' | 'archived';
     tags?: string[];
     pcap_ref: {
         pcap_id: string;
     };
     expectations: {
+        // 基础结果类
         min_alerts: number;
-        must_have?: Array<{ type: string; severity_at_least?: string }>;
-        evidence_chain_contains?: string[];
+        max_alerts?: number;
+        exact_alerts?: number;
+        min_high_severity_count: number;
         dry_run_required: boolean;
+
+        // 模式匹配类
+        must_have?: Array<{ type: string; severity_at_least?: string }>;
+        forbidden_types?: string[];
+
+        // 证据类
+        evidence_chain_contains?: string[];
+        required_entities?: string[];
+        required_feature_names?: string[];
+
+        // 性能类
+        max_pipeline_latency_ms?: number;
+        max_validation_latency_ms?: number;
+        required_pipeline_stages?: string[];
+        no_failed_stages: boolean;
     };
 }
 

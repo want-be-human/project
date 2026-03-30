@@ -115,6 +115,16 @@ export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props)
               <RefreshCw className="w-4 h-4 animate-spin" />
               <span>{t('runningBtn')}</span>
             </button>
+          ) : scenario.status === 'archived' ? (
+            <button
+              key="archived"
+              disabled
+              title={t('archiveDisabledRunning')}
+              className="flex items-center gap-2 px-4 py-2 rounded-md font-medium bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200"
+            >
+              <Play className="w-4 h-4" />
+              <span>{t('runScenario')}</span>
+            </button>
           ) : (
             <button
               key="idle"
@@ -131,6 +141,15 @@ export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props)
       {/* Body */}
       <div className="flex-1 overflow-y-auto p-6 bg-gray-50/50">
         
+        {/* Archived notice */}
+        {scenario.status === 'archived' && (
+          <div className="p-3 bg-gray-100 border border-gray-200 rounded-md text-sm text-gray-500 flex items-center gap-2 mb-4">
+            <span className="font-medium">{t('archived')}</span>
+            <span>—</span>
+            <span>{t('archivedRunNotice')}</span>
+          </div>
+        )}
+
         {/* Pre-run state */}
         {!result && !running && !error && (
           <div className="flex flex-col items-center justify-center h-40 text-gray-400">

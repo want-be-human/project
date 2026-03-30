@@ -28,11 +28,17 @@ async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<T>
                 detail = first?.msg ? ` - ${first.msg}` : '';
             } else if (payload?.error?.message) {
                 detail = ` - ${payload.error.message}`;
+            } else if (typeof payload?.detail === 'string') {
+                detail = ` - ${payload.detail}`;
             }
         } catch {
             // 忽略解析失败，保留 status text 作为兜底提示
         }
         throw new Error(`API Error: ${res.status} ${res.statusText}${detail}`);
+  }
+  // 204 No Content — no body to parse
+  if (res.status === 204) {
+    return undefined as unknown as T;
   }
   const envelope: Envelope<T> = await res.json();
   if (!envelope.ok || envelope.data === null || envelope.data === undefined) {
@@ -156,9 +162,11 @@ export const realApi = {
             body: JSON.stringify(body)
         });
     },
-    listScenarios: async (params: any): Promise<Scenario[]> => {
-        const query = new URLSearchParams(params).toString();
-        return fetchJson<Scenario[]>(`/api/v1/scenarios?${query}`);
+    listScenarios: async (params: { include_archived?: boolean; limit?: number; offset?: number }): Promise<Scenario[]> => {
+        const query = new URLSearchParams(
+            Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)]))
+        ).toString();
+        return fetchJson<Scenario[]>(`/api/v1/scenarios${query ? `?${query}` : ''}`);
     },
     runScenario: async (id: string): Promise<ScenarioRunResult> => {
          return fetchJson<ScenarioRunResult>(`/api/v1/scenarios/${id}/run`, {
@@ -167,6 +175,15 @@ export const realApi = {
     },
     getLatestScenarioRun: async (scenarioId: string): Promise<ScenarioRunResult> => {
         return fetchJson<ScenarioRunResult>(`/api/v1/scenarios/${scenarioId}/latest-run`);
+    },
+    archiveScenario: async (id: string): Promise<Scenario> => {
+        return fetchJson<Scenario>(`/api/v1/scenarios/${id}/archive`, { method: 'PATCH' });
+    },
+    unarchiveScenario: async (id: string): Promise<Scenario> => {
+        return fetchJson<Scenario>(`/api/v1/scenarios/${id}/unarchive`, { method: 'PATCH' });
+    },
+    deleteScenario: async (id: string): Promise<void> => {
+        await fetchJson<void>(`/api/v1/scenarios/${id}`, { method: 'DELETE' });
     },
 
     getPipelineRun: async (pcapId: string): Promise<PipelineRun> => {

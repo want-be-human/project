@@ -4,7 +4,7 @@ Scenario 相关 Schema：Scenario 与 ScenarioRunResult。
 """
 
 from typing import Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 # Scenario Schema（DOC C C4.1）
@@ -22,15 +22,53 @@ class MustHaveExpectation(BaseModel):
 
 
 class ScenarioExpectations(BaseModel):
-    """场景期望配置 - DOC C C4.1。"""
-    min_alerts: int = Field(default=0, ge=0, description="期望的最少告警数")
+    """场景期望配置 - 完整 benchmark 规范。"""
+
+    # 第一层：基础结果类
+    min_alerts: int = Field(default=0, ge=0, description="最少告警数")
+    max_alerts: int | None = Field(default=None, ge=0, description="最多告警数")
+    exact_alerts: int | None = Field(default=None, ge=0, description="精确告警数（优先级高于 min/max）")
+    min_high_severity_count: int = Field(default=0, ge=0, description="最少高危告警数")
+    dry_run_required: bool = Field(default=False, description="是否要求 dry run")
+
+    # 第二层：模式匹配类
     must_have: list[MustHaveExpectation] = Field(
         default_factory=list, description="必需告警模式"
     )
+    forbidden_types: list[str] = Field(default_factory=list, description="禁止出现的告警类型")
+
+    # 第三层：解释链与证据类
     evidence_chain_contains: list[str] = Field(
         default_factory=list, description="必需证据链节点"
     )
-    dry_run_required: bool = Field(default=False, description="是否要求 dry run")
+    required_entities: list[str] = Field(default_factory=list, description="必需实体（IP/service）")
+    required_feature_names: list[str] = Field(default_factory=list, description="必需特征名")
+
+    # 第四层：性能与稳定性类
+    max_pipeline_latency_ms: float | None = Field(default=None, ge=0, description="最大 pipeline 耗时")
+    max_validation_latency_ms: float | None = Field(default=None, ge=0, description="最大校验耗时")
+    required_pipeline_stages: list[str] = Field(default_factory=list, description="必需 pipeline 阶段")
+    no_failed_stages: bool = Field(default=False, description="不允许任何阶段失败")
+
+    @model_validator(mode='after')
+    def validate_alert_count_rules(self) -> 'ScenarioExpectations':
+        """校验告警数规则冲突。"""
+        if self.exact_alerts is not None:
+            if self.min_alerts > 0 or self.max_alerts is not None:
+                raise ValueError("exact_alerts 与 min_alerts/max_alerts 冲突，只能使用其一")
+        if self.max_alerts is not None and self.min_alerts > self.max_alerts:
+            raise ValueError("min_alerts 不能大于 max_alerts")
+        return self
+
+    @field_validator('forbidden_types', 'required_entities', 'required_feature_names', 'required_pipeline_stages')
+    @classmethod
+    def validate_no_empty_strings(cls, v: list[str]) -> list[str]:
+        """禁止空字符串和重复项。"""
+        if any(not s.strip() for s in v):
+            raise ValueError("列表中不允许空字符串")
+        if len(v) != len(set(v)):
+            raise ValueError("列表中不允许重复项")
+        return v
 
 
 class ScenarioSchema(BaseModel):
@@ -43,6 +81,7 @@ class ScenarioSchema(BaseModel):
     created_at: str = Field(..., description="ISO8601 UTC 时间戳")
     name: str = Field(..., description="场景名称")
     description: str = Field(default="", description="场景描述")
+    status: Literal["active", "archived"] = Field(default="active", description="生命周期状态")
     pcap_ref: ScenarioPcapRef = Field(..., description="PCAP 引用")
     expectations: ScenarioExpectations = Field(..., description="场景期望")
     tags: list[str] = Field(default_factory=list, description="标签")
