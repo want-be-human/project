@@ -47,22 +47,27 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
             logger.error(f"PCAP {pcap_id} not found for processing")
             return
 
-        # --- 广播辅助（在运行中的事件循环里 fire-and-forget） ---
-        from app.api.routers.stream import manager
+        # --- 通过 EventBus 发布事件（已消除旧旁路） ---
+        from app.core.events import get_event_bus
+        from app.core.events.models import (
+            make_event,
+            PCAP_PROCESS_PROGRESS,
+            PCAP_PROCESS_DONE,
+            PCAP_PROCESS_FAILED,
+            ALERT_CREATED,
+        )
 
-        def _broadcast(event: str, data: dict):
+        def _publish(event_type: str, data: dict):
+            """在后台线程中通过 EventBus 发布事件（fire-and-forget）。"""
             try:
-                # 使用保存的主事件循环引用，而非 asyncio.get_event_loop()
-                # 后者在 BackgroundTasks 线程池中无法获取主循环
                 loop = get_main_loop()
-                if loop is None:
-                    return  # 循环未初始化（如单元测试场景），静默跳过
-                if loop.is_running():
-                    asyncio.run_coroutine_threadsafe(
-                        manager.broadcast(event, data), loop
-                    )
-            except RuntimeError:
-                pass  # 兜底：防止其他运行时异常
+                if loop is None or not loop.is_running():
+                    return
+                asyncio.run_coroutine_threadsafe(
+                    get_event_bus().publish(make_event(event_type, data)), loop
+                )
+            except Exception:
+                pass  # 非关键路径，不因事件发布失败中断处理
 
         # --- pipeline 追踪器（可观测性） ---
         tracker = None
@@ -73,7 +78,7 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
         pcap.status = "processing"
         pcap.progress = 10
         db.commit()
-        _broadcast("pcap.process.progress", {"pcap_id": pcap_id, "percent": 10})
+        _publish(PCAP_PROCESS_PROGRESS, {"pcap_id": pcap_id, "percent": 10})
 
         # 步骤 2：解析 PCAP → flows
         if tracker:
@@ -88,7 +93,7 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
             flow_dicts = parser.parse_to_flows(Path(pcap.storage_path), window_sec=window_sec)
         pcap.progress = 40
         db.commit()
-        _broadcast("pcap.process.progress", {"pcap_id": pcap_id, "percent": 40})
+        _publish(PCAP_PROCESS_PROGRESS, {"pcap_id": pcap_id, "percent": 40})
 
         # 步骤 3：为每条 flow 提取特征
         if tracker:
@@ -103,7 +108,7 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
             flow_dicts = feat_svc.extract_features_batch(flow_dicts)
         pcap.progress = 55
         db.commit()
-        _broadcast("pcap.process.progress", {"pcap_id": pcap_id, "percent": 55})
+        _publish(PCAP_PROCESS_PROGRESS, {"pcap_id": pcap_id, "percent": 55})
 
         # 步骤 4：异常评分（仅当 mode == flows_and_detect）
         if mode == "flows_and_detect":
@@ -123,7 +128,7 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
                 flow_dicts = det_svc.score_flows(flow_dicts)
             pcap.progress = 70
             db.commit()
-            _broadcast("pcap.process.progress", {"pcap_id": pcap_id, "percent": 70})
+            _publish(PCAP_PROCESS_PROGRESS, {"pcap_id": pcap_id, "percent": 70})
         elif tracker:
             with tracker.stage(PipelineStage.DETECT) as stg:
                 stg.skip("mode != flows_and_detect")
@@ -156,7 +161,7 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
         db.flush()
         pcap.progress = 85
         db.commit()
-        _broadcast("pcap.process.progress", {"pcap_id": pcap_id, "percent": 85})
+        _publish(PCAP_PROCESS_PROGRESS, {"pcap_id": pcap_id, "percent": 85})
 
         # 步骤 6：生成 alerts（仅当 mode == flows_and_detect）
         alert_count = 0
@@ -205,7 +210,7 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
                         )
                     )
                 # WS: alert.created
-                _broadcast("alert.created", {
+                _publish(ALERT_CREATED, {
                     "alert_id": ad["id"],
                     "severity": ad["severity"],
                 })
@@ -213,7 +218,7 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
             db.commit()
             pcap.progress = 95
             db.commit()
-            _broadcast("pcap.process.progress", {"pcap_id": pcap_id, "percent": 95})
+            _publish(PCAP_PROCESS_PROGRESS, {"pcap_id": pcap_id, "percent": 95})
         elif tracker:
             with tracker.stage(PipelineStage.AGGREGATE) as stg:
                 stg.skip("mode != flows_and_detect")
@@ -226,8 +231,8 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
         pcap.alert_count = alert_count
         db.commit()
         logger.info(f"PCAP {pcap_id} processed ({mode}): {flow_count} flows, {alert_count} alerts")
-        _broadcast("pcap.process.progress", {"pcap_id": pcap_id, "percent": 100})
-        _broadcast("pcap.process.done", {
+        _publish(PCAP_PROCESS_PROGRESS, {"pcap_id": pcap_id, "percent": 100})
+        _publish(PCAP_PROCESS_DONE, {
             "pcap_id": pcap_id,
             "flow_count": flow_count,
             "alert_count": alert_count,
@@ -240,6 +245,11 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
 
     except Exception as exc:
         logger.exception(f"Processing failed for PCAP {pcap_id}")
+        # 发布处理失败事件（前端已订阅 pcap.process.failed）
+        _publish(PCAP_PROCESS_FAILED, {
+            "pcap_id": pcap_id,
+            "error": str(exc)[:500],
+        })
         if tracker:
             try:
                 tracker.fail(str(exc)[:500])

@@ -16,7 +16,6 @@ from app.services.plan_compiler.service import PlanCompilerService
 from app.services.scenarios.service import ScenariosService
 from app.services.threat_enrichment.service import ThreatEnrichmentService
 from app.services.stream import (
-    get_connection_manager,
     broadcast_pcap_progress,
     broadcast_pcap_done,
     broadcast_alert_created,
@@ -52,7 +51,6 @@ __all__ = [
     # B4.12 威胁增强（模块 E）
     "ThreatEnrichmentService",
     # B4.11 流式处理与事件总线
-    "get_connection_manager",
     "broadcast_pcap_progress",
     "broadcast_pcap_done",
     "broadcast_alert_created",

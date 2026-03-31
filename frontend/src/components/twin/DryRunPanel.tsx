@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { wsClient } from '@/lib/ws';
+import { TWIN_DRYRUN_CREATED } from '@/lib/events';
 import { DryRunResult } from '@/lib/api/types';
 import { Play, AlertTriangle, ArrowRight, Activity, Map, ExternalLink, RefreshCw, ChevronDown, ChevronUp, Shield } from 'lucide-react';
 import clsx from 'clsx';
@@ -36,7 +37,7 @@ export default function DryRunPanel({ alertId, planId, onDryRunCompleted }: DryR
   // 事件载荷较轻：{ dry_run_id, alert_id, risk }
   // 按 alertId 匹配后，再通过 dry_run_id 拉取完整 DryRunResult
   useEffect(() => {
-    const unsub = wsClient.onEvent('twin.dryrun.created', async (payload: DryRunCreatedEvent) => {
+    const unsub = wsClient.onEvent(TWIN_DRYRUN_CREATED, async (payload: DryRunCreatedEvent) => {
       if (payload.alert_id !== alertId) return;
       if (processedDryRunIds.current.has(payload.dry_run_id)) return;
       processedDryRunIds.current.add(payload.dry_run_id);

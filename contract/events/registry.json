@@ -1,0 +1,70 @@
+{
+  "version": "2.0",
+  "description": "NetTwin-SOC 统一事件契约注册表 — 前后端共享的事件名与 payload 定义",
+  "events": {
+    "pcap.process.progress": {
+      "description": "PCAP 处理进度更新",
+      "payload": ["pcap_id:string", "percent:int"]
+    },
+    "pcap.process.done": {
+      "description": "PCAP 处理完成",
+      "payload": ["pcap_id:string", "flow_count:int", "alert_count:int"]
+    },
+    "pcap.process.failed": {
+      "description": "PCAP 处理失败",
+      "payload": ["pcap_id:string", "error:string?"]
+    },
+    "alert.created": {
+      "description": "告警创建",
+      "payload": ["alert_id:string", "severity:string"]
+    },
+    "alert.updated": {
+      "description": "告警状态更新",
+      "payload": ["alert_id:string", "status:string"]
+    },
+    "twin.dryrun.created": {
+      "description": "数字孪生 Dry-run 创建",
+      "payload": ["dry_run_id:string", "alert_id:string", "risk:float"]
+    },
+    "scenario.run.started": {
+      "description": "场景运行开始",
+      "payload": ["scenario_id:string", "run_id:string", "total_stages:int"]
+    },
+    "scenario.stage.started": {
+      "description": "场景阶段开始",
+      "payload": ["scenario_id:string", "run_id:string", "stage:string"]
+    },
+    "scenario.stage.completed": {
+      "description": "场景阶段完成",
+      "payload": ["scenario_id:string", "run_id:string", "stage:string", "latency_ms:float"]
+    },
+    "scenario.stage.failed": {
+      "description": "场景阶段失败",
+      "payload": ["scenario_id:string", "run_id:string", "stage:string", "error_summary:string"]
+    },
+    "scenario.run.progress": {
+      "description": "场景运行进度更新",
+      "payload": ["scenario_id:string", "run_id:string", "completed_stages:int", "total_stages:int"]
+    },
+    "scenario.run.done": {
+      "description": "场景运行完成",
+      "payload": ["scenario_id:string", "run_id:string", "status:string"]
+    },
+    "pipeline.run.started": {
+      "description": "流水线运行开始",
+      "payload": ["run_id:string", "pcap_id:string"]
+    },
+    "pipeline.stage.completed": {
+      "description": "流水线阶段完成",
+      "payload": ["run_id:string", "pcap_id:string", "stage:string", "latency_ms:float"]
+    },
+    "pipeline.stage.failed": {
+      "description": "流水线阶段失败",
+      "payload": ["run_id:string", "pcap_id:string", "stage:string", "error_summary:string"]
+    },
+    "pipeline.run.done": {
+      "description": "流水线运行完成",
+      "payload": ["run_id:string", "pcap_id:string", "status:string", "total_latency_ms:float"]
+    }
+  }
+}

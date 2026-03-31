@@ -1,7 +1,6 @@
 """用于 WebSocket 广播与 EventBus 访问的流式服务。"""
 
 from app.api.routers.stream import (
-    get_connection_manager,
     broadcast_pcap_progress,
     broadcast_pcap_done,
     broadcast_alert_created,
@@ -15,6 +14,7 @@ from app.core.events import (
     make_event,
     PCAP_PROCESS_PROGRESS,
     PCAP_PROCESS_DONE,
+    PCAP_PROCESS_FAILED,
     ALERT_CREATED,
     ALERT_UPDATED,
     TWIN_DRYRUN_CREATED,
@@ -22,8 +22,7 @@ from app.core.events import (
 )
 
 __all__ = [
-    # 连接管理器与广播辅助函数
-    "get_connection_manager",
+    # 广播辅助函数（兼容层，内部已走 EventBus）
     "broadcast_pcap_progress",
     "broadcast_pcap_done",
     "broadcast_alert_created",
@@ -37,6 +36,7 @@ __all__ = [
     # 事件类型常量
     "PCAP_PROCESS_PROGRESS",
     "PCAP_PROCESS_DONE",
+    "PCAP_PROCESS_FAILED",
     "ALERT_CREATED",
     "ALERT_UPDATED",
     "TWIN_DRYRUN_CREATED",

@@ -1,4 +1,6 @@
-type EventHandler = (data: any) => void;
+import type { EventPayloadMap } from './events';
+
+type EventHandler<T = any> = (data: T) => void;
 
 class WSClient {
   private listeners: Record<string, EventHandler[]> = {};
@@ -7,9 +9,9 @@ class WSClient {
 
   connect(url: string) {
     if (this.ws) return;
-    
+
     this.ws = new WebSocket(url);
-    
+
     this.ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
@@ -36,7 +38,14 @@ class WSClient {
     }
   }
 
-  onEvent(event: string, callback: EventHandler) {
+  /** 类型安全的事件订阅（已知事件名自动推导 payload 类型） */
+  onEvent<K extends keyof EventPayloadMap>(
+    event: K,
+    callback: EventHandler<EventPayloadMap[K]>
+  ): () => void;
+  /** 兜底重载：未知事件名使用 any */
+  onEvent(event: string, callback: EventHandler): () => void;
+  onEvent(event: string, callback: EventHandler): () => void {
     if (!this.listeners[event]) {
       this.listeners[event] = [];
     }

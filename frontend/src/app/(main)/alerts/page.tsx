@@ -7,6 +7,7 @@ import { useTranslations } from 'next-intl';
 import AlertFilterBar from '@/components/alerts/AlertFilterBar';
 import AlertTable from '@/components/alerts/AlertTable';
 import { wsClient } from '@/lib/ws';
+import { ALERT_CREATED, ALERT_UPDATED } from '@/lib/events';
 
 export default function AlertsPage() {
   const t = useTranslations('alerts');
@@ -30,13 +31,13 @@ export default function AlertsPage() {
     fetchAlerts();
 
     // 订阅 WebSocket 事件
-    const unsubscribeCreated = wsClient.onEvent('alert.created', (data) => {
+    const unsubscribeCreated = wsClient.onEvent(ALERT_CREATED, (data) => {
       setToast({ message: t('toastCreated', { severity: data.severity }), type: 'info' });
       fetchAlerts(); // 刷新列表
       setTimeout(() => setToast(null), 3000);
     });
 
-    const unsubscribeUpdated = wsClient.onEvent('alert.updated', (data) => {
+    const unsubscribeUpdated = wsClient.onEvent(ALERT_UPDATED, (data) => {
       setToast({ message: t('toastUpdated', { status: data.status }), type: 'success' });
       fetchAlerts(); // 刷新列表
       setTimeout(() => setToast(null), 3000);

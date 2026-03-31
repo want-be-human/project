@@ -5,6 +5,12 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import type { ActivityEvent } from '@/lib/api/types';
 import { api } from '@/lib/api';
+import { wsClient } from '@/lib/ws';
+import {
+  PCAP_PROCESS_DONE,
+  ALERT_CREATED,
+  TWIN_DRYRUN_CREATED,
+} from '@/lib/events';
 
 // ==================== 新事件追踪器 — 导出以便属性测试使用 ====================
 
@@ -116,9 +122,9 @@ function formatRelativeTime(
 
 // ==================== WebSocket 事件类型到 ActivityEvent 类型的映射 ====================
 const WS_EVENT_MAP: Record<string, ActivityEvent['type']> = {
-  'pcap.process.done': 'pcap',
-  'alert.created': 'alert',
-  'twin.dryrun.created': 'dryrun',
+  [PCAP_PROCESS_DONE]: 'pcap',
+  [ALERT_CREATED]: 'alert',
+  [TWIN_DRYRUN_CREATED]: 'dryrun',
 };
 
 // ==================== 组件 Props ====================
@@ -135,8 +141,6 @@ export default function ActivityFeed({ initialEvents }: ActivityFeedProps) {
   const t = useTranslations('dashboard');
   const router = useRouter();
   const [events, setEvents] = useState<ActivityEvent[]>(initialEvents);
-  const wsRef = useRef<WebSocket | null>(null);
-  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // 新事件追踪：仅追踪 WebSocket 推送的新事件，初始事件不触发入场动画
   const newEventTrackerRef = useRef(createNewEventTracker());
@@ -181,102 +185,29 @@ export default function ActivityFeed({ initialEvents }: ActivityFeedProps) {
     [t],
   );
 
-  /** 启动 30s 轮询作为 WebSocket 回退 */
-  const startPolling = useCallback(() => {
-    // 避免重复启动
-    if (pollingRef.current) return;
-    pollingRef.current = setInterval(async () => {
-      try {
-        const data = await api.getDashboardSummary();
-        if (data?.recent_activity) {
-          setEvents(data.recent_activity);
-        }
-      } catch {
-        // 轮询失败时静默忽略
-      }
-    }, 30_000);
-  }, []);
-
-  /** 停止轮询 */
-  const stopPolling = useCallback(() => {
-    if (pollingRef.current) {
-      clearInterval(pollingRef.current);
-      pollingRef.current = null;
-    }
-  }, []);
-
-  // WebSocket 连接与轮询回退逻辑
+  // 通过统一 wsClient 订阅事件（替代原有 new WebSocket 直连 + 轮询回退）
   useEffect(() => {
-    let cancelled = false;
-
-    function connectWs() {
-      try {
-        const ws = new WebSocket('ws://localhost:8000/ws/events');
-        wsRef.current = ws;
-
-        ws.onopen = () => {
-          if (cancelled) return;
-          // WebSocket 连接成功，停止轮询
-          stopPolling();
+    const unsubs = Object.entries(WS_EVENT_MAP).map(([wsEvent, activityType]) =>
+      wsClient.onEvent(wsEvent, (data: any) => {
+        const id = data?.pcap_id ?? data?.alert_id ?? data?.dry_run_id ?? crypto.randomUUID();
+        const newEvent: ActivityEvent = {
+          id,
+          type: activityType as ActivityEvent['type'],
+          kind: data?.kind ?? 'created',
+          entity_type: data?.entity_type ?? activityType,
+          entity_id: data?.entity_id ?? id,
+          summary: data?.summary ?? wsEvent,
+          payload: data ?? {},
+          href: data?.href ?? null,
+          detail: data ?? {},
+          created_at: new Date().toISOString(),
         };
-
-        ws.onmessage = (msg) => {
-          if (cancelled) return;
-          try {
-            const payload = JSON.parse(msg.data);
-            const eventType = WS_EVENT_MAP[payload?.type];
-            if (!eventType) return;
-
-            // 构造新的活动事件（兼容新字段，提供默认值）
-            const id = payload.data?.id ?? crypto.randomUUID();
-            const newEvent: ActivityEvent = {
-              id,
-              type: eventType,
-              kind: payload.data?.kind ?? 'unknown',
-              entity_type: payload.data?.entity_type ?? eventType,
-              entity_id: payload.data?.entity_id ?? id,
-              summary: payload.data?.summary ?? payload.type,
-              payload: payload.data?.payload ?? {},
-              href: payload.data?.href ?? null,
-              detail: payload.data ?? {},
-              created_at: new Date().toISOString(),
-            };
-
-            // 添加到列表顶部，保持最多 20 条
-            // 将新事件 ID 加入追踪集合，用于入场动画
-            newEventTrackerRef.current.track(newEvent.id);
-            setEvents((prev) => [newEvent, ...prev].slice(0, 20));
-          } catch {
-            // 解析失败时忽略
-          }
-        };
-
-        ws.onclose = () => {
-          if (cancelled) return;
-          wsRef.current = null;
-          // WebSocket 断开，回退到轮询
-          startPolling();
-        };
-
-        ws.onerror = () => {
-          // 触发 onclose，由 onclose 处理回退
-          ws.close();
-        };
-      } catch {
-        // WebSocket 构造失败，直接启动轮询
-        if (!cancelled) startPolling();
-      }
-    }
-
-    connectWs();
-
-    return () => {
-      cancelled = true;
-      wsRef.current?.close();
-      wsRef.current = null;
-      stopPolling();
-    };
-  }, [startPolling, stopPolling]);
+        newEventTrackerRef.current.track(newEvent.id);
+        setEvents((prev) => [newEvent, ...prev].slice(0, 20));
+      })
+    );
+    return () => unsubs.forEach(u => u());
+  }, []);
 
   return (
     <div className="bg-gray-900/80 border border-gray-700/50 rounded-2xl p-5 backdrop-blur-sm hover:border-cyan-500/40 transition-colors h-full flex flex-col">

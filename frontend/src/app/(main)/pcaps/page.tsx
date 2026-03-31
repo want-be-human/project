@@ -4,6 +4,11 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { PcapFile, PipelineRun } from '@/lib/api/types';
 import { wsClient } from '@/lib/ws';
+import {
+  PCAP_PROCESS_PROGRESS,
+  PCAP_PROCESS_DONE,
+  PCAP_PROCESS_FAILED,
+} from '@/lib/events';
 import { useTranslations } from 'next-intl';
 import { Activity } from 'lucide-react';
 import PcapUploadPanel from '@/components/pcaps/PcapUploadPanel';
@@ -81,7 +86,7 @@ export default function PcapsPage() {
 
   // 订阅 WebSocket 事件以实时更新处理进度
   useEffect(() => {
-    const unsubProgress = wsClient.onEvent('pcap.process.progress', (data: { pcap_id: string; percent: number }) => {
+    const unsubProgress = wsClient.onEvent(PCAP_PROCESS_PROGRESS, (data: { pcap_id: string; percent: number }) => {
       setPcaps(prev => prev.map(p =>
         p.id === data.pcap_id
           ? { ...p, status: 'processing' as const, progress: data.percent }
@@ -89,7 +94,7 @@ export default function PcapsPage() {
       ));
     });
 
-    const unsubDone = wsClient.onEvent('pcap.process.done', (data: { pcap_id: string; flow_count: number; alert_count: number }) => {
+    const unsubDone = wsClient.onEvent(PCAP_PROCESS_DONE, (data: { pcap_id: string; flow_count: number; alert_count: number }) => {
       setPcaps(prev => prev.map(p =>
         p.id === data.pcap_id
           ? { ...p, status: 'done' as const, progress: 100, flow_count: data.flow_count, alert_count: data.alert_count }
@@ -104,7 +109,7 @@ export default function PcapsPage() {
     });
 
     // 订阅处理失败事件，更新对应 PCAP 状态为 failed
-    const unsubFailed = wsClient.onEvent('pcap.process.failed', (data: { pcap_id: string; error?: string }) => {
+    const unsubFailed = wsClient.onEvent(PCAP_PROCESS_FAILED, (data: { pcap_id: string; error?: string }) => {
       setPcaps(prev => prev.map(p =>
         p.id === data.pcap_id
           ? { ...p, status: 'failed' as const, progress: 0, error_message: data.error }

@@ -30,6 +30,11 @@ from app.core.events import (
     ALERT_UPDATED,
     TWIN_DRYRUN_CREATED,
     SCENARIO_RUN_DONE,
+    SCENARIO_RUN_STARTED,
+    SCENARIO_STAGE_STARTED,
+    SCENARIO_STAGE_COMPLETED,
+    SCENARIO_STAGE_FAILED,
+    SCENARIO_RUN_PROGRESS,
     WILDCARD,
 )
 
@@ -38,7 +43,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["stream"])
 
 
-# ── WebSocket 连接管理器（保持不变） ──────────────────────────────
+# ── WebSocket 连接管理器 ──────────────────────────────────────
 
 class ConnectionManager:
     """管理 WebSocket 连接。"""
@@ -55,9 +60,12 @@ class ConnectionManager:
         """从跟踪集合中移除连接。"""
         self.active_connections.discard(websocket)
 
-    async def broadcast(self, event: str, data: dict):
-        """向所有已连接客户端广播事件。"""
-        message = json.dumps({"event": event, "data": data})
+    async def broadcast(self, event: str, data: dict, meta: dict | None = None):
+        """向所有已连接客户端广播事件。支持可选 meta 字段（v2 信封）。"""
+        payload: dict = {"event": event, "data": data}
+        if meta:
+            payload["meta"] = meta
+        message = json.dumps(payload)
         disconnected = set()
 
         for connection in self.active_connections:
@@ -80,7 +88,7 @@ manager = ConnectionManager()
 
 
 def get_connection_manager() -> ConnectionManager:
-    """获取连接管理器实例。"""
+    """获取连接管理器实例（仅限 API 层内部使用，业务 service 不应调用）。"""
     return manager
 
 
@@ -93,14 +101,25 @@ class WebSocketEventConsumer:
     订阅 **所有** 领域事件（通配符 ``*``），并将每条事件转发到
     ``ConnectionManager.broadcast()``，保持现有
     ``{"event": str, "data": dict}`` JSON 包装格式不变。
+    v2 新增 meta 字段，旧客户端忽略即可。
     """
 
     def __init__(self, connection_manager: ConnectionManager) -> None:
         self._manager = connection_manager
 
     async def handle(self, event: DomainEvent) -> None:
-        """将领域事件转发给所有已连接 WS 客户端。"""
-        await self._manager.broadcast(event.event_type, event.data)
+        """将领域事件转发给所有已连接 WS 客户端（含 v2 meta 信封）。"""
+        await self._manager.broadcast(
+            event.event_type,
+            event.data,
+            meta={
+                "event_id": event.event_id,
+                "trace_id": event.trace_id,
+                "source": event.source,
+                "version": event.version,
+                "timestamp": event.timestamp.isoformat(),
+            },
+        )
 
     async def register(self) -> None:
         """在全局总线上订阅全部事件类型。"""
@@ -217,7 +236,7 @@ async def broadcast_scenario_run_started(
     """广播场景运行开始事件。"""
     bus = get_event_bus()
     await bus.publish(make_event(
-        "scenario.run.started",
+        SCENARIO_RUN_STARTED,
         {
             "scenario_id": scenario_id,
             "run_id": run_id,
@@ -233,7 +252,7 @@ async def broadcast_scenario_stage_started(
     """广播场景阶段开始事件。"""
     bus = get_event_bus()
     await bus.publish(make_event(
-        "scenario.stage.started",
+        SCENARIO_STAGE_STARTED,
         {
             "scenario_id": scenario_id,
             "run_id": run_id,
@@ -250,7 +269,7 @@ async def broadcast_scenario_stage_completed(
     """广播场景阶段完成事件。"""
     bus = get_event_bus()
     await bus.publish(make_event(
-        "scenario.stage.completed",
+        SCENARIO_STAGE_COMPLETED,
         {
             "scenario_id": scenario_id,
             "run_id": run_id,
@@ -268,7 +287,7 @@ async def broadcast_scenario_stage_failed(
     """广播场景阶段失败事件。"""
     bus = get_event_bus()
     await bus.publish(make_event(
-        "scenario.stage.failed",
+        SCENARIO_STAGE_FAILED,
         {
             "scenario_id": scenario_id,
             "run_id": run_id,
@@ -286,7 +305,7 @@ async def broadcast_scenario_run_progress(
     """广播场景运行进度事件。"""
     bus = get_event_bus()
     await bus.publish(make_event(
-        "scenario.run.progress",
+        SCENARIO_RUN_PROGRESS,
         {
             "scenario_id": scenario_id,
             "run_id": run_id,

@@ -3,6 +3,14 @@
 import { Scenario, ScenarioRunResult, ScenarioStageRecord, ScenarioRunTimeline, FailureAttribution } from '@/lib/api/types';
 import { api } from '@/lib/api';
 import { wsClient } from '@/lib/ws';
+import {
+  SCENARIO_RUN_STARTED,
+  SCENARIO_STAGE_STARTED,
+  SCENARIO_STAGE_COMPLETED,
+  SCENARIO_STAGE_FAILED,
+  SCENARIO_RUN_PROGRESS,
+  SCENARIO_RUN_DONE,
+} from '@/lib/events';
 import { useState, useEffect } from 'react';
 import { Play, CheckCircle2, XCircle, Clock, Activity, ShieldAlert, BarChart3, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -53,7 +61,7 @@ export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props)
 
     const unsubs = [
       // 1. scenario.run.started - 运行开始
-      wsClient.onEvent('scenario.run.started', (p: any) => {
+      wsClient.onEvent(SCENARIO_RUN_STARTED, (p: any) => {
         if (p.scenario_id !== scenario.id) return;
         setLiveStages([]);
         setLiveTimeline(null);
@@ -61,7 +69,7 @@ export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props)
       }),
 
       // 2. scenario.stage.started - 阶段开始
-      wsClient.onEvent('scenario.stage.started', (p: any) => {
+      wsClient.onEvent(SCENARIO_STAGE_STARTED, (p: any) => {
         if (p.scenario_id !== scenario.id) return;
         setLiveStages(prev => [...prev, {
           stage_name: p.stage,
@@ -78,7 +86,7 @@ export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props)
       }),
 
       // 3. scenario.stage.completed - 阶段完成
-      wsClient.onEvent('scenario.stage.completed', (p: any) => {
+      wsClient.onEvent(SCENARIO_STAGE_COMPLETED, (p: any) => {
         if (p.scenario_id !== scenario.id) return;
         setLiveStages(prev => prev.map(s =>
           s.stage_name === p.stage
@@ -88,7 +96,7 @@ export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props)
       }),
 
       // 4. scenario.stage.failed - 阶段失败
-      wsClient.onEvent('scenario.stage.failed', (p: any) => {
+      wsClient.onEvent(SCENARIO_STAGE_FAILED, (p: any) => {
         if (p.scenario_id !== scenario.id) return;
         setLiveStages(prev => prev.map(s =>
           s.stage_name === p.stage
@@ -103,13 +111,13 @@ export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props)
       }),
 
       // 5. scenario.run.progress - 进度更新
-      wsClient.onEvent('scenario.run.progress', (p: any) => {
+      wsClient.onEvent(SCENARIO_RUN_PROGRESS, (p: any) => {
         if (p.scenario_id !== scenario.id) return;
         setStageProgress({ completed: p.completed_stages, total: p.total_stages });
       }),
 
       // 6. scenario.run.done - 运行完成（仅在非主动运行时补拉）
-      wsClient.onEvent('scenario.run.done', async (p: any) => {
+      wsClient.onEvent(SCENARIO_RUN_DONE, async (p: any) => {
         if (p.scenario_id !== scenario.id) return;
         if (running) return;
         setRefreshing(true);
