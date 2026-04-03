@@ -45,8 +45,26 @@ PIPELINE_STAGE_COMPLETED = "pipeline.stage.completed"
 PIPELINE_STAGE_FAILED = "pipeline.stage.failed"
 PIPELINE_RUN_DONE = "pipeline.run.done"
 
+# 批次生命周期事件
+BATCH_CREATED            = "batch.created"
+BATCH_UPLOAD_PROGRESS    = "batch.upload.progress"
+BATCH_PROCESSING_STARTED = "batch.processing.started"
+BATCH_COMPLETED          = "batch.completed"
+BATCH_FAILED             = "batch.failed"
+BATCH_CANCELLED          = "batch.cancelled"
+
+# 批次文件状态事件
+BATCH_FILE_STATUS        = "batch.file.status"
+
+# 批次作业生命周期事件
+BATCH_JOB_STARTED        = "batch.job.started"
+BATCH_JOB_STAGE_STARTED  = "batch.job.stage.started"
+BATCH_JOB_STAGE_COMPLETED = "batch.job.stage.completed"
+BATCH_JOB_STAGE_FAILED   = "batch.job.stage.failed"
+BATCH_JOB_COMPLETED      = "batch.job.completed"
+BATCH_JOB_FAILED         = "batch.job.failed"
+
 # 预留事件常量（暂不加入 ALL_EVENT_TYPES，仅供后续扩展使用）
-PCAP_BATCH_STARTED = "pcap.batch.started"
 FLOW_FEATURES_DONE = "flow.features.done"
 TWIN_DRYRUN_EVALUATED = "twin.dryrun.evaluated"
 DASHBOARD_METRICS_UPDATED = "dashboard.metrics.updated"
@@ -68,6 +86,20 @@ ALL_EVENT_TYPES = [
     PIPELINE_STAGE_COMPLETED,
     PIPELINE_STAGE_FAILED,
     PIPELINE_RUN_DONE,
+    # 批量接入事件
+    BATCH_CREATED,
+    BATCH_UPLOAD_PROGRESS,
+    BATCH_PROCESSING_STARTED,
+    BATCH_COMPLETED,
+    BATCH_FAILED,
+    BATCH_CANCELLED,
+    BATCH_FILE_STATUS,
+    BATCH_JOB_STARTED,
+    BATCH_JOB_STAGE_STARTED,
+    BATCH_JOB_STAGE_COMPLETED,
+    BATCH_JOB_STAGE_FAILED,
+    BATCH_JOB_COMPLETED,
+    BATCH_JOB_FAILED,
 ]
 
 
@@ -87,7 +119,7 @@ class DomainEvent(BaseModel):
     event_id: str = Field(default_factory=generate_uuid)
     event_type: str
     data: dict[str, Any]
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
     # ── v2 新增字段 ──
     trace_id: str = Field(default_factory=generate_uuid)
     source: str = Field(default="nettwin-soc")

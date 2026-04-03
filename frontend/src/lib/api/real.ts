@@ -2,7 +2,9 @@ import {
   PcapFile, FlowRecord, Alert, GraphResponse, Investigation,
   Recommendation, ActionPlan, DryRunResult, Scenario, ScenarioRunResult,
   EvidenceChain, CompilePlanRequest, CompilePlanResponse,
-  PipelineRun, StageRecord, DashboardSummary
+  PipelineRun, StageRecord, DashboardSummary,
+  Batch, BatchDetail, BatchFileRecord, BatchJob,
+  CreateBatchRequest, BatchStartResponse, BatchRetryResponse,
 } from './types';
 
 // 服务端（Server Component）优先使用内部网络地址，客户端使用公开地址
@@ -201,5 +203,91 @@ export const realApi = {
     /** 获取仪表盘聚合数据 */
     getDashboardSummary: async (): Promise<DashboardSummary> => {
         return fetchJson<DashboardSummary>('/api/v1/dashboard/summary');
+    },
+
+    // ── 批量接入 API ──
+
+    /** 创建批次 */
+    createBatch: async (body: CreateBatchRequest): Promise<Batch> => {
+        return fetchJson<Batch>('/api/v1/batches', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+    },
+
+    /** 列出批次 */
+    listBatches: async (params?: { limit?: number; offset?: number; status?: string }): Promise<Batch[]> => {
+        const query = params ? new URLSearchParams(
+            Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)]))
+        ).toString() : '';
+        return fetchJson<Batch[]>(`/api/v1/batches${query ? `?${query}` : ''}`);
+    },
+
+    /** 获取批次详情 */
+    getBatchDetail: async (batchId: string): Promise<BatchDetail> => {
+        return fetchJson<BatchDetail>(`/api/v1/batches/${batchId}`);
+    },
+
+    /** 上传批次文件（多文件） */
+    uploadBatchFiles: async (batchId: string, files: File[]): Promise<BatchFileRecord[]> => {
+        const formData = new FormData();
+        for (const file of files) {
+            formData.append('files', file);
+        }
+        return fetchJson<BatchFileRecord[]>(`/api/v1/batches/${batchId}/files`, {
+            method: 'POST',
+            body: formData,
+        });
+    },
+
+    /** 列出批次文件 */
+    getBatchFiles: async (batchId: string, params?: { limit?: number; offset?: number; status?: string }): Promise<BatchFileRecord[]> => {
+        const query = params ? new URLSearchParams(
+            Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)]))
+        ).toString() : '';
+        return fetchJson<BatchFileRecord[]>(`/api/v1/batches/${batchId}/files${query ? `?${query}` : ''}`);
+    },
+
+    /** 启动批次处理 */
+    startBatch: async (batchId: string): Promise<BatchStartResponse> => {
+        return fetchJson<BatchStartResponse>(`/api/v1/batches/${batchId}/start`, {
+            method: 'POST',
+        });
+    },
+
+    /** 取消批次 */
+    cancelBatch: async (batchId: string, body?: { reason?: string }): Promise<Batch> => {
+        return fetchJson<Batch>(`/api/v1/batches/${batchId}/cancel`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body ?? {}),
+        });
+    },
+
+    /** 重试批次所有失败文件 */
+    retryBatch: async (batchId: string): Promise<BatchRetryResponse> => {
+        return fetchJson<BatchRetryResponse>(`/api/v1/batches/${batchId}/retry`, {
+            method: 'POST',
+        });
+    },
+
+    /** 重试单个文件 */
+    retryBatchFile: async (batchId: string, fileId: string): Promise<BatchJob> => {
+        return fetchJson<BatchJob>(`/api/v1/batches/${batchId}/files/${fileId}/retry`, {
+            method: 'POST',
+        });
+    },
+
+    /** 查看文件作业历史 */
+    getBatchFileJobs: async (batchId: string, fileId: string): Promise<BatchJob[]> => {
+        return fetchJson<BatchJob[]>(`/api/v1/batches/${batchId}/files/${fileId}/jobs`);
+    },
+
+    /** 删除批次及所有关联数据 */
+    deleteBatch: async (batchId: string): Promise<{ deleted: boolean; pcap_ids: string[] }> => {
+        return fetchJson<{ deleted: boolean; pcap_ids: string[] }>(`/api/v1/batches/${batchId}`, {
+            method: 'DELETE',
+        });
     },
 };

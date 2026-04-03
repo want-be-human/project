@@ -29,6 +29,7 @@ from app.api.routers import (
     stream,
     pipeline,
     dashboard,
+    batch,
 )
 from app.schemas.common import ApiResponse
 
@@ -60,9 +61,17 @@ async def lifespan(app: FastAPI):
     set_main_loop(loop)
     logger.info("主事件循环引用已保存")
 
+    # 启动批量接入 Job Runner
+    from app.services.batch.runner import get_job_runner
+    runner = get_job_runner()
+    await runner.start()
+    logger.info("JobRunner 已启动")
+
     yield
 
     # 关闭阶段
+    await runner.stop()
+    logger.info("JobRunner 已停止")
     await ws_consumer.unregister()
     logger.info("Shutting down")
 
@@ -151,6 +160,8 @@ app.include_router(stream.router, prefix=settings.API_V1_PREFIX)
 app.include_router(pipeline.router, prefix=settings.API_V1_PREFIX)
 # 仪表盘路由 — 安全态势总览
 app.include_router(dashboard.router, prefix=settings.API_V1_PREFIX)
+# 批量接入路由
+app.include_router(batch.router, prefix=settings.API_V1_PREFIX)
 
 
 # 根路径响应

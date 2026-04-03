@@ -596,3 +596,107 @@ export interface ActivityEvent {
   /** 创建时间（ISO8601） */
   created_at: string;
 }
+
+
+// ==================== 批量接入类型定义 ====================
+
+/** 批次状态 */
+export type BatchStatus =
+  | 'created' | 'uploading' | 'validating' | 'processing'
+  | 'completed' | 'partial_failure' | 'failed' | 'cancelled';
+
+/** 批次文件状态 */
+export type BatchFileStatus =
+  | 'accepted' | 'rejected' | 'duplicate' | 'queued'
+  | 'parsing' | 'featurizing' | 'detecting' | 'aggregating'
+  | 'done' | 'failed';
+
+/** 作业状态 */
+export type JobStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+
+/** 批次摘要 */
+export interface Batch {
+  version: string;
+  id: string;
+  created_at: string;
+  name: string;
+  status: BatchStatus;
+  source: string | null;
+  tags: string[] | null;
+  total_files: number;
+  completed_files: number;
+  failed_files: number;
+  total_flow_count: number;
+  total_alert_count: number;
+  total_size_bytes: number;
+  started_at: string | null;
+  completed_at: string | null;
+  total_latency_ms: number | null;
+  error_message: string | null;
+}
+
+/** 批次文件记录 */
+export interface BatchFileRecord {
+  version: string;
+  id: string;
+  created_at: string;
+  batch_id: string;
+  pcap_id: string | null;
+  original_filename: string;
+  size_bytes: number;
+  sha256: string | null;
+  status: BatchFileStatus;
+  sequence: number;
+  flow_count: number;
+  alert_count: number;
+  error_message: string | null;
+  reject_reason: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  latency_ms: number | null;
+  retry_count: number;
+}
+
+/** 批次详情（含文件列表） */
+export interface BatchDetail extends Batch {
+  files: BatchFileRecord[];
+}
+
+/** 作业记录 */
+export interface BatchJob {
+  version: string;
+  id: string;
+  created_at: string;
+  batch_id: string;
+  batch_file_id: string;
+  pcap_id: string | null;
+  status: JobStatus;
+  current_stage: string | null;
+  stages_log: Array<Record<string, any>> | null;
+  retry_count: number;
+  started_at: string | null;
+  completed_at: string | null;
+  latency_ms: number | null;
+  error_message: string | null;
+}
+
+/** 创建批次请求 */
+export interface CreateBatchRequest {
+  name?: string;
+  source?: string;
+  tags?: string[];
+}
+
+/** 启动批次响应 */
+export interface BatchStartResponse {
+  batch_id: string;
+  jobs_created: number;
+  skipped_files: number;
+}
+
+/** 重试批次响应 */
+export interface BatchRetryResponse {
+  batch_id: string;
+  jobs_created: number;
+  files_retried: number;
+}

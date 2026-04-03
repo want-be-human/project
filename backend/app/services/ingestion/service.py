@@ -22,6 +22,7 @@ from app.models.flow import Flow
 from app.models.alert import Alert, alert_flows
 from app.models.pipeline import PipelineRunModel
 from app.models.scenario import Scenario, ScenarioRun
+from app.models.batch import BatchFile, Batch
 from app.schemas.pcap import PcapFileSchema
 
 logger = get_logger(__name__)
@@ -351,6 +352,44 @@ class IngestionService:
                 self.db.query(Scenario).filter(
                     Scenario.pcap_id == pcap_id
                 ).delete(synchronize_session=False)
+
+            # 同步清理：将引用该 pcap 的 batch_file 标记为失败
+            affected_batch_ids: set[str] = set()
+            for bf in self.db.query(BatchFile).filter(
+                BatchFile.pcap_id == pcap_id
+            ).all():
+                affected_batch_ids.add(bf.batch_id)
+                bf.status = "failed"
+                bf.error_message = "原始文件已删除"
+                bf.pcap_id = None
+
+            # 更新受影响批次的统计
+            for bid in affected_batch_ids:
+                batch = self.db.query(Batch).filter(Batch.id == bid).first()
+                if not batch:
+                    continue
+                files = self.db.query(BatchFile).filter(
+                    BatchFile.batch_id == bid
+                ).all()
+                batch.total_files = len(files)
+                batch.completed_files = sum(1 for f in files if f.status == "done")
+                batch.failed_files = sum(1 for f in files if f.status == "failed")
+                batch.total_flow_count = sum(f.flow_count for f in files)
+                batch.total_alert_count = sum(f.alert_count for f in files)
+                # 若无有效文件则标记批次失败
+                actionable = batch.total_files - sum(
+                    1 for f in files if f.status in ("rejected", "duplicate")
+                )
+                if actionable > 0 and (
+                    batch.completed_files + batch.failed_files
+                ) >= actionable:
+                    from app.core.utils import utc_now
+                    batch.completed_at = utc_now()
+                    batch.status = (
+                        "completed" if batch.failed_files == 0
+                        else "failed" if batch.completed_files == 0
+                        else "partial_failure"
+                    )
 
             # 删除 pcap_files 主记录
             self.db.delete(pcap)

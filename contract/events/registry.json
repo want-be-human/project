@@ -65,6 +65,59 @@
     "pipeline.run.done": {
       "description": "流水线运行完成",
       "payload": ["run_id:string", "pcap_id:string", "status:string", "total_latency_ms:float"]
+    },
+
+    "batch.created": {
+      "description": "批次创建",
+      "payload": ["batch_id:string", "name:string", "total_files:int"]
+    },
+    "batch.upload.progress": {
+      "description": "批次文件上传进度",
+      "payload": ["batch_id:string", "uploaded_count:int", "total_count:int"]
+    },
+    "batch.processing.started": {
+      "description": "批次处理开始",
+      "payload": ["batch_id:string", "jobs_count:int"]
+    },
+    "batch.completed": {
+      "description": "批次处理完成",
+      "payload": ["batch_id:string", "status:string", "total_flow_count:int", "total_alert_count:int", "total_latency_ms:float"]
+    },
+    "batch.failed": {
+      "description": "批次处理失败",
+      "payload": ["batch_id:string", "error:string", "failed_files:int"]
+    },
+    "batch.cancelled": {
+      "description": "批次已取消",
+      "payload": ["batch_id:string", "reason:string?"]
+    },
+    "batch.file.status": {
+      "description": "批次文件状态变更",
+      "payload": ["batch_id:string", "batch_file_id:string", "filename:string", "status:string", "flow_count:int?", "alert_count:int?", "error:string?"]
+    },
+    "batch.job.started": {
+      "description": "批次作业开始",
+      "payload": ["batch_id:string", "job_id:string", "batch_file_id:string", "pcap_id:string?"]
+    },
+    "batch.job.stage.started": {
+      "description": "批次作业阶段开始",
+      "payload": ["batch_id:string", "job_id:string", "stage:string"]
+    },
+    "batch.job.stage.completed": {
+      "description": "批次作业阶段完成",
+      "payload": ["batch_id:string", "job_id:string", "stage:string", "latency_ms:float"]
+    },
+    "batch.job.stage.failed": {
+      "description": "批次作业阶段失败",
+      "payload": ["batch_id:string", "job_id:string", "stage:string", "error:string"]
+    },
+    "batch.job.completed": {
+      "description": "批次作业完成",
+      "payload": ["batch_id:string", "job_id:string", "batch_file_id:string", "flow_count:int", "alert_count:int", "latency_ms:float"]
+    },
+    "batch.job.failed": {
+      "description": "批次作业失败",
+      "payload": ["batch_id:string", "job_id:string", "batch_file_id:string", "error:string", "retry_count:int"]
     }
   }
 }
