@@ -20,6 +20,7 @@ COPY alembic.ini ./
 
 # Create data directories
 RUN mkdir -p /app/data/pcaps
+RUN mkdir -p /app/data/pcaps /app/models
 
 # Environment variables
 ENV DATABASE_URL="sqlite:///./data/nettwin.db"

@@ -1,7 +1,4 @@
-"""
-Unit tests for DetectionService (IsolationForest).
-DOC B B6: detection — fixed input → score output range correct.
-"""
+"""Unit tests for DetectionService."""
 
 import pytest
 
@@ -10,7 +7,7 @@ from app.services.features.service import FeaturesService
 
 
 def _make_scored_flows(n: int = 30) -> list[dict]:
-    """Generate n synthetic flows with features already populated."""
+    """Generate synthetic flows with features populated."""
     feat_svc = FeaturesService()
     flows = []
     for i in range(n):
@@ -50,12 +47,12 @@ class TestScoreFlows:
         svc = DetectionService()
         flows = _make_scored_flows(50)
         result = svc.score_flows(flows)
-        for f in result:
-            assert 0.0 <= f["anomaly_score"] <= 1.0, f"score out of range: {f['anomaly_score']}"
+        for flow in result:
+            assert 0.0 <= flow["anomaly_score"] <= 1.0
 
     def test_two_samples_fallback(self):
-        """With only 1 sample IsolationForest can't fit — fallback to 0.5."""
-        svc = DetectionService()
+        """Runtime mode should fall back to 0.5 when there is only one sample."""
+        svc = DetectionService(mode="runtime")
         flows = _make_scored_flows(1)
         result = svc.score_flows(flows)
         assert result[0]["anomaly_score"] == pytest.approx(0.5)
@@ -73,10 +70,9 @@ class TestScoreFlows:
         assert min(scores) >= 0.0
 
     def test_outlier_gets_higher_score(self):
-        """An extreme outlier should generally score higher than a normal flow."""
+        """A clear outlier should generally score above the median normal flow."""
         svc = DetectionService()
         flows = _make_scored_flows(30)
-        # Inject one clear outlier
         feat_svc = FeaturesService()
         outlier = {
             "packets_fwd": 5000,
@@ -97,10 +93,7 @@ class TestScoreFlows:
         outlier_score = result[-1]["anomaly_score"]
         normal_scores = [f["anomaly_score"] for f in result[:-1]]
         median_normal = sorted(normal_scores)[len(normal_scores) // 2]
-        # Outlier should be above median of normals
-        assert outlier_score > median_normal, (
-            f"outlier={outlier_score:.3f} should > median_normal={median_normal:.3f}"
-        )
+        assert outlier_score > median_normal
 
 
 class TestGetTopAnomalous:

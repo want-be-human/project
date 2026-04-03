@@ -656,6 +656,145 @@ def generate_bruteforce_pcap(output_path: Path):
     print(f"  Generated {len(packets)} packets")
 
 
+def write_packets_to_pcap(output_path: Path, packets: list[tuple[float, bytes]]) -> None:
+    """Write packet tuples to a PCAP file in timestamp order."""
+    with open(output_path, 'wb') as f:
+        write_pcap_header(f)
+        for ts, pkt in sorted(packets, key=lambda x: x[0]):
+            write_packet(f, ts, pkt)
+    print(f"  Generated {len(packets)} packets")
+
+
+def build_scan_packets(base_time: float | None = None) -> list[tuple[float, bytes]]:
+    """Build a TCP port scan packet list for training composition."""
+    attacker_mac = b'\x00\x11\x22\x33\x44\x55'
+    target_mac = b'\x66\x77\x88\x99\xaa\xbb'
+    attacker_ip = "192.0.2.100"
+    target_ip = "198.51.100.50"
+    scan_ports = [
+        21, 22, 23, 25, 53, 80, 110, 111, 135, 139,
+        143, 443, 445, 993, 995, 1723, 3306, 3389, 5900, 8080,
+    ]
+    open_ports = {22, 80, 443}
+    base_time = time.time() if base_time is None else base_time
+    packets: list[tuple[float, bytes]] = []
+
+    for i, port in enumerate(scan_ports):
+        timestamp = base_time + i * random.uniform(0.1, 0.3)
+        src_port = random.randint(40000, 60000)
+        packets.append((
+            timestamp,
+            build_tcp_syn_packet(
+                attacker_mac, target_mac, attacker_ip, target_ip, src_port, port
+            ),
+        ))
+
+        resp_time = timestamp + random.uniform(0.02, 0.05)
+        if port in open_ports:
+            packets.append((
+                resp_time,
+                build_tcp_syn_ack_packet(
+                    target_mac, attacker_mac, target_ip, attacker_ip, port, src_port
+                ),
+            ))
+        else:
+            packets.append((
+                resp_time,
+                build_tcp_rst_packet(
+                    target_mac, attacker_mac, target_ip, attacker_ip, port, src_port
+                ),
+            ))
+
+    return packets
+
+
+def build_bruteforce_packets(
+    base_time: float | None = None,
+    num_attempts: int = 100,
+) -> list[tuple[float, bytes]]:
+    """Build an SSH brute-force packet list for training composition."""
+    attacker_mac = b'\x00\x11\x22\x33\x44\x56'
+    target_mac = b'\x66\x77\x88\x99\xaa\xbc'
+    attacker_ip = "192.0.2.10"
+    target_ip = "198.51.100.20"
+    target_port = 22
+    base_time = time.time() if base_time is None else base_time
+    packets: list[tuple[float, bytes]] = []
+
+    for i in range(num_attempts):
+        session_packets = generate_tcp_session(
+            client_ip=attacker_ip,
+            server_ip=target_ip,
+            client_mac=attacker_mac,
+            server_mac=target_mac,
+            client_port=random.randint(40000, 60000),
+            server_port=target_port,
+            base_time=base_time + i * random.uniform(0.08, 0.2),
+            num_rounds=random.randint(1, 2),
+            request_size_range=(24, 96),
+            response_size_range=(16, 64),
+            iat_range=(0.01, 0.08),
+            termination="rst" if random.random() < 0.7 else "fin",
+        )
+        packets.extend(session_packets)
+
+    return packets
+
+
+def build_dos_packets(
+    base_time: float | None = None,
+    num_flows: int = 24,
+    packets_per_flow: int = 180,
+    payload_size: int = 1400,
+) -> list[tuple[float, bytes]]:
+    """Build a UDP flood packet list that trips the dos rules."""
+    base_time = time.time() if base_time is None else base_time
+    packets: list[tuple[float, bytes]] = []
+    target_mac = b'\x66\x77\x88\x99\xaa\xbd'
+    target_ip = "198.51.100.80"
+    target_port = 8080
+
+    for i in range(num_flows):
+        attacker_ip = f"192.0.2.{10 + (i % 40)}"
+        attacker_mac = random_mac()
+        src_port = 40000 + i
+        t = base_time + i * random.uniform(0.2, 0.5)
+
+        for _ in range(packets_per_flow):
+            packets.append((
+                t,
+                build_udp_packet(
+                    attacker_mac,
+                    target_mac,
+                    attacker_ip,
+                    target_ip,
+                    src_port,
+                    target_port,
+                    payload_size,
+                ),
+            ))
+            t += random.uniform(0.0004, 0.0008)
+
+    return packets
+
+
+def generate_dos_pcap(output_path: Path):
+    """Generate a DoS / flood PCAP."""
+    print(f"Generating DoS PCAP: {output_path}")
+    write_packets_to_pcap(output_path, build_dos_packets())
+
+
+def generate_training_attack_pcap(output_path: Path):
+    """Generate an attack training PCAP with scan, bruteforce, and dos flows."""
+    print(f"Generating training attack PCAP: {output_path}")
+    base_time = time.time()
+    packets: list[tuple[float, bytes]] = []
+    packets.extend(build_scan_packets(base_time))
+    packets.extend(build_bruteforce_packets(base_time + 120))
+    packets.extend(build_dos_packets(base_time + 240))
+    write_packets_to_pcap(output_path, packets)
+
+
 def main():
     """生成示例 PCAP 文件。"""
     # 创建输出目录

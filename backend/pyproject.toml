@@ -13,7 +13,7 @@ dependencies = [
     "python-multipart>=0.0.6",
     "aiofiles>=23.2.1",
     "dpkt>=1.9.8",
-    "scikit-learn>=1.4.0",
+    "scikit-learn==1.5.1",
     "numpy>=1.26.0",
     "websockets>=12.0",
 ]

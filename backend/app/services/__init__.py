@@ -15,6 +15,7 @@ from app.services.twin.service import TwinService
 from app.services.plan_compiler.service import PlanCompilerService
 from app.services.scenarios.service import ScenariosService
 from app.services.threat_enrichment.service import ThreatEnrichmentService
+from app.services.analytics.service import AnalyticsService
 from app.services.stream import (
     broadcast_pcap_progress,
     broadcast_pcap_done,
@@ -50,6 +51,8 @@ __all__ = [
     "ScenariosService",
     # B4.12 威胁增强（模块 E）
     "ThreatEnrichmentService",
+    # B4.13 标准化分析
+    "AnalyticsService",
     # B4.11 流式处理与事件总线
     "broadcast_pcap_progress",
     "broadcast_pcap_done",

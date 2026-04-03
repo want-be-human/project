@@ -6,19 +6,8 @@ import CountUp from './CountUp';
 
 interface HeroSectionProps {
   overview: DashboardOverview;
+  postureScore: number;
   apiReachable: boolean;
-}
-
-/**
- * 计算态势评分
- * 公式：max(0, 100 - critical*15 - high*8 - open*2 - avg_risk*20)
- */
-export function calcPostureScore(overview: DashboardOverview): number {
-  const critical = overview.alert_by_severity?.critical ?? 0;
-  const high = overview.alert_by_severity?.high ?? 0;
-  const open = overview.alert_open_count ?? 0;
-  const avgRisk = overview.dryrun_avg_disruption_risk ?? 0;
-  return Math.max(0, 100 - critical * 15 - high * 8 - open * 2 - avgRisk * 20);
 }
 
 /** 根据评分返回对应颜色类名 */
@@ -66,10 +55,10 @@ function formatTime(iso: string | null): string {
  * 三栏布局：左侧项目信息 | 中间态势评分环形图（视觉锚点）| 右侧关键上下文
  * 统一 Card_Style_System 面板样式
  */
-export default function HeroSection({ overview, apiReachable }: HeroSectionProps) {
+export default function HeroSection({ overview, postureScore, apiReachable }: HeroSectionProps) {
   const t = useTranslations('dashboard');
 
-  const score = calcPostureScore(overview);
+  const score = postureScore;
   const lastUpdated = getLastUpdated(overview);
 
   // 环形进度条参数（160px 尺寸）

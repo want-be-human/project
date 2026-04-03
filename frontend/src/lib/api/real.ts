@@ -5,6 +5,8 @@ import {
   PipelineRun, StageRecord, DashboardSummary,
   Batch, BatchDetail, BatchFileRecord, BatchJob,
   CreateBatchRequest, BatchStartResponse, BatchRetryResponse,
+  AnalyticsOverview, ScoreResult, DashboardTrends, DashboardDistributions,
+  TopologySnapshot, ActivityEvent, TopAssets,
 } from './types';
 
 // 服务端（Server Component）优先使用内部网络地址，客户端使用公开地址
@@ -203,6 +205,48 @@ export const realApi = {
     /** 获取仪表盘聚合数据 */
     getDashboardSummary: async (): Promise<DashboardSummary> => {
         return fetchJson<DashboardSummary>('/api/v1/dashboard/summary');
+    },
+
+    // ── Analytics 标准化分析 API ──
+
+    /** 获取分析总览（含态势评分） */
+    getAnalyticsOverview: async (): Promise<AnalyticsOverview> => {
+        return fetchJson<AnalyticsOverview>('/api/v1/analytics/overview');
+    },
+
+    /** 获取安全态势评分 */
+    getPostureScore: async (): Promise<ScoreResult> => {
+        return fetchJson<ScoreResult>('/api/v1/analytics/scores/posture');
+    },
+
+    /** 获取行动安全评分（占位） */
+    getActionSafetyScore: async (): Promise<ScoreResult> => {
+        return fetchJson<ScoreResult>('/api/v1/analytics/scores/action-safety');
+    },
+
+    /** 获取告警趋势 */
+    getAnalyticsTrends: async (): Promise<DashboardTrends> => {
+        return fetchJson<DashboardTrends>('/api/v1/analytics/trends');
+    },
+
+    /** 获取告警分布 */
+    getAnalyticsDistributions: async (): Promise<DashboardDistributions> => {
+        return fetchJson<DashboardDistributions>('/api/v1/analytics/distributions');
+    },
+
+    /** 获取拓扑快照 */
+    getAnalyticsTopologySnapshot: async (): Promise<TopologySnapshot> => {
+        return fetchJson<TopologySnapshot>('/api/v1/analytics/topology-snapshot');
+    },
+
+    /** 获取最近活动 */
+    getAnalyticsRecentActivity: async (): Promise<ActivityEvent[]> => {
+        return fetchJson<ActivityEvent[]>('/api/v1/analytics/recent-activity');
+    },
+
+    /** 获取高风险资产排行 */
+    getTopAssets: async (): Promise<TopAssets> => {
+        return fetchJson<TopAssets>('/api/v1/analytics/top-assets');
     },
 
     // ── 批量接入 API ──

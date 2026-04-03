@@ -30,6 +30,7 @@ from app.api.routers import (
     pipeline,
     dashboard,
     batch,
+    analytics,
 )
 from app.schemas.common import ApiResponse
 
@@ -160,6 +161,8 @@ app.include_router(stream.router, prefix=settings.API_V1_PREFIX)
 app.include_router(pipeline.router, prefix=settings.API_V1_PREFIX)
 # 仪表盘路由 — 安全态势总览
 app.include_router(dashboard.router, prefix=settings.API_V1_PREFIX)
+# 标准化分析路由
+app.include_router(analytics.router, prefix=settings.API_V1_PREFIX)
 # 批量接入路由
 app.include_router(batch.router, prefix=settings.API_V1_PREFIX)
 

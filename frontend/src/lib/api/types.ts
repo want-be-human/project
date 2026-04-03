@@ -700,3 +700,55 @@ export interface BatchRetryResponse {
   jobs_created: number;
   files_retried: number;
 }
+
+// ==================== Analytics 标准化分析类型定义 ====================
+
+/** 评分因子 */
+export interface ScoreFactor {
+  name: string;
+  value: number;
+  weight: number;
+  description: string;
+}
+
+/** 标准化评分结果 */
+export interface ScoreResult {
+  value: number;
+  factors: ScoreFactor[];
+  score_version: string;
+  computed_at: string;
+  explain?: string | null;
+  breakdown?: Record<string, any> | null;
+}
+
+/** 分析总览（含评分） */
+export interface AnalyticsOverview {
+  pcap_total: number;
+  pcap_processing: number;
+  pcap_24h_count: number;
+  flow_total: number;
+  flow_24h_count: number;
+  alert_total: number;
+  alert_open_count: number;
+  alert_by_severity: Record<string, number>;
+  dryrun_total: number;
+  dryrun_avg_disruption_risk: number;
+  scenario_total: number;
+  scenario_pass_rate: number;
+  posture_score: ScoreResult | null;
+}
+
+/** 高风险资产条目 */
+export interface TopAssetItem {
+  id: string;
+  label: string;
+  risk: number;
+  category: string;
+}
+
+/** 高风险资产排行 */
+export interface TopAssets {
+  top_risk_nodes: TopAssetItem[];
+  top_risk_edges: TopAssetItem[];
+  top_alert_types: Array<{ type: string; count: number }>;
+}

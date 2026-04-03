@@ -352,6 +352,7 @@ def main():
 
     if model is not None:
         import joblib
+        import sklearn
         joblib.dump(model, RANKER_MODEL_PATH)
 
         # 确定实际模型类型名
@@ -359,6 +360,7 @@ def main():
 
         meta = {
             "created_at": datetime.now(timezone.utc).isoformat(),
+            "sklearn_version": sklearn.__version__,
             "model_type": actual_model_type,
             "training_mode": args.mode,
             "feature_names": feature_names,

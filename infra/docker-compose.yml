@@ -8,6 +8,7 @@ services:
       - "8000:8000"
     volumes:
       - ../backend/app:/app/app
+      - ../backend/models:/app/models
       - ../backend/alembic:/app/alembic
       - ../backend/alembic.ini:/app/alembic.ini:ro
       - ../backend/data:/app/data

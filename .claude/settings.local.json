@@ -20,7 +20,8 @@
       "Bash(python3 -c:*)",
       "Bash(xargs wc:*)",
       "Bash(find /d/vsCode/python/project/backend -name alembic.ini -o -name env.py -path */migrations/*)",
-      "Bash(find /d/vsCode/python/project/backend -name *.py -path */migrations/*)"
+      "Bash(find /d/vsCode/python/project/backend -name *.py -path */migrations/*)",
+      "Bash(python -m pytest app/tests/unit/test_scorers.py -v)"
     ]
   }
 }
