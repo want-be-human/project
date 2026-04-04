@@ -16,14 +16,12 @@ export default async function DashboardPage() {
   let data: DashboardSummary | null = null;
   let analyticsOverview: AnalyticsOverview | null = null;
   let error: string | null = null;
-  let apiReachable = false;
 
   try {
     [data, analyticsOverview] = await Promise.all([
       api.getDashboardSummary(),
       api.getAnalyticsOverview(),
     ]);
-    apiReachable = true;
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
   }
@@ -52,12 +50,10 @@ export default async function DashboardPage() {
       <div className="relative z-10 flex flex-col gap-6 px-6 pt-6 pb-8">
         {/* A 层：Hero 区域 — 项目状态与态势评分 */}
         <HeroSection
-          overview={data.overview}
           postureScore={analyticsOverview?.posture_score?.value ?? 0}
           scoreResult={analyticsOverview?.posture_score ?? null}
           actionSafetyScore={analyticsOverview?.action_safety_score?.value ?? -1}
           actionSafetyResult={analyticsOverview?.action_safety_score ?? null}
-          apiReachable={apiReachable}
         />
         {/* B 层：六张核心指标卡片 */}
         <MetricCards overview={data.overview} sparklines={data.metric_sparklines} />

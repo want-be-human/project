@@ -22,16 +22,8 @@
     "title": "Dashboard",
 
     "heroProjectName": "NetTwin SOC",
-    "heroRunningStatus": "Running Status",
-    "heroStatusOnline": "Online",
-    "heroStatusOffline": "Offline",
-    "heroLastUpdated": "Last Updated",
     "heroPostureScore": "Posture Score",
     "heroActionSafety": "Action Safety",
-    "heroUptime": "Uptime",
-    "heroLastAnalysis": "Last Analysis",
-    "heroCriticalAlerts": "Critical Alerts",
-    "heroHighAlerts": "High Alerts",
 
     "metricPcapTitle": "PCAP Files",
     "metricPcapTotal": "Total",
