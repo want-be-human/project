@@ -1,73 +1,61 @@
 #!/usr/bin/env python3
 """
-复合检测模型离线训练脚本（无泄漏版）。
+Leak-free composite model training.
 
-训练 3 层复合检测架构中的所有模型：
-  [1/8] 解析 PCAP（正常 + 攻击样本）
-  [2/8] 提取 flow 统计特征
-  [3/8] 三段式数据切分（train / val / test）
-  [4/8] Layer 1: 在训练集上拟合 IsolationForest，独立评分各 split
-  [5/8] Layer 2: 计算规则语义特征（各 split 独立）
-  [6/8] 在训练集上构建图结构，独立提取各 split 的图特征
-  [7/8] Layer 3: 训练监督模型，在 val 上校准阈值
-  [8/8] 在 test 上最终评估 + 持久化
+Supported modes:
+- legacy two-PCAP mode: one normal PCAP + one attack PCAP
+- manifest mode: one or more PCAP sources, each optionally paired with an
+  official labels CSV
+- dataset preset mode: CIC-IDS2017 core subset discovery
 
-无泄漏保证：
-  - train/val/test 切分在任何层处理之前完成
-  - IsolationForest 仅在 train 上拟合，val/test 使用拟合后模型评分
-  - 图结构仅从 train 构建，val/test 在训练图上提取特征
-  - 阈值在 val 上校准，test 仅用于最终评估
-
-用法：
-    cd backend
-    python -m scripts.train_composite_model
-    python -m scripts.train_composite_model --pcap-normal data/pcaps/training_normal.pcap \\
-                                            --pcap-attack data/pcaps/training_attack.pcap
-    python -m scripts.train_composite_model --model-type xgboost
-    python -m scripts.train_composite_model --mode semi-supervised
-    python -m scripts.train_composite_model --split-strategy temporal
+The training flow is:
+1. Load labeled flows.
+2. Split into train / validation / test.
+3. Fit IsolationForest on train only and score every split without refitting.
+4. Add rule and graph features without leaking test information.
+5. Train the supervised ranker on train.
+6. Fit a probability calibrator on a calibration holdout from validation.
+7. Tune the decision threshold on a separate threshold holdout.
+8. Evaluate once on test and persist the calibrated model.
 """
+
+from __future__ import annotations
 
 import argparse
 import json
 import sys
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
 
-# 将 backend/ 加入 sys.path
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BACKEND_DIR))
 
-from app.services.parsing.service import ParsingService
-from app.services.features.service import FeaturesService
 from app.services.detection.baseline_detector import BaselineDetector
-from app.services.detection.rule_enricher import RuleEnricher
-from app.services.detection.graph_feature_builder import GraphFeatureBuilder
-from app.services.detection.feature_pipeline import FeaturePipeline
 from app.services.detection.evaluator import Evaluator
+from app.services.detection.feature_pipeline import FeaturePipeline
+from app.services.detection.graph_feature_builder import GraphFeatureBuilder
+from app.services.detection.rule_enricher import RuleEnricher
+from app.services.features.service import FeaturesService
+from app.services.parsing.service import ParsingService
+from scripts.training_dataset import (
+    DatasetSource,
+    assign_default_family,
+    build_cicids2017_core_sources,
+    label_flows_with_official_csv,
+    load_dataset_manifest,
+)
 
-# 模型输出目录
 MODEL_DIR = BACKEND_DIR / "models"
 RANKER_MODEL_PATH = MODEL_DIR / "composite_ranker.joblib"
 RANKER_META_PATH = MODEL_DIR / "composite_ranker.meta.json"
 REPORT_PATH = MODEL_DIR / "evaluation_report.json"
 
-# 默认训练 PCAP 路径
 DEFAULT_NORMAL_PCAP = BACKEND_DIR / "data" / "pcaps" / "training_normal.pcap"
 DEFAULT_ATTACK_PCAP = BACKEND_DIR / "data" / "pcaps" / "training_attack.pcap"
-
-
-def parse_and_extract(pcap_path: Path, label: int) -> list[dict]:
-    """解析 PCAP 并提取特征，为每条 flow 附加标签。"""
-    parser = ParsingService()
-    flows = parser.parse_to_flows(pcap_path)
-    feat_svc = FeaturesService()
-    flows = feat_svc.extract_features_batch(flows)
-    for f in flows:
-        f["_label"] = label  # 0=正常, 1=异常
-    return flows
+DEFAULT_CICIDS2017_ROOT = BACKEND_DIR / "data" / "datasets" / "cicids2017"
 
 
 def three_way_split(
@@ -77,19 +65,11 @@ def three_way_split(
     val_ratio: float = 0.2,
     random_state: int = 42,
 ) -> tuple[list[dict], list[dict], list[dict]]:
-    """
-    三段式切分：train / val / test。
-
-    策略：
-      - stratified: 分层随机切分（保持正负样本比例）
-      - temporal: 按流索引分块切分（模拟时间序列，避免相邻流泄漏）
-    """
     from sklearn.model_selection import train_test_split
 
     labels = [f.get("_label", 0) for f in flows]
 
     if strategy == "temporal":
-        # 按 10-flow 块分组，再按组切分
         block_size = 10
         group_ids = [i // block_size for i in range(len(flows))]
         unique_groups = sorted(set(group_ids))
@@ -102,30 +82,97 @@ def three_way_split(
         train_groups = set(unique_groups[:n_train])
         val_groups = set(unique_groups[n_train:n_train + n_val])
 
-        train_flows, val_flows, test_flows = [], [], []
-        for i, f in enumerate(flows):
-            g = group_ids[i]
-            if g in train_groups:
-                train_flows.append(f)
-            elif g in val_groups:
-                val_flows.append(f)
+        train_flows: list[dict] = []
+        val_flows: list[dict] = []
+        test_flows: list[dict] = []
+        for index, flow in enumerate(flows):
+            group_id = group_ids[index]
+            if group_id in train_groups:
+                train_flows.append(flow)
+            elif group_id in val_groups:
+                val_flows.append(flow)
             else:
-                test_flows.append(f)
-    else:
-        # stratified: 先分出 test，再从剩余中分出 val
-        test_ratio = 1.0 - train_ratio - val_ratio
-        train_val, test_flows = train_test_split(
-            flows, test_size=test_ratio, random_state=random_state,
-            stratify=labels,
-        )
-        labels_tv = [f.get("_label", 0) for f in train_val]
-        val_relative = val_ratio / (train_ratio + val_ratio)
-        train_flows, val_flows = train_test_split(
-            train_val, test_size=val_relative, random_state=random_state,
-            stratify=labels_tv,
-        )
+                test_flows.append(flow)
+        return train_flows, val_flows, test_flows
 
+    test_ratio = 1.0 - train_ratio - val_ratio
+    train_val, test_flows = train_test_split(
+        flows,
+        test_size=test_ratio,
+        random_state=random_state,
+        stratify=labels,
+    )
+    labels_train_val = [f.get("_label", 0) for f in train_val]
+    val_relative = val_ratio / (train_ratio + val_ratio)
+    train_flows, val_flows = train_test_split(
+        train_val,
+        test_size=val_relative,
+        random_state=random_state,
+        stratify=labels_train_val,
+    )
     return train_flows, val_flows, test_flows
+
+
+def split_validation_for_calibration(
+    X_val: np.ndarray,
+    y_val: np.ndarray,
+    *,
+    random_state: int = 42,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict]:
+    from sklearn.model_selection import train_test_split
+
+    if len(X_val) < 10 or len(np.unique(y_val)) < 2:
+        info = {
+            "strategy": "shared_validation",
+            "calibration_samples": int(len(X_val)),
+            "threshold_samples": int(len(X_val)),
+        }
+        return X_val, X_val, y_val, y_val, info
+
+    class_counts = np.bincount(y_val.astype(int), minlength=2)
+    if int(class_counts.min()) < 2:
+        info = {
+            "strategy": "shared_validation",
+            "calibration_samples": int(len(X_val)),
+            "threshold_samples": int(len(X_val)),
+        }
+        return X_val, X_val, y_val, y_val, info
+
+    X_calib, X_threshold, y_calib, y_threshold = train_test_split(
+        X_val,
+        y_val,
+        test_size=0.5,
+        random_state=random_state,
+        stratify=y_val,
+    )
+
+    if len(np.unique(y_calib)) < 2 or len(np.unique(y_threshold)) < 2:
+        info = {
+            "strategy": "shared_validation",
+            "calibration_samples": int(len(X_val)),
+            "threshold_samples": int(len(X_val)),
+        }
+        return X_val, X_val, y_val, y_val, info
+
+    info = {
+        "strategy": "split_validation",
+        "calibration_samples": int(len(X_calib)),
+        "threshold_samples": int(len(X_threshold)),
+    }
+    return X_calib, X_threshold, y_calib, y_threshold, info
+
+
+def resolve_calibration_method(
+    y_calib: np.ndarray,
+    calibration_method: str,
+) -> str:
+    if calibration_method != "auto":
+        return calibration_method
+
+    class_counts = np.bincount(y_calib.astype(int), minlength=2)
+    if int(class_counts.min()) >= 50 and int(len(y_calib)) >= 200:
+        return "isotonic"
+    return "sigmoid"
 
 
 def train_supervised(
@@ -135,19 +182,10 @@ def train_supervised(
     y_val: np.ndarray,
     model_type: str = "lightgbm",
 ) -> object:
-    """
-    训练监督模型。
-
-    参数：
-        X_train, y_train: 训练集
-        X_val, y_val: 验证集（用于早停）
-        model_type: "lightgbm" 或 "xgboost"
-    返回：
-        训练好的模型
-    """
     if model_type == "lightgbm":
         try:
             from lightgbm import LGBMClassifier
+
             model = LGBMClassifier(
                 n_estimators=200,
                 max_depth=6,
@@ -159,18 +197,16 @@ def train_supervised(
                 random_state=42,
                 verbose=-1,
             )
-            model.fit(
-                X_train, y_train,
-                eval_set=[(X_val, y_val)],
-            )
+            model.fit(X_train, y_train, eval_set=[(X_val, y_val)])
             return model
         except ImportError:
-            print("  lightgbm 未安装，回退到 sklearn GradientBoosting")
+            print("  lightgbm is not installed, falling back to sklearn GradientBoosting")
             model_type = "sklearn_gb"
 
     if model_type == "xgboost":
         try:
             from xgboost import XGBClassifier
+
             model = XGBClassifier(
                 n_estimators=200,
                 max_depth=6,
@@ -181,18 +217,14 @@ def train_supervised(
                 eval_metric="logloss",
                 verbosity=0,
             )
-            model.fit(
-                X_train, y_train,
-                eval_set=[(X_val, y_val)],
-                verbose=False,
-            )
+            model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
             return model
         except ImportError:
-            print("  xgboost 未安装，回退到 sklearn GradientBoosting")
+            print("  xgboost is not installed, falling back to sklearn GradientBoosting")
             model_type = "sklearn_gb"
 
-    # 回退方案：sklearn GradientBoosting
     from sklearn.ensemble import GradientBoostingClassifier
+
     model = GradientBoostingClassifier(
         n_estimators=200,
         max_depth=6,
@@ -210,193 +242,368 @@ def train_semi_supervised(
     X_unlabeled: np.ndarray,
     model_type: str = "pu_learning",
 ) -> object:
-    """
-    半监督训练占位接口。
-
-    当前实现：伪标签方案（pseudo-label）。
-    使用有标签数据训练初始模型，对无标签数据预测伪标签，
-    然后合并训练最终模型。
-
-    参数：
-        X_labeled: 有标签特征矩阵
-        y_labeled: 标签
-        X_unlabeled: 无标签特征矩阵
-        model_type: "pu_learning" 或 "pseudo_label"
-    返回：
-        训练好的模型
-    """
     from sklearn.ensemble import GradientBoostingClassifier
 
-    print(f"  半监督模式: {model_type}")
-    print(f"  有标签样本: {len(y_labeled)}, 无标签样本: {len(X_unlabeled)}")
+    print(f"  semi-supervised mode: {model_type}")
+    print(f"  labeled samples: {len(y_labeled)}, unlabeled samples: {len(X_unlabeled)}")
 
-    # 第一阶段：用有标签数据训练初始模型
     initial_model = GradientBoostingClassifier(
-        n_estimators=100, max_depth=4, random_state=42
+        n_estimators=100,
+        max_depth=4,
+        random_state=42,
     )
     initial_model.fit(X_labeled, y_labeled)
 
     if len(X_unlabeled) == 0:
         return initial_model
 
-    # 第二阶段：对无标签数据生成伪标签
     if hasattr(initial_model, "predict_proba"):
         proba = initial_model.predict_proba(X_unlabeled)[:, 1]
     else:
         proba = initial_model.predict(X_unlabeled)
 
-    # 仅选取高置信度样本（>0.9 为正，<0.1 为负）
     high_conf_pos = proba >= 0.9
     high_conf_neg = proba <= 0.1
     mask = high_conf_pos | high_conf_neg
     pseudo_labels = (proba[mask] >= 0.5).astype(int)
 
-    print(f"  高置信度伪标签: {mask.sum()} 条 (正={high_conf_pos.sum()}, 负={high_conf_neg.sum()})")
+    print(
+        "  pseudo labels: "
+        f"{int(mask.sum())} (positive={int(high_conf_pos.sum())}, negative={int(high_conf_neg.sum())})"
+    )
 
     if mask.sum() == 0:
         return initial_model
 
-    # 第三阶段：合并训练
     X_combined = np.vstack([X_labeled, X_unlabeled[mask]])
     y_combined = np.concatenate([y_labeled, pseudo_labels])
 
     final_model = GradientBoostingClassifier(
-        n_estimators=200, max_depth=6, learning_rate=0.05, random_state=42
+        n_estimators=200,
+        max_depth=6,
+        learning_rate=0.05,
+        random_state=42,
     )
     final_model.fit(X_combined, y_combined)
     return final_model
 
 
 def calibrate_threshold(y_true: np.ndarray, y_scores: np.ndarray) -> float:
-    """基于 F1 最优化自动校准阈值。"""
     from sklearn.metrics import f1_score
 
     best_threshold = 0.5
-    best_f1 = 0.0
+    best_f1 = -1.0
 
-    for t in np.arange(0.3, 0.95, 0.01):
-        y_pred = (y_scores >= t).astype(int)
+    for threshold in np.arange(0.3, 0.95, 0.01):
+        y_pred = (y_scores >= threshold).astype(int)
         f1 = f1_score(y_true, y_pred, zero_division=0)
         if f1 > best_f1:
-            best_f1 = f1
-            best_threshold = float(t)
+            best_f1 = float(f1)
+            best_threshold = float(threshold)
 
     return round(best_threshold, 2)
 
 
-def _get_scores(model, X: np.ndarray) -> np.ndarray:
-    """从模型获取概率分数。"""
+def fit_probability_calibrator(
+    base_model: object,
+    X_calib: np.ndarray,
+    y_calib: np.ndarray,
+    *,
+    calibration_method: str,
+) -> tuple[object, dict]:
+    if calibration_method == "none":
+        return base_model, {"enabled": False, "method": "none", "reason": "disabled"}
+
+    if len(np.unique(y_calib)) < 2:
+        return base_model, {
+            "enabled": False,
+            "method": "none",
+            "reason": "single_class_calibration_split",
+        }
+
+    from sklearn.calibration import CalibratedClassifierCV
+
+    resolved_method = resolve_calibration_method(y_calib, calibration_method)
+    calibrated_model = CalibratedClassifierCV(
+        estimator=base_model,
+        method=resolved_method,
+        cv="prefit",
+    )
+    calibrated_model.fit(X_calib, y_calib)
+    info = {
+        "enabled": True,
+        "method": resolved_method,
+        "samples": int(len(X_calib)),
+        "positive_samples": int(y_calib.sum()),
+    }
+    return calibrated_model, info
+
+
+def _get_scores(model: object, X: np.ndarray) -> np.ndarray:
     if hasattr(model, "predict_proba"):
         proba = model.predict_proba(X)
         return proba[:, 1] if proba.shape[1] > 1 else proba[:, 0]
     return model.predict(X).astype(float)
 
 
-def main():
-    ap = argparse.ArgumentParser(description="复合检测模型离线训练（无泄漏版）")
-    ap.add_argument("--pcap-normal", type=Path, default=DEFAULT_NORMAL_PCAP,
-                    help="正常流量 PCAP 路径")
-    ap.add_argument("--pcap-attack", type=Path, default=DEFAULT_ATTACK_PCAP,
-                    help="攻击流量 PCAP 路径（可选，无则仅训练基线）")
-    ap.add_argument("--model-type", choices=["lightgbm", "xgboost", "sklearn_gb"],
-                    default="lightgbm", help="Layer 3 模型类型")
-    ap.add_argument("--mode", choices=["supervised", "semi-supervised"],
-                    default="supervised", help="训练模式")
-    ap.add_argument("--contamination", type=float, default=0.1,
-                    help="IsolationForest 异常比例参数")
-    ap.add_argument("--split-strategy", choices=["stratified", "temporal"],
-                    default="stratified", help="数据切分策略")
-    args = ap.parse_args()
+def load_training_flows(
+    sources: list[DatasetSource],
+    *,
+    window_sec: int,
+    label_match_tolerance_sec: int,
+) -> tuple[list[dict], dict]:
+    parser = ParsingService()
+    features = FeaturesService()
 
-    # ── [1/8] 解析 PCAP ──
-    print(f"[1/8] 解析正常流量 PCAP: {args.pcap_normal}")
+    all_flows: list[dict] = []
+    source_stats: list[dict] = []
+
+    for source in sources:
+        if not source.pcap.exists():
+            raise FileNotFoundError(f"PCAP does not exist: {source.pcap}")
+        if source.labels_csv is not None and not source.labels_csv.exists():
+            raise FileNotFoundError(f"Labels CSV does not exist: {source.labels_csv}")
+
+        print(f"  loading source: {source.name}")
+        print(f"    pcap: {source.pcap}")
+        raw_flows = parser.parse_to_flows(source.pcap, window_sec=window_sec)
+        print(f"    parsed flows: {len(raw_flows)}")
+
+        if source.labels_csv is not None:
+            labeled_flows, stats = label_flows_with_official_csv(
+                raw_flows,
+                source.labels_csv,
+                include_families=source.include_families,
+                tolerance_sec=label_match_tolerance_sec,
+                source_name=source.name,
+                timestamp_day_first=source.timestamp_day_first,
+            )
+        elif source.default_family is not None:
+            labeled_flows, stats = assign_default_family(
+                raw_flows,
+                source.default_family,
+                source.name,
+            )
+        else:
+            raise ValueError(
+                f"Source {source.name} must provide either labels_csv or default_family"
+            )
+
+        if not labeled_flows:
+            raise ValueError(f"No labeled flows were produced for source: {source.name}")
+
+        labeled_flows = features.extract_features_batch(labeled_flows)
+        all_flows.extend(labeled_flows)
+        source_stats.append(stats)
+
+        print(
+            "    labeled flows: "
+            f"{stats['labeled_flows']} "
+            f"(families={stats.get('family_counts', {})}, unmatched={stats.get('unmatched_flows', 0)})"
+        )
+
+    summary = {
+        "source_count": len(sources),
+        "sources": source_stats,
+        "total_flows": len(all_flows),
+        "family_counts": dict(
+            Counter(flow.get("_attack_type", "normal") for flow in all_flows)
+        ),
+    }
+    return all_flows, summary
+
+
+def build_sources_from_args(args: argparse.Namespace) -> tuple[list[DatasetSource], dict]:
+    if args.dataset_manifest:
+        sources, config = load_dataset_manifest(args.dataset_manifest)
+        config["mode"] = "manifest"
+        return sources, config
+
+    if args.dataset_preset == "cicids2017_core":
+        dataset_root = args.dataset_root or DEFAULT_CICIDS2017_ROOT
+        sources = build_cicids2017_core_sources(dataset_root)
+        config = {
+            "mode": "dataset_preset",
+            "preset": "cicids2017_core",
+            "window_sec": args.window_sec,
+            "label_match_tolerance_sec": args.label_match_tolerance_sec,
+            "dataset_root": str(dataset_root),
+        }
+        return sources, config
+
     if not args.pcap_normal.exists():
-        print("  正常流量 PCAP 不存在，尝试自动生成...")
+        print(f"[1/8] normal PCAP does not exist, generating demo training data: {args.pcap_normal}")
         from scripts.generate_demo_pcaps import generate_training_pcap
+
         args.pcap_normal.parent.mkdir(parents=True, exist_ok=True)
         generate_training_pcap(args.pcap_normal)
 
-    normal_flows = parse_and_extract(args.pcap_normal, label=0)
-    print(f"  正常流量: {len(normal_flows)} 条")
+    sources = [DatasetSource(name="legacy_normal", pcap=args.pcap_normal, default_family="normal")]
+    if args.pcap_attack.exists():
+        sources.append(
+            DatasetSource(
+                name="legacy_attack",
+                pcap=args.pcap_attack,
+                default_family="anomaly",
+            )
+        )
 
-    attack_flows: list[dict] = []
-    has_attack = args.pcap_attack.exists()
-    if has_attack:
-        print(f"  解析攻击流量 PCAP: {args.pcap_attack}")
-        attack_flows = parse_and_extract(args.pcap_attack, label=1)
-        print(f"  攻击流量: {len(attack_flows)} 条")
-    else:
-        print("  未提供攻击流量 PCAP，Layer 3 将仅使用 fallback 模式")
+    config = {
+        "mode": "legacy",
+        "window_sec": args.window_sec,
+        "label_match_tolerance_sec": args.label_match_tolerance_sec,
+    }
+    return sources, config
 
-    all_flows = normal_flows + attack_flows
+
+def build_feature_groups(feature_names: list[str]) -> dict[str, list[str]]:
+    return {
+        "flow_stats": [
+            name
+            for name in feature_names
+            if not name.startswith("rule_")
+            and not name.startswith("node_")
+            and not name.startswith("neighbor_")
+            and not name.startswith("edge_")
+            and not name.startswith("subnet_")
+            and not name.startswith("is_hub")
+            and not name.startswith("betweenness")
+            and not name.startswith("clustering")
+            and name != "baseline_score"
+        ],
+        "baseline": ["baseline_score"],
+        "rule_features": [name for name in feature_names if name.startswith("rule_")],
+        "graph_features": [
+            name
+            for name in feature_names
+            if name.startswith("node_")
+            or name.startswith("neighbor_")
+            or name.startswith("edge_")
+            or name.startswith("subnet_")
+            or name.startswith("is_hub")
+            or name.startswith("betweenness")
+            or name.startswith("clustering")
+        ],
+    }
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Train the composite detection model")
+    parser.add_argument("--pcap-normal", type=Path, default=DEFAULT_NORMAL_PCAP)
+    parser.add_argument("--pcap-attack", type=Path, default=DEFAULT_ATTACK_PCAP)
+    parser.add_argument("--dataset-manifest", type=Path, default=None)
+    parser.add_argument(
+        "--dataset-preset",
+        choices=["cicids2017_core"],
+        default=None,
+    )
+    parser.add_argument("--dataset-root", type=Path, default=None)
+    parser.add_argument("--window-sec", type=int, default=60)
+    parser.add_argument("--label-match-tolerance-sec", type=int, default=120)
+    parser.add_argument(
+        "--model-type",
+        choices=["lightgbm", "xgboost", "sklearn_gb"],
+        default="lightgbm",
+    )
+    parser.add_argument(
+        "--mode",
+        choices=["supervised", "semi-supervised"],
+        default="supervised",
+    )
+    parser.add_argument("--contamination", type=float, default=0.1)
+    parser.add_argument(
+        "--split-strategy",
+        choices=["stratified", "temporal"],
+        default="stratified",
+    )
+    parser.add_argument(
+        "--calibration-method",
+        choices=["auto", "sigmoid", "isotonic", "none"],
+        default="auto",
+    )
+    args = parser.parse_args()
+
+    print("[1/8] Loading labeled training sources...")
+    sources, dataset_config = build_sources_from_args(args)
+
+    if args.dataset_manifest and "window_sec" in dataset_config:
+        args.window_sec = int(dataset_config["window_sec"])
+        args.label_match_tolerance_sec = int(dataset_config["label_match_tolerance_sec"])
+
+    all_flows, dataset_summary = load_training_flows(
+        sources,
+        window_sec=args.window_sec,
+        label_match_tolerance_sec=args.label_match_tolerance_sec,
+    )
 
     if len(all_flows) < 5:
-        print("错误：训练样本不足（至少需要 5 条流）")
+        print("Error: not enough labeled flows to train the composite model.")
         sys.exit(1)
 
-    # ── [2/8] 特征已在 parse_and_extract 中提取 ──
-    print(f"[2/8] 特征提取完成: {len(all_flows)} 条流")
+    print(f"[2/8] Feature extraction completed during source loading: {len(all_flows)} flows")
 
-    # ── [3/8] 三段式切分（在任何层处理之前） ──
-    print(f"[3/8] 数据切分（策略: {args.split_strategy}）...")
-
-    model = None
+    y_all = np.array([flow.get("_label", 0) for flow in all_flows])
     threshold = 0.7
-    eval_metrics: dict = {}
+    model = None
+    base_model = None
     comparison: dict | None = None
+    eval_metrics: dict = {}
+    per_type_metrics: dict = {}
+    calibration_info: dict = {"enabled": False, "method": "none"}
+    calibration_split_info: dict = {}
     feature_names: list[str] = []
 
-    y_all = np.array([f.get("_label", 0) for f in all_flows])
+    positives = int(y_all.sum())
+    negatives = int((y_all == 0).sum())
+    has_supervised_labels = positives >= 3 and negatives >= 3
 
-    if has_attack and y_all.sum() >= 3:
+    if has_supervised_labels:
+        print(f"[3/8] Splitting data ({args.split_strategy})...")
         train_flows, val_flows, test_flows = three_way_split(
-            all_flows, strategy=args.split_strategy,
+            all_flows,
+            strategy=args.split_strategy,
         )
-        y_train = np.array([f.get("_label", 0) for f in train_flows])
-        y_val = np.array([f.get("_label", 0) for f in val_flows])
-        y_test = np.array([f.get("_label", 0) for f in test_flows])
 
-        print(f"  训练集: {len(train_flows)} 条 (正常={int((y_train == 0).sum())}, 异常={int((y_train == 1).sum())})")
-        print(f"  验证集: {len(val_flows)} 条 (正常={int((y_val == 0).sum())}, 异常={int((y_val == 1).sum())})")
-        print(f"  测试集: {len(test_flows)} 条 (正常={int((y_test == 0).sum())}, 异常={int((y_test == 1).sum())})")
+        y_train = np.array([flow.get("_label", 0) for flow in train_flows])
+        y_val = np.array([flow.get("_label", 0) for flow in val_flows])
+        y_test = np.array([flow.get("_label", 0) for flow in test_flows])
+        attack_type_test = [flow.get("_attack_type", "normal") for flow in test_flows]
 
-        # ── [4/8] Layer 1: IsolationForest（仅在训练集上拟合） ──
-        print("[4/8] Layer 1: IsolationForest 基线评分（无泄漏）...")
-        baseline = BaselineDetector(mode="runtime", model_params={"contamination": args.contamination})
+        print(
+            f"  train={len(train_flows)} (normal={int((y_train == 0).sum())}, attack={int((y_train == 1).sum())})"
+        )
+        print(
+            f"  val={len(val_flows)} (normal={int((y_val == 0).sum())}, attack={int((y_val == 1).sum())})"
+        )
+        print(
+            f"  test={len(test_flows)} (normal={int((y_test == 0).sum())}, attack={int((y_test == 1).sum())})"
+        )
 
-        # 在训练集上拟合 + 评分
+        print("[4/8] Fitting the baseline detector on train only...")
+        baseline = BaselineDetector(
+            mode="runtime",
+            model_params={"contamination": args.contamination},
+        )
         train_flows = baseline.score(train_flows)
-        # 在 val/test 上使用已拟合模型评分（无重新拟合）
         val_flows = baseline.score_with_fitted(val_flows)
         test_flows = baseline.score_with_fitted(test_flows)
 
-        for split_name, split_flows in [("train", train_flows), ("val", val_flows), ("test", test_flows)]:
-            scores = [f.get("_detection", {}).get("baseline_score", 0) for f in split_flows]
-            if scores:
-                print(f"  {split_name} baseline_score: min={min(scores):.4f}, max={max(scores):.4f}, mean={sum(scores)/len(scores):.4f}")
-
-        # ── [5/8] Layer 2: 规则特征（无状态，各 split 独立） ──
-        print("[5/8] Layer 2: 规则语义特征...")
+        print("[5/8] Building rule features...")
         enricher = RuleEnricher()
         train_flows = enricher.enrich(train_flows)
         val_flows = enricher.enrich(val_flows)
         test_flows = enricher.enrich(test_flows)
 
-        # ── [6/8] 图特征（仅在训练集上构建图） ──
-        print("[6/8] 图结构特征（无泄漏）...")
+        print("[6/8] Building graph features without leaking validation/test structure...")
         graph_builder = GraphFeatureBuilder()
-        # 在训练集上构建图并提取特征
         train_flows = graph_builder.build_and_extract(train_flows)
-        # 在 val/test 上复用训练集构建的图
         train_graph = graph_builder.last_graph
-        assert train_graph is not None, "训练集图构建失败"
+        assert train_graph is not None, "Training graph was not built."
         val_flows = graph_builder.extract_with_graph(val_flows, train_graph)
         test_flows = graph_builder.extract_with_graph(test_flows, train_graph)
 
-        # ── [7/8] Layer 3: 构建特征矩阵并训练监督模型 ──
-        print("[7/8] Layer 3: 构建特征矩阵并训练监督模型...")
+        print("[7/8] Training the supervised ranker and calibrating probabilities...")
         pipeline = FeaturePipeline()
-
         feature_names, train_matrix = pipeline.build_feature_matrix(train_flows)
         _, val_matrix = pipeline.build_feature_matrix(val_flows)
         _, test_matrix = pipeline.build_feature_matrix(test_flows)
@@ -405,69 +612,82 @@ def main():
         X_val = np.array(val_matrix)
         X_test = np.array(test_matrix)
 
-        print(f"  特征矩阵: train={X_train.shape}, val={X_val.shape}, test={X_test.shape}")
-        print(f"  特征数: {X_train.shape[1]}")
-
         if args.mode == "semi-supervised":
-            # 半监督：将部分训练集标签移除
             n_labeled = max(int(len(y_train) * 0.3), 5)
             X_labeled = X_train[:n_labeled]
             y_labeled = y_train[:n_labeled]
             X_unlabeled = X_train[n_labeled:]
-            model = train_semi_supervised(X_labeled, y_labeled, X_unlabeled)
+            base_model = train_semi_supervised(X_labeled, y_labeled, X_unlabeled)
         else:
-            model = train_supervised(X_train, y_train, X_val, y_val, args.model_type)
+            base_model = train_supervised(X_train, y_train, X_val, y_val, args.model_type)
 
-        # ── 在 val 上校准阈值（不在 test 上调优） ──
-        val_scores = _get_scores(model, X_val)
-        threshold = calibrate_threshold(y_val, val_scores)
-        print(f"  阈值校准（基于验证集 F1 最优）: {threshold}")
+        X_calib, X_threshold, y_calib, y_threshold, calibration_split_info = split_validation_for_calibration(
+            X_val,
+            y_val,
+        )
+        model, calibration_info = fit_probability_calibrator(
+            base_model,
+            X_calib,
+            y_calib,
+            calibration_method=args.calibration_method,
+        )
 
-        # ── [8/8] 在 test 上最终评估 ──
-        print("[8/8] 最终评估（测试集，阈值已锁定）...")
+        threshold_scores = _get_scores(model, X_threshold)
+        threshold = calibrate_threshold(y_threshold, threshold_scores)
+        print(
+            "  calibration="
+            f"{calibration_info.get('method', 'none')} "
+            f"threshold={threshold}"
+        )
+
+        print("[8/8] Final evaluation on the test split...")
         test_scores = _get_scores(model, X_test)
-
         evaluator = Evaluator()
         eval_metrics = evaluator.compute_metrics(y_test, test_scores, threshold)
+        baseline_test_scores = np.array(
+            [flow.get("_detection", {}).get("baseline_score", 0.0) for flow in test_flows]
+        )
+        comparison = evaluator.compare_models(
+            y_test,
+            baseline_test_scores,
+            test_scores,
+            threshold,
+        )
+        per_type_metrics = evaluator.per_type_metrics(
+            y_test,
+            test_scores,
+            attack_type_test,
+            threshold,
+        )
+
         print(f"  ROC-AUC:   {eval_metrics.get('roc_auc')}")
         print(f"  PR-AUC:    {eval_metrics.get('pr_auc')}")
         print(f"  F1:        {eval_metrics.get('f1')}")
         print(f"  Precision: {eval_metrics.get('precision')}")
         print(f"  Recall:    {eval_metrics.get('recall')}")
+        print(f"  Comparison: {comparison.get('summary')}")
 
-        # ── baseline only vs composite 对比（均在 test 上评估） ──
-        baseline_test_scores = np.array([
-            f.get("_detection", {}).get("baseline_score", 0) for f in test_flows
-        ])
-        comparison = evaluator.compare_models(
-            y_test, baseline_test_scores, test_scores, threshold
-        )
-        print(f"  对比摘要: {comparison.get('summary')}")
-
-        # ── 实验配置元数据 ──
         experiment_config = {
+            "dataset_mode": dataset_config.get("mode", "legacy"),
+            "dataset_preset": dataset_config.get("preset"),
             "split_strategy": args.split_strategy,
             "training_mode": args.mode,
-            "threshold_source": "val_f1_optimal",
+            "threshold_source": "validation_threshold_holdout_f1_optimal",
             "threshold": threshold,
             "training_samples": int(len(train_flows)),
             "validation_samples": int(len(val_flows)),
             "test_samples": int(len(test_flows)),
-            "is_semi_supervised": args.mode == "semi-supervised",
+            "window_sec": int(args.window_sec),
+            "label_match_tolerance_sec": int(args.label_match_tolerance_sec),
+            "calibration_split": calibration_split_info,
+            "probability_calibration": calibration_info,
         }
     else:
-        print("  无攻击样本或样本不足，跳过监督模型训练")
-        # 仅做基线层处理（无需切分）
-        print("[4/8] Layer 1: IsolationForest 基线评分...")
-        baseline = BaselineDetector(mode="runtime", model_params={"contamination": args.contamination})
-        all_flows = baseline.score(all_flows)
-        enricher = RuleEnricher()
-        all_flows = enricher.enrich(all_flows)
-        graph_builder = GraphFeatureBuilder()
-        all_flows = graph_builder.build_and_extract(all_flows)
-        pipeline = FeaturePipeline()
-        feature_names, _ = pipeline.build_feature_matrix(all_flows)
+        print("[3/8] Not enough positive/negative labels for supervised training; skipping ranker fit.")
+        feature_names = []
         experiment_config = {
+            "dataset_mode": dataset_config.get("mode", "legacy"),
+            "dataset_preset": dataset_config.get("preset"),
             "split_strategy": "none",
             "training_mode": "baseline_only",
             "threshold_source": "default",
@@ -475,48 +695,47 @@ def main():
             "training_samples": int(len(all_flows)),
             "validation_samples": 0,
             "test_samples": 0,
-            "is_semi_supervised": False,
+            "window_sec": int(args.window_sec),
+            "label_match_tolerance_sec": int(args.label_match_tolerance_sec),
+            "probability_calibration": calibration_info,
         }
 
-    # ── 持久化 ──
-    print("保存模型...")
+    print("Saving model artifacts...")
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
     if model is not None:
         import joblib
         import sklearn
-        joblib.dump(model, RANKER_MODEL_PATH)
 
-        # 确定实际模型类型名
-        actual_model_type = type(model).__name__
+        joblib.dump(model, RANKER_MODEL_PATH)
+        feature_groups = build_feature_groups(feature_names)
 
         meta = {
             "created_at": datetime.now(timezone.utc).isoformat(),
             "sklearn_version": sklearn.__version__,
-            "model_type": actual_model_type,
+            "model_type": type(model).__name__,
+            "base_model_type": type(base_model).__name__ if base_model is not None else None,
             "training_mode": args.mode,
             "feature_names": feature_names,
-            "feature_groups": {
-                "flow_stats": [n for n in feature_names if not n.startswith("rule_") and not n.startswith("node_") and not n.startswith("neighbor_") and not n.startswith("edge_") and not n.startswith("subnet_") and not n.startswith("is_hub") and not n.startswith("betweenness") and not n.startswith("clustering") and n != "baseline_score"],
-                "baseline": ["baseline_score"],
-                "rule_features": [n for n in feature_names if n.startswith("rule_")],
-                "graph_features": [n for n in feature_names if n.startswith("node_") or n.startswith("neighbor_") or n.startswith("edge_") or n.startswith("subnet_") or n.startswith("is_hub") or n.startswith("betweenness") or n.startswith("clustering")],
-            },
+            "feature_groups": feature_groups,
             "threshold": threshold,
             "experiment_config": experiment_config,
+            "dataset_summary": dataset_summary,
             "evaluation": eval_metrics,
+            "per_type_metrics": per_type_metrics,
         }
         RANKER_META_PATH.write_text(
-            json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8"
+            json.dumps(meta, indent=2, ensure_ascii=False),
+            encoding="utf-8",
         )
-        print(f"  模型文件: {RANKER_MODEL_PATH}")
-        print(f"  元数据:   {RANKER_META_PATH}")
+        print(f"  model: {RANKER_MODEL_PATH}")
+        print(f"  meta:  {RANKER_META_PATH}")
     else:
-        print("  未训练监督模型（将使用 fallback 加权融合模式）")
+        print("  supervised model not trained; runtime will use fallback fusion")
 
-    # 保存评估报告
     report: dict = {
         "experiment_config": experiment_config,
+        "dataset_summary": dataset_summary,
         "threshold": threshold,
     }
     if eval_metrics:
@@ -525,15 +744,16 @@ def main():
         report["baseline_only"] = comparison["baseline"]
         report["delta"] = comparison["delta"]
         report["comparison_summary"] = comparison["summary"]
+    if per_type_metrics:
+        report["per_type_metrics"] = per_type_metrics
 
     REPORT_PATH.write_text(
         json.dumps(report, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
-    print(f"  评估报告: {REPORT_PATH}")
-
+    print(f"  report: {REPORT_PATH}")
     print()
-    print("训练完成！")
+    print("Training completed.")
 
 
 if __name__ == "__main__":

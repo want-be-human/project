@@ -134,7 +134,7 @@ class SupervisedRanker:
                 guarded_score, guard_triggers = self._apply_guardrails(flow, raw_score)
                 mode = f"guarded_{base_mode}" if guard_triggers else base_mode
 
-                det["final_score"] = round(guarded_score, 4)
+                det["final_score"] = float(np.clip(guarded_score, 0.0, 1.0))
                 det["final_label"] = self._score_to_label(
                     guarded_score, det.get("rule_type", "anomaly")
                 )
@@ -175,7 +175,7 @@ class SupervisedRanker:
                 + rule * weights["rule_score"]
                 + graph * weights["graph_score"]
             )
-            raw_score = min(round(raw_score, 4), 1.0)
+            raw_score = float(np.clip(raw_score, 0.0, 1.0))
 
             # 应用 guardrails
             guarded_score, guard_triggers = self._apply_guardrails(flow, raw_score)
@@ -241,7 +241,7 @@ class SupervisedRanker:
                     f"consensus(b={baseline:.2f},r={rule_score:.2f},g={graph:.2f})"
                 )
 
-        return round(guarded, 4), guards
+        return float(np.clip(guarded, 0.0, 1.0)), guards
 
     def _score_to_label(self, final_score: float, rule_type: str) -> str:
         """Map final_score to a final label."""
@@ -298,8 +298,18 @@ class SupervisedRanker:
     ) -> list[dict]:
         """Return model feature importance when available."""
         try:
-            if hasattr(self.model, "feature_importances_"):
-                importances = self.model.feature_importances_
+            estimator = self.model
+            if not hasattr(estimator, "feature_importances_") and hasattr(estimator, "estimator"):
+                estimator = estimator.estimator
+            if (
+                not hasattr(estimator, "feature_importances_")
+                and hasattr(self.model, "calibrated_classifiers_")
+                and self.model.calibrated_classifiers_
+            ):
+                estimator = self.model.calibrated_classifiers_[0].estimator
+
+            if hasattr(estimator, "feature_importances_"):
+                importances = estimator.feature_importances_
                 pairs = list(zip(feature_names, importances, feature_values))
                 pairs.sort(key=lambda x: abs(x[1]), reverse=True)
                 return [
