@@ -33,7 +33,12 @@ class GraphFeatureBuilder:
     ]
 
     def __init__(self):
-        pass
+        self._last_graph: dict | None = None
+
+    @property
+    def last_graph(self) -> dict | None:
+        """返回最近一次 build_and_extract 构建的图结构，供训练脚本跨 split 复用。"""
+        return self._last_graph
 
     def build_and_extract(self, flows: list[dict]) -> list[dict]:
         """
@@ -52,6 +57,24 @@ class GraphFeatureBuilder:
 
         # ── 构建图结构 ──
         graph = self._build_graph(flows)
+        self._last_graph = graph
+
+        # ── 委托给 extract_with_graph ──
+        return self.extract_with_graph(flows, graph)
+
+    def extract_with_graph(self, flows: list[dict], graph: dict) -> list[dict]:
+        """
+        使用预构建的图结构为 flows 提取图特征。
+        用于训练脚本中在 val/test split 上复用训练集构建的图。
+
+        参数：
+            flows: 包含 _detection.baseline_score 的流字典列表
+            graph: _build_graph() 返回的图结构
+        返回：
+            已填充图特征的流列表
+        """
+        if not flows:
+            return flows
 
         # ── 预计算全局指标 ──
         betweenness = self._compute_betweenness(graph)

@@ -60,3 +60,37 @@ class BaselineDetector:
             max((f.get("_detection", {}).get("baseline_score", 0) for f in flows), default=0),
         )
         return flows
+
+    def score_with_fitted(self, flows: list[dict]) -> list[dict]:
+        """
+        使用已拟合模型（score() 调用后保存的）为新 flow 评分。
+        用于训练脚本中 val/test split 的无泄漏评分。
+
+        若尚未拟合，回退到 score()（runtime 重新拟合）。
+        """
+        if not flows:
+            return flows
+
+        # 检查 DetectionService 是否已有拟合模型
+        if self._detector.model is None or self._detector.meta is None:
+            logger.warning("score_with_fitted: 无已拟合模型，回退到 score()")
+            return self.score(flows)
+
+        # 临时切换到 persisted 模式使用已拟合模型
+        original_mode = self._detector.mode
+        self._detector.mode = "persisted"
+        try:
+            flows = self._detector.score_flows(flows)
+        finally:
+            self._detector.mode = original_mode
+
+        for flow in flows:
+            det = flow.setdefault("_detection", {})
+            det["baseline_score"] = flow.get("anomaly_score", 0.5)
+
+        logger.info(
+            "BaselineDetector(fitted) 评分完成: %d 条流, max_baseline=%.3f",
+            len(flows),
+            max((f.get("_detection", {}).get("baseline_score", 0) for f in flows), default=0),
+        )
+        return flows

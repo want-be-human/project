@@ -98,3 +98,19 @@ COMPOSITE_DETECTION_THRESHOLDS: dict[str, float] = {
     "rule_score_threshold": 0.5,    # rule_score >= 此值视为规则命中
     "baseline_high": 0.8,           # baseline_score 高异常阈值
 }
+
+# ══════════════════════════════════════════════════════════════
+# 复合检测 Guardrails（保护逻辑）
+# ══════════════════════════════════════════════════════════════
+
+# 强规则类型：这些类型不应被监督模型完全压制为 normal
+STRONG_RULE_TYPES: frozenset[str] = frozenset({"scan", "bruteforce", "dos"})
+
+# Guard 1: 规则分数下限保护
+GUARD_RULE_FLOOR_THRESHOLD: float = 0.7    # rule_score >= 此值时触发下限保护
+GUARD_RULE_FLOOR_FACTOR: float = 0.6       # floor = rule_score × 此系数
+
+# Guard 2: 多源一致性保护
+GUARD_CONSENSUS_BASELINE: float = 0.8      # baseline_score >= 此值时检查一致性
+GUARD_CONSENSUS_SECONDARY: float = 0.5     # rule/graph 中较高者 >= 此值时触发
+GUARD_CONSENSUS_FLOOR: float = 0.5         # 一致性触发时的 final_score 下限

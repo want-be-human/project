@@ -4,6 +4,7 @@ Layer 3 supervised ranker.
 Supports:
 - persisted mode: load a trained classifier and infer final_score/final_label
 - fallback mode: combine baseline/rule/graph scores with fixed weights
+- guardrails: protect strong rule signals and multi-source consensus from being overridden
 """
 
 import json
@@ -16,6 +17,12 @@ from app.core.logging import get_logger
 from app.core.scoring_policy import (
     COMPOSITE_DETECTION_THRESHOLDS,
     COMPOSITE_DETECTION_WEIGHTS,
+    STRONG_RULE_TYPES,
+    GUARD_RULE_FLOOR_THRESHOLD,
+    GUARD_RULE_FLOOR_FACTOR,
+    GUARD_CONSENSUS_BASELINE,
+    GUARD_CONSENSUS_SECONDARY,
+    GUARD_CONSENSUS_FLOOR,
 )
 from app.services.detection.model_compat import validate_sklearn_version
 
@@ -117,15 +124,24 @@ class SupervisedRanker:
                 scores = self.model.predict(X)
                 scores = np.clip(scores, 0.0, 1.0)
 
+            base_mode = "persisted"
+
             for i, flow in enumerate(flows):
                 det = flow.setdefault("_detection", {})
-                final_score = float(scores[i])
-                det["final_score"] = round(final_score, 4)
+                raw_score = float(scores[i])
+
+                # 应用 guardrails
+                guarded_score, guard_triggers = self._apply_guardrails(flow, raw_score)
+                mode = f"guarded_{base_mode}" if guard_triggers else base_mode
+
+                det["final_score"] = round(guarded_score, 4)
                 det["final_label"] = self._score_to_label(
-                    final_score, det.get("rule_type", "anomaly")
+                    guarded_score, det.get("rule_type", "anomaly")
                 )
                 det["explanation"] = self._build_explanation(
-                    flow, feature_names, feature_matrix[i], "persisted"
+                    flow, feature_names, feature_matrix[i], mode,
+                    guard_triggers=guard_triggers,
+                    original_score=raw_score if guard_triggers else None,
                 )
 
             logger.info(
@@ -146,6 +162,7 @@ class SupervisedRanker:
     ) -> list[dict]:
         """Fallback: weighted fusion of baseline_score, rule_score, and graph_score."""
         weights = COMPOSITE_DETECTION_WEIGHTS
+        base_mode = "fallback"
 
         for flow in flows:
             det = flow.setdefault("_detection", {})
@@ -153,19 +170,25 @@ class SupervisedRanker:
             rule = det.get("rule_score", 0.0)
             graph = det.get("graph_score", 0.0)
 
-            final_score = (
+            raw_score = (
                 baseline * weights["baseline_score"]
                 + rule * weights["rule_score"]
                 + graph * weights["graph_score"]
             )
-            final_score = min(round(final_score, 4), 1.0)
+            raw_score = min(round(raw_score, 4), 1.0)
 
-            det["final_score"] = final_score
+            # 应用 guardrails
+            guarded_score, guard_triggers = self._apply_guardrails(flow, raw_score)
+            mode = f"guarded_{base_mode}" if guard_triggers else base_mode
+
+            det["final_score"] = guarded_score
             det["final_label"] = self._score_to_label(
-                final_score, det.get("rule_type", "anomaly")
+                guarded_score, det.get("rule_type", "anomaly")
             )
             det["explanation"] = self._build_explanation(
-                flow, feature_names, [], "fallback"
+                flow, feature_names, [], mode,
+                guard_triggers=guard_triggers,
+                original_score=raw_score if guard_triggers else None,
             )
 
         logger.info(
@@ -174,6 +197,51 @@ class SupervisedRanker:
             max((f.get("_detection", {}).get("final_score", 0) for f in flows), default=0),
         )
         return flows
+
+    def _apply_guardrails(
+        self, flow: dict, final_score: float,
+    ) -> tuple[float, list[str]]:
+        """
+        应用保护逻辑，防止强规则信号或多源一致性被监督模型压制。
+
+        Guard 1 — 强规则下限保护：
+            当 rule_type 为强风险类型且 rule_score >= 阈值时，
+            final_score 不得低于 rule_score × floor_factor。
+
+        Guard 2 — 多源一致性保护：
+            当 baseline_score 高，且 rule_score 或 graph_score 同时较高时，
+            final_score 不得低于 consensus_floor。
+
+        返回：(guarded_score, guard_triggers)
+        """
+        det = flow.get("_detection", {})
+        guards: list[str] = []
+        guarded = final_score
+
+        rule_score = det.get("rule_score", 0.0)
+        rule_type = det.get("rule_type", "anomaly")
+        baseline = det.get("baseline_score", 0.0)
+        graph = det.get("graph_score", 0.0)
+
+        # Guard 1: 强规则下限
+        if rule_type in STRONG_RULE_TYPES and rule_score >= GUARD_RULE_FLOOR_THRESHOLD:
+            floor = rule_score * GUARD_RULE_FLOOR_FACTOR
+            if final_score < floor:
+                guarded = max(guarded, floor)
+                guards.append(
+                    f"rule_floor:{rule_type}(rule={rule_score:.2f},floor={floor:.2f})"
+                )
+
+        # Guard 2: 多源一致性
+        if baseline >= GUARD_CONSENSUS_BASELINE:
+            secondary = max(rule_score, graph)
+            if secondary >= GUARD_CONSENSUS_SECONDARY and final_score < GUARD_CONSENSUS_FLOOR:
+                guarded = max(guarded, GUARD_CONSENSUS_FLOOR)
+                guards.append(
+                    f"consensus(b={baseline:.2f},r={rule_score:.2f},g={graph:.2f})"
+                )
+
+        return round(guarded, 4), guards
 
     def _score_to_label(self, final_score: float, rule_type: str) -> str:
         """Map final_score to a final label."""
@@ -187,6 +255,8 @@ class SupervisedRanker:
         feature_names: list[str],
         feature_values: list[float] | list,
         mode: str,
+        guard_triggers: list[str] | None = None,
+        original_score: float | None = None,
     ) -> dict:
         """Build a compact per-flow explanation payload."""
         det = flow.get("_detection", {})
@@ -201,7 +271,20 @@ class SupervisedRanker:
             "rule_reasons": det.get("rule_reasons", []),
         }
 
-        if mode == "persisted" and feature_values and self.model is not None:
+        # Guardrail 信息
+        if guard_triggers:
+            explanation["guard_triggers"] = guard_triggers
+            explanation["final_decision_reason"] = "guardrail_applied"
+            if original_score is not None:
+                explanation["original_score"] = round(original_score, 4)
+        else:
+            explanation["guard_triggers"] = []
+            base = mode.replace("guarded_", "")
+            explanation["final_decision_reason"] = (
+                "model_decision" if base == "persisted" else "fallback_fusion"
+            )
+
+        if mode.endswith("persisted") and feature_values and self.model is not None:
             importance = self._get_feature_importance(feature_names, feature_values)
             if importance:
                 explanation["top_features"] = importance[:5]

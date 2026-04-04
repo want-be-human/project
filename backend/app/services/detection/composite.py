@@ -123,6 +123,14 @@ class CompositeDetectionService:
                 "rule_type": explanation.get("rule_type", "anomaly"),
                 "rule_reasons": explanation.get("rule_reasons", []),
                 "layer_contributions": explanation.get("layer_contributions", {}),
+                "guard_triggers": explanation.get("guard_triggers", []),
+                "final_decision_reason": explanation.get("final_decision_reason", ""),
             }
+
+            # 写入更多检测层字段，供下游 AlertingService 消费
+            features["rule_type"] = det.get("rule_type")
+            features["rule_reasons"] = det.get("rule_reasons", [])
+            features["detection_mode"] = explanation.get("mode", "unknown")
+            features["guard_triggers"] = explanation.get("guard_triggers", [])
 
         return flows

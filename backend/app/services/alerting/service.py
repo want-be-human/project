@@ -83,7 +83,27 @@ class AlertingService:
 
     @staticmethod
     def _infer_flow_type(flow: dict) -> str:
-        """轻量级单流类型推断，仅用于聚合分组（保持向后兼容）。"""
+        """
+        检测层优先的单流类型推断，启发式兜底。
+
+        优先级：
+          1. features.final_label（如果是具体攻击类型，非 normal/anomaly）
+          2. features.rule_type（检测层规则推断）
+          3. 启发式规则（向后兼容 fallback）
+        """
+        features = flow.get("features", {})
+
+        # Priority 1: 检测层 final_label
+        final_label = features.get("final_label")
+        if final_label and final_label not in ("normal", "anomaly"):
+            return final_label
+
+        # Priority 2: 检测层 rule_type
+        rule_type = features.get("rule_type")
+        if rule_type and rule_type not in ("anomaly",):
+            return rule_type
+
+        # Priority 3: 启发式 fallback
         result, _, _ = AlertingService._infer_flow_type_detailed(flow)
         return result
 
@@ -238,6 +258,23 @@ class AlertingService:
 
         # 构建 aggregation（保留原有字段 + 新增维度信息 + 可追溯摘要）
         dimensions = ["src_ip", "dst_target", "service_key", "inferred_type", "time_bucket"]
+
+        # 检测层标签汇总
+        from collections import Counter
+        det_labels = [
+            f.get("features", {}).get("final_label")
+            for f in flows
+            if f.get("features", {}).get("final_label")
+        ]
+        detection_summary = {
+            "detection_source": type_reason.get("details", {}).get("source") == "detection_layer",
+            "detection_labels": dict(Counter(det_labels)) if det_labels else {},
+            "guard_triggered": any(
+                bool(f.get("features", {}).get("guard_triggers"))
+                for f in flows
+            ),
+        }
+
         aggregation = {
             "rule": f"src_ip+dst_target+service+type+{self.window_sec}s_window",
             "group_key": group_key,
@@ -246,6 +283,7 @@ class AlertingService:
             "composite_score": round(composite_score, 4),
             "score_breakdown": score_breakdown,
             "type_reason": type_reason,  # 类型判定原因（含 reason_codes 和 details）
+            "detection_summary": detection_summary,  # 检测层透传摘要
             # 人类可读的可追溯摘要
             "aggregation_summary": self._build_aggregation_summary(group_key, len(flows), dimensions),
             "type_summary": self._build_type_summary(type_reason),
@@ -352,10 +390,49 @@ class AlertingService:
 
     def _determine_type(self, flows: list[dict]) -> tuple[str, dict]:
         """
-        根据流量组模式判定告警类型，返回 (type, type_reason)。
-        type_reason 包含 reason_codes 和 details，用于可解释性。
+        检测层优先的组级类型判定，启发式兜底。
+
+        优先级：
+          1. 汇总组内所有 flow 的 features.final_label，取多数具体攻击类型
+          2. 若无具体攻击类型，回退到启发式组级分析
         """
-        # ── 聚合统计 ──
+        from collections import Counter
+
+        # 收集检测层标签和原因
+        detection_labels: list[str] = []
+        detection_reasons: list[str] = []
+        for f in flows:
+            feat = f.get("features", {})
+            label = feat.get("final_label")
+            if label and label != "normal":
+                detection_labels.append(label)
+            reasons = feat.get("rule_reasons")
+            if isinstance(reasons, list):
+                detection_reasons.extend(reasons)
+
+        # 检测层提供了具体攻击类型（非 anomaly）
+        specific = [lbl for lbl in detection_labels if lbl != "anomaly"]
+        if specific:
+            label_counts = Counter(specific)
+            primary = label_counts.most_common(1)[0][0]
+
+            base_details = self._compute_base_details(flows)
+            base_details["source"] = "detection_layer"
+            base_details["label_distribution"] = dict(label_counts)
+
+            unique_reasons = list(dict.fromkeys(detection_reasons))
+
+            return primary, {
+                "type": primary,
+                "reason_codes": unique_reasons or [f"DETECTION_{primary.upper()}"],
+                "details": base_details,
+            }
+
+        # 回退到启发式
+        return self._determine_type_heuristic(flows)
+
+    def _compute_base_details(self, flows: list[dict]) -> dict:
+        """计算组级基础统计信息（类型判定的共用数据）。"""
         dst_ips = set(f.get("dst_ip") for f in flows)
         dst_ports = set(f.get("dst_port") for f in flows)
         n_flows = len(flows)
@@ -365,7 +442,6 @@ class AlertingService:
         total_bytes = sum(f.get("features", {}).get("total_bytes", 0) for f in flows)
         syn_ratio = total_syn / max(total_packets, 1)
 
-        # 组级聚合特征
         avg_handshake = (
             sum(f.get("features", {}).get("handshake_completeness", 1.0) for f in flows)
             / max(n_flows, 1)
@@ -374,6 +450,37 @@ class AlertingService:
             sum(f.get("features", {}).get("rst_ratio", 0.0) for f in flows)
             / max(n_flows, 1)
         )
+
+        return {
+            "unique_dst_ips": len(dst_ips),
+            "unique_dst_ports": len(dst_ports),
+            "total_flows": n_flows,
+            "syn_ratio": round(syn_ratio, 4),
+            "total_bytes": total_bytes,
+            "total_packets": total_packets,
+            "avg_handshake_completeness": round(avg_handshake, 4),
+            "avg_rst_ratio": round(avg_rst_ratio, 4),
+        }
+
+    def _determine_type_heuristic(self, flows: list[dict]) -> tuple[str, dict]:
+        """
+        根据流量组模式判定告警类型（启发式），返回 (type, type_reason)。
+        type_reason 包含 reason_codes 和 details，用于可解释性。
+        当检测层无具体攻击类型标签时，由 _determine_type() 调用此方法作为兜底。
+        """
+        # ── 聚合统计 ──
+        base_details = self._compute_base_details(flows)
+        dst_ips = set(f.get("dst_ip") for f in flows)
+        dst_ports = set(f.get("dst_port") for f in flows)
+        n_flows = len(flows)
+        total_packets = base_details["total_packets"]
+        total_bytes = base_details["total_bytes"]
+        syn_ratio = base_details["syn_ratio"]
+        avg_handshake = base_details["avg_handshake_completeness"]
+        avg_rst_ratio = base_details["avg_rst_ratio"]
+        base_details["source"] = "heuristic"
+
+        # 额外统计（heuristic 特有）
         max_pps = max(
             (f.get("features", {}).get("packets_per_second", 0) for f in flows), default=0
         )
@@ -387,18 +494,6 @@ class AlertingService:
         short_flow_count = sum(
             1 for f in flows if f.get("features", {}).get("is_short_flow", 0)
         )
-
-        # 基础详情（所有类型共用）
-        base_details = {
-            "unique_dst_ips": len(dst_ips),
-            "unique_dst_ports": len(dst_ports),
-            "total_flows": n_flows,
-            "syn_ratio": round(syn_ratio, 4),
-            "total_bytes": total_bytes,
-            "total_packets": total_packets,
-            "avg_handshake_completeness": round(avg_handshake, 4),
-            "avg_rst_ratio": round(avg_rst_ratio, 4),
-        }
 
         # ── scan 检测（多子类型）──
         scan_reasons: list[str] = []
@@ -517,18 +612,31 @@ class AlertingService:
         }
 
     def _get_top_flows(self, flows: list[dict]) -> list[dict]:
-        """获取用于证据展示的高优先级流摘要。"""
+        """获取用于证据展示的高优先级流摘要，含检测层信息。"""
         result = []
         for flow in flows:
             summary = f"{flow.get('proto', 'TCP')}/{flow.get('dst_port', 0)}"
             if flow.get("features", {}).get("syn_count", 0) > 5:
                 summary += " SYN burst"
-            
-            result.append({
+
+            entry: dict = {
                 "flow_id": flow.get("id", ""),
                 "anomaly_score": flow.get("anomaly_score", 0),
                 "summary": summary,
-            })
+            }
+
+            # 透传检测层分数（如果可用）
+            feat = flow.get("features", {})
+            if feat.get("final_score") is not None:
+                entry["detection"] = {
+                    "baseline_score": feat.get("baseline_score"),
+                    "rule_score": feat.get("rule_score"),
+                    "graph_score": feat.get("graph_score"),
+                    "final_label": feat.get("final_label"),
+                    "detection_mode": feat.get("detection_mode"),
+                }
+
+            result.append(entry)
         return result
 
     def _get_top_features(self, flows: list[dict]) -> list[dict]:

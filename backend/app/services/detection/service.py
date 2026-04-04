@@ -174,9 +174,13 @@ class DetectionService:
             )
             model.fit(X)
 
+            # 保存已拟合模型和归一化参数，供后续 score_with_fitted 使用
+            self.model = model
+
             raw_scores = model.score_samples(X)
             neg_scores = -raw_scores
             p5, p95 = np.percentile(neg_scores, [5, 95])
+            self.meta = {"normalization": {"p5": float(p5), "p95": float(p95)}}
             clipped = np.clip(neg_scores, p5, p95)
 
             if p95 > p5:
