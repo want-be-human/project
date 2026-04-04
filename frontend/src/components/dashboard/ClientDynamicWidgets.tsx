@@ -78,11 +78,12 @@ export default function ClientDynamicWidgets({
       {!degraded && <ParticleBackground />}
       {/* 3D 迷你拓扑 + 活动流 */}
       {/* 2+1 布局：拓扑占 2 列对齐告警趋势，活动流占 1 列对齐分布图 */}
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
-        <div className="lg:col-span-2 h-full">
+      {/* D 层行高锁定：lg:h-[400px]，拓扑画布同比缩小后两卡片等高对齐 */}
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch lg:h-[400px]">
+        <div className="lg:col-span-2 h-full min-h-0">
           <MiniTopology3D snapshot={topologySnapshot} />
         </div>
-        <div className="h-full">
+        <div className="h-full min-h-0">
           <ActivityFeed initialEvents={recentActivity} />
         </div>
       </section>

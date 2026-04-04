@@ -140,7 +140,8 @@ interface ActivityFeedProps {
 export default function ActivityFeed({ initialEvents }: ActivityFeedProps) {
   const t = useTranslations('dashboard');
   const router = useRouter();
-  const [events, setEvents] = useState<ActivityEvent[]>(initialEvents);
+  // 初始数据也限制为 10 条，与 WebSocket 增量更新保持一致
+  const [events, setEvents] = useState<ActivityEvent[]>(initialEvents.slice(0, 10));
 
   // 新事件追踪：仅追踪 WebSocket 推送的新事件，初始事件不触发入场动画
   const newEventTrackerRef = useRef(createNewEventTracker());
@@ -203,14 +204,15 @@ export default function ActivityFeed({ initialEvents }: ActivityFeedProps) {
           created_at: new Date().toISOString(),
         };
         newEventTrackerRef.current.track(newEvent.id);
-        setEvents((prev) => [newEvent, ...prev].slice(0, 20));
+        setEvents((prev) => [newEvent, ...prev].slice(0, 10));
       })
     );
     return () => unsubs.forEach(u => u());
   }, []);
 
+  // min-h-0：覆盖 flex 默认 min-height:auto，允许容器被 Grid 行高约束
   return (
-    <div className="bg-gray-900/80 border border-gray-700/50 rounded-2xl p-5 backdrop-blur-sm hover:border-cyan-500/40 transition-colors h-full flex flex-col">
+    <div className="bg-gray-900/80 border border-gray-700/50 rounded-2xl p-5 backdrop-blur-sm hover:border-cyan-500/40 transition-colors h-full flex flex-col min-h-0">
       {/* 标题 + 事件计数 badge（空列表时隐藏） */}
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold text-gray-200">
@@ -227,7 +229,8 @@ export default function ActivityFeed({ initialEvents }: ActivityFeedProps) {
       </div>
 
       {/* 事件列表 */}
-      <ul className="space-y-2 flex-1 overflow-y-auto pr-1">
+      {/* min-h-0：使列表区可缩小到剩余空间，overflow-y-auto 在内容溢出时启用滚动 */}
+      <ul className="space-y-2 flex-1 overflow-y-auto min-h-0 scrollbar-none">
         {events.length === 0 && (
           <li className="text-xs text-gray-500 text-center py-4">
             {t('activityEmptyState')}

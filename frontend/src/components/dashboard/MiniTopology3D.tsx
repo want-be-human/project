@@ -179,8 +179,9 @@ export default function MiniTopology3D({ snapshot }: MiniTopology3DProps) {
   // 检查是否存在高风险节点，用于容器发光效果
   const hasHighRiskNodes = graphData.nodes.some((n) => n.risk >= 0.7);
 
+  // min-h-0：允许拓扑卡片被 Grid 行高约束，防止 min-h-[200px] 撑高整行
   return (
-    <div className="bg-gray-900/80 border border-gray-700/50 rounded-2xl p-4 backdrop-blur-sm h-full flex flex-col">
+    <div className="bg-gray-900/80 border border-gray-700/50 rounded-2xl p-4 backdrop-blur-sm h-full flex flex-col min-h-0">
       {/* 标题栏 */}
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold text-gray-200">{t('topoTitle')}</h3>
@@ -212,13 +213,13 @@ export default function MiniTopology3D({ snapshot }: MiniTopology3DProps) {
       </div>
 
       {/* 3D 图或无数据提示，存在高风险节点时添加呼吸发光边框 */}
-      <div className={`flex-1 min-h-[380px] rounded-lg overflow-hidden bg-gray-950/50${hasHighRiskNodes ? ' animate-breathe-glow-box' : ''}`}>
+      <div className={`flex-1 min-h-[200px] rounded-lg overflow-hidden bg-gray-950/50${hasHighRiskNodes ? ' animate-breathe-glow-box' : ''}`}>
         {hasData ? (
           <ForceGraph3D
             ref={graphRef as React.MutableRefObject<ForceGraphMethods | undefined>}
             graphData={graphData}
             width={undefined}
-            height={380}
+            height={400}
             backgroundColor="rgba(0,0,0,0)"
             showNavInfo={false}
             enableNavigationControls={false}
@@ -233,7 +234,7 @@ export default function MiniTopology3D({ snapshot }: MiniTopology3DProps) {
             linkDirectionalParticles={(link: any) => link.risk >= 0.7 ? 3 : 1}
             linkDirectionalParticleSpeed={0.004}
             linkDirectionalParticleWidth={1.5}
-            linkDirectionalParticleColor={(link: any) => link.risk >= 0.7 ? '#ef4444' : '#06b6d4'}
+            linkDirectionalParticleColor={(link: any) => link.risk >= 0.7 ? '#c172721a' : '#06b6d4'}
             onNodeClick={handleClick as any}
             onBackgroundClick={handleClick}
             warmupTicks={50}

@@ -117,3 +117,12 @@ body {
     animation: none;
   }
 }
+
+/* 隐藏��动条但保留滚动功能 */
+.scrollbar-none {
+  scrollbar-width: none;           /* Firefox */
+  -ms-overflow-style: none;        /* IE / Edge */
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;                   /* Chrome / Safari / Opera */
+}
