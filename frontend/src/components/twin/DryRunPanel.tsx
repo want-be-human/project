@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { wsClient } from '@/lib/ws';
 import { TWIN_DRYRUN_CREATED } from '@/lib/events';
-import { DryRunResult } from '@/lib/api/types';
-import { Play, AlertTriangle, ArrowRight, Activity, Map, ExternalLink, RefreshCw, ChevronDown, ChevronUp, Shield } from 'lucide-react';
+import { DryRunResult, DecisionResult, RollbackPlan } from '@/lib/api/types';
+import { Play, AlertTriangle, ArrowRight, Activity, Map, ExternalLink, RefreshCw, ChevronDown, ChevronUp, Shield, CheckCircle2, XCircle, Zap, ShieldAlert } from 'lucide-react';
 import clsx from 'clsx';
 import { useTranslations } from 'next-intl';
 
@@ -31,6 +31,7 @@ export default function DryRunPanel({ alertId, planId, onDryRunCompleted }: DryR
   const [refreshing, setRefreshing] = useState(false);
   const [showServiceDetail, setShowServiceDetail] = useState(false);
   const [showRiskBreakdown, setShowRiskBreakdown] = useState(false);
+  const [showDecision, setShowDecision] = useState(true);
   const processedDryRunIds = useRef<Set<string>>(new Set());
 
   // 订阅 twin.dryrun.created 的 WebSocket 事件
@@ -321,9 +322,190 @@ export default function DryRunPanel({ alertId, planId, onDryRunCompleted }: DryR
                 </div>
               </div>
             )}
+
+            {/* 三段式决策结果 */}
+            {result.decision && (
+              <div className="border border-indigo-200 rounded-lg overflow-hidden">
+                <button
+                  onClick={() => setShowDecision(!showDecision)}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-indigo-50 text-sm font-semibold text-indigo-800 hover:bg-indigo-100"
+                >
+                  <span className="flex items-center gap-2">
+                    <Zap className="w-4 h-4" /> {t('decisionTitle')}
+                  </span>
+                  {showDecision ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+
+                {showDecision && (
+                  <div className="p-4 space-y-4">
+                    {/* 决策摘要 */}
+                    <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded border border-gray-100">
+                      {result.decision.decision_summary}
+                    </p>
+
+                    {/* 推荐动作 */}
+                    <div className="border border-green-200 rounded-lg p-4 bg-green-50/30">
+                      <h5 className="text-sm font-semibold text-green-800 flex items-center gap-2 mb-3">
+                        <CheckCircle2 className="w-4 h-4" /> {t('recommendedAction')}
+                      </h5>
+                      <div className="grid grid-cols-2 gap-3 text-xs mb-3">
+                        <div>
+                          <span className="text-gray-500">{t('actionType')}</span>
+                          <div className="font-mono font-bold text-gray-800 mt-0.5">{result.decision.recommended_action.action.action_type}</div>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">{t('disruptionLevel')}</span>
+                          <div className="font-bold text-gray-800 mt-0.5">{result.decision.recommended_action.action.risk_profile.disruption_level}</div>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">{t('scope')}</span>
+                          <div className="font-bold text-gray-800 mt-0.5">{result.decision.recommended_action.action.risk_profile.scope}</div>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">{t('recoveryCost')}</span>
+                          <div className="font-bold text-gray-800 mt-0.5">
+                            {result.decision.recommended_action.action.reversible
+                              ? <span className="text-green-600">{t('reversible')}</span>
+                              : <span className="text-red-600">{t('irreversible')}</span>
+                            } · {result.decision.recommended_action.action.estimated_recovery_cost}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-600 mb-2">
+                        <span className="font-semibold text-gray-700">{t('expectedEffect')}: </span>
+                        {result.decision.recommended_action.action.expected_effect}
+                      </div>
+                      <div className="text-xs text-gray-600">
+                        <span className="font-semibold text-gray-700">{t('recommendReasoning')}: </span>
+                        {result.decision.recommended_action.reasoning}
+                      </div>
+                      {result.decision.recommended_action.based_on.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {result.decision.recommended_action.based_on.map((b, i) => (
+                            <span key={i} className="inline-flex items-center px-2 py-0.5 rounded text-[10px] bg-green-100 text-green-700 border border-green-200">
+                              {b}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 更安全替代 */}
+                    {result.decision.safer_alternative && (
+                      <div className="border border-blue-200 rounded-lg p-4 bg-blue-50/30">
+                        <h5 className="text-sm font-semibold text-blue-800 flex items-center gap-2 mb-3">
+                          <ShieldAlert className="w-4 h-4" /> {t('saferAlternative')}
+                        </h5>
+                        <div className="grid grid-cols-2 gap-3 text-xs mb-3">
+                          <div>
+                            <span className="text-gray-500">{t('actionType')}</span>
+                            <div className="font-mono font-bold text-gray-800 mt-0.5">{result.decision.safer_alternative.action.action_type}</div>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">{t('disruptionLevel')}</span>
+                            <div className="font-bold text-gray-800 mt-0.5">{result.decision.safer_alternative.action.risk_profile.disruption_level}</div>
+                          </div>
+                        </div>
+                        <div className="text-xs text-gray-600 space-y-1.5">
+                          <div><span className="font-semibold text-blue-700">{t('saferBecause')}: </span>{result.decision.safer_alternative.safer_because}</div>
+                          <div><span className="font-semibold text-amber-700">{t('tradeoff')}: </span>{result.decision.safer_alternative.tradeoff}</div>
+                          <div><span className="font-semibold text-gray-700">{t('triggerReason')}: </span>{result.decision.safer_alternative.trigger_reason}</div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 回退计划 */}
+                    <RollbackPlanCard plan={result.decision.rollback_plan} title={t('rollbackPlan')} t={t} />
+
+                    {/* 替代方案回退计划 */}
+                    {result.decision.safer_alternative_rollback && (
+                      <RollbackPlanCard plan={result.decision.safer_alternative_rollback} title={t('saferAltRollback')} t={t} />
+                    )}
+
+                    {/* 方案对比 */}
+                    {result.decision.comparison && (
+                      <div className="border border-gray-200 rounded-lg p-4">
+                        <h5 className="text-sm font-semibold text-gray-800 mb-3">{t('actionComparison')}</h5>
+                        <table className="w-full text-xs">
+                          <tbody>
+                            <tr className="border-b border-gray-100">
+                              <td className="py-1.5 font-semibold text-gray-600 w-28">{t('disruptionDiff')}</td>
+                              <td className="py-1.5 text-gray-800">{result.decision.comparison.disruption_diff}</td>
+                            </tr>
+                            <tr className="border-b border-gray-100">
+                              <td className="py-1.5 font-semibold text-gray-600">{t('coverageDiff')}</td>
+                              <td className="py-1.5 text-gray-800">{result.decision.comparison.coverage_diff}</td>
+                            </tr>
+                            <tr className="border-b border-gray-100">
+                              <td className="py-1.5 font-semibold text-gray-600">{t('reversibilityDiff')}</td>
+                              <td className="py-1.5 text-gray-800">{result.decision.comparison.reversibility_diff}</td>
+                            </tr>
+                            <tr>
+                              <td className="py-1.5 font-semibold text-gray-600">{t('comparisonRecommendation')}</td>
+                              <td className="py-1.5 text-indigo-700 font-medium">{result.decision.comparison.recommendation}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/** 回退计划展示子组件 */
+function RollbackPlanCard({ plan, title, t }: { plan: RollbackPlan; title: string; t: (key: string) => string }) {
+  const statusColor = plan.rollback_supported ? 'border-gray-200 bg-gray-50/30' : 'border-red-200 bg-red-50/30';
+  return (
+    <div className={`border rounded-lg p-4 ${statusColor}`}>
+      <h5 className="text-sm font-semibold text-gray-800 flex items-center gap-2 mb-3">
+        {plan.rollback_supported
+          ? <CheckCircle2 className="w-4 h-4 text-green-500" />
+          : <XCircle className="w-4 h-4 text-red-500" />
+        }
+        {title}: {plan.rollback_supported ? t('rollbackSupported') : t('rollbackNotSupported')}
+      </h5>
+      {plan.rollback_supported ? (
+        <div className="space-y-2 text-xs">
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <span className="text-gray-500">{t('rollbackRisk')}</span>
+              <div className="font-bold text-gray-800 mt-0.5">{plan.rollback_risk}</div>
+            </div>
+            <div>
+              <span className="text-gray-500">{t('rollbackComplexity')}</span>
+              <div className="font-bold text-gray-800 mt-0.5">{plan.rollback_complexity}</div>
+            </div>
+            {plan.estimated_duration && (
+              <div>
+                <span className="text-gray-500">{t('estimatedDuration')}</span>
+                <div className="font-bold text-gray-800 mt-0.5">{plan.estimated_duration}</div>
+              </div>
+            )}
+          </div>
+          {plan.rollback_steps.length > 0 && (
+            <div>
+              <span className="font-semibold text-gray-700">{t('rollbackSteps')}:</span>
+              <ol className="list-decimal pl-5 mt-1 space-y-0.5 text-gray-600">
+                {plan.rollback_steps.map((step, i) => (
+                  <li key={i}>{step}</li>
+                ))}
+              </ol>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="text-xs text-red-700">
+          <span className="font-semibold">{t('notSupportedReason')}: </span>
+          {plan.not_supported_reason}
+        </div>
+      )}
     </div>
   );
 }

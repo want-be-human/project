@@ -1,6 +1,6 @@
 'use client';
 
-import { Scenario, ScenarioRunResult, ScenarioStageRecord, ScenarioRunTimeline, FailureAttribution } from '@/lib/api/types';
+import { Scenario, ScenarioRunResult, ScenarioStageRecord, ScenarioRunTimeline, FailureAttribution, DecisionValidation } from '@/lib/api/types';
 import { api } from '@/lib/api';
 import { wsClient } from '@/lib/ws';
 import {
@@ -12,7 +12,7 @@ import {
   SCENARIO_RUN_DONE,
 } from '@/lib/events';
 import { useState, useEffect } from 'react';
-import { Play, CheckCircle2, XCircle, Clock, Activity, ShieldAlert, BarChart3, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Play, CheckCircle2, XCircle, Clock, Activity, ShieldAlert, BarChart3, RefreshCw, AlertTriangle, Zap } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import StageTimeline from '@/components/shared/StageTimeline';
 
@@ -407,6 +407,49 @@ export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props)
                     return null;
                   }}
                 />
+              </div>
+            )}
+
+            {/* 决策校验结果 */}
+            {result.decision_validation && (
+              <div>
+                <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <Zap className="w-4 h-4" /> {t('decisionValidationTitle')}
+                </h3>
+                <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+                  <div className="grid grid-cols-2 gap-4 p-4">
+                    <div className="flex items-center gap-2 text-sm">
+                      {result.decision_validation.has_decision
+                        ? <CheckCircle2 className="w-5 h-5 text-green-500" />
+                        : <XCircle className="w-5 h-5 text-gray-400" />
+                      }
+                      <span className={result.decision_validation.has_decision ? 'text-green-700' : 'text-gray-500'}>
+                        {result.decision_validation.has_decision ? t('hasDecision') : t('noDecision')}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      {result.decision_validation.rollback_validated
+                        ? <CheckCircle2 className="w-5 h-5 text-green-500" />
+                        : <XCircle className="w-5 h-5 text-gray-400" />
+                      }
+                      <span className={result.decision_validation.rollback_validated ? 'text-green-700' : 'text-gray-500'}>
+                        {result.decision_validation.rollback_validated ? t('rollbackValidated') : t('rollbackNotValidated')}
+                      </span>
+                    </div>
+                  </div>
+                  {result.decision_validation.validation_notes.length > 0 && (
+                    <div className="px-4 pb-4">
+                      <div className="text-xs font-semibold text-gray-500 mb-1">{t('validationNotes')}</div>
+                      <ul className="text-xs text-gray-600 space-y-0.5">
+                        {result.decision_validation.validation_notes.map((note, i) => (
+                          <li key={i} className="flex gap-1.5">
+                            <span className="text-indigo-400 shrink-0">•</span> {note}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 

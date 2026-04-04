@@ -7,6 +7,7 @@ v1.2: 数据驱动影响评估扩展 — 多维可达性、风险分解、结构
 from typing import Any, Literal
 from pydantic import BaseModel, Field, AliasChoices, model_validator
 from app.schemas.topology import GraphResponseSchema
+from app.schemas.decision import DecisionResult
 
 
 # Action 目标 - DOC C C2.1
@@ -248,6 +249,8 @@ class DryRunResultSchema(BaseModel):
     alternative_paths: list[AlternativePath] = Field(default_factory=list, description="可能绕行路径列表")
     explain: list[str] = Field(default_factory=list, description="解释文本（兼容旧版）")
     explain_sections: list[ExplainSection] = Field(default_factory=list, description="结构化解释段落")
+    # v1.3 三段式决策结果（可选，向后兼容）
+    decision: DecisionResult | None = Field(default=None, description="三段式决策结果")
 
     class Config:
         from_attributes = True

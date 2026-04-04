@@ -338,6 +338,80 @@ export interface DryRunResult {
     }>;
     explain?: string[];
     explain_sections?: ExplainSection[];
+    /** v1.3 三段式决策结果 */
+    decision?: DecisionResult;
+}
+
+// ── 三段式决策结果类型（v1.3）──
+
+export interface RiskProfile {
+  disruption_level: 'none' | 'low' | 'medium' | 'high' | 'critical';
+  scope: 'single_host' | 'subnet' | 'service' | 'network_wide';
+  confidence: number;
+  affected_services_count: number;
+  affected_nodes_count: number;
+}
+
+export interface RollbackTemplate {
+  action_type: string;
+  params: Record<string, any>;
+  description: string;
+}
+
+export interface DecisionAction {
+  action_type: string;
+  params: Record<string, any>;
+  expected_effect: string;
+  risk_profile: RiskProfile;
+  reversible: boolean;
+  rollback_template: RollbackTemplate | null;
+  estimated_recovery_cost: 'none' | 'low' | 'medium' | 'high';
+}
+
+export interface RollbackPlan {
+  rollback_supported: boolean;
+  rollback_steps: string[];
+  rollback_risk: 'none' | 'low' | 'medium' | 'high';
+  rollback_complexity: 'trivial' | 'simple' | 'moderate' | 'complex';
+  estimated_duration: string | null;
+  simulate_rollback_result: Record<string, any> | null;
+  not_supported_reason: string | null;
+}
+
+export interface RecommendedDecision {
+  action: DecisionAction;
+  reasoning: string;
+  based_on: string[];
+}
+
+export interface SaferAlternative {
+  action: DecisionAction;
+  safer_because: string;
+  tradeoff: string;
+  trigger_reason: string;
+}
+
+export interface ActionComparison {
+  disruption_diff: string;
+  coverage_diff: string;
+  reversibility_diff: string;
+  recommendation: string;
+}
+
+export interface DecisionResult {
+  recommended_action: RecommendedDecision;
+  safer_alternative: SaferAlternative | null;
+  rollback_plan: RollbackPlan;
+  safer_alternative_rollback: RollbackPlan | null;
+  decision_summary: string;
+  comparison: ActionComparison | null;
+}
+
+export interface DecisionValidation {
+  has_decision: boolean;
+  rollback_validated: boolean;
+  rollback_simulation_passed: boolean | null;
+  validation_notes: string[];
 }
 
 export interface Scenario {
@@ -396,6 +470,7 @@ export interface ScenarioRunResult {
         [key: string]: number | undefined;
     };
     timeline?: ScenarioRunTimeline;  // 新增：阶段时间线
+    decision_validation?: DecisionValidation;  // v1.2：决策校验结果
 }
 
 export type PipelineStageStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped';

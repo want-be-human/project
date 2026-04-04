@@ -5,6 +5,7 @@ Scenario 相关 Schema：Scenario 与 ScenarioRunResult。
 
 from typing import Any, Literal
 from pydantic import BaseModel, Field, field_validator, model_validator
+from app.schemas.decision import DecisionValidation
 
 
 # Scenario Schema（DOC C C4.1）
@@ -176,6 +177,10 @@ class ScenarioRunResultSchema(BaseModel):
     checks: list[ScenarioCheck] = Field(default_factory=list, description="检查结果")
     metrics: ScenarioMetrics = Field(default_factory=ScenarioMetrics, description="运行指标")
     timeline: ScenarioRunTimeline | None = Field(default=None, description="阶段时间线（新增）")
+    # v1.2 决策校验结果（可选，向后兼容）
+    decision_validation: DecisionValidation | None = Field(
+        default=None, description="决策校验结果"
+    )
 
     class Config:
         from_attributes = True

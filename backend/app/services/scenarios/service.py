@@ -25,6 +25,7 @@ from app.schemas.scenario import (
 )
 from app.services.scenarios.tracker import ScenarioRunTracker
 from app.services.scenarios.models import ScenarioStage
+from app.schemas.decision import DecisionValidation
 
 logger = get_logger(__name__)
 
@@ -155,10 +156,11 @@ class ScenariosService:
             with tracker.stage(ScenarioStage.CHECK_EVIDENCE_CHAIN) as stg:
                 checks_ev = self._stage_check_evidence_chain(alerts, expectations, stg)
 
-            # 阶段 6: 检查 dry-run
+            # 阶段 6: 检查 dry-run（含决策校验）
             checks_dr = []
+            decision_validation = None
             with tracker.stage(ScenarioStage.CHECK_DRY_RUN) as stg:
-                checks_dr = self._stage_check_dry_run(alerts, expectations, stg)
+                checks_dr, decision_validation = self._stage_check_dry_run(alerts, expectations, stg)
 
             # 阶段 7: 检查实体和特征
             checks_ef = []
@@ -207,6 +209,7 @@ class ScenariosService:
             checks=all_checks,
             metrics=metrics,
             timeline=timeline_schema,
+            decision_validation=decision_validation,
         )
 
         # 持久化到数据库
@@ -507,14 +510,18 @@ class ScenariosService:
 
     def _stage_check_dry_run(
         self, alerts: list[Alert], expectations: dict, stg
-    ) -> list[ScenarioCheck]:
-        """阶段 6: 检查 dry-run 要求。"""
+    ) -> tuple[list[ScenarioCheck], DecisionValidation | None]:
+        """阶段 6: 检查 dry-run 要求 + 决策校验。"""
         checks = []
+        decision_validation = None
         dry_run_required = expectations.get("dry_run_required", False)
 
         if dry_run_required:
             has_dry_run = False
             dry_run_risk = 0.0
+            has_decision = False
+            rollback_validated = False
+            validation_notes = []
 
             for alert in alerts:
                 twin_data = json.loads(alert.twin) if isinstance(alert.twin, str) else alert.twin
@@ -528,6 +535,32 @@ class ScenariosService:
                     if dry_run:
                         dr_payload = json.loads(dry_run.payload) if isinstance(dry_run.payload, str) else dry_run.payload
                         dry_run_risk = dr_payload.get("impact", {}).get("service_disruption_risk", 0)
+
+                        # 校验决策结果
+                        decision_data = dr_payload.get("decision")
+                        if decision_data:
+                            has_decision = True
+                            validation_notes.append("dry-run 包含三段式决策结果")
+
+                            # 校验回退计划
+                            rollback = decision_data.get("rollback_plan", {})
+                            if rollback.get("rollback_supported"):
+                                rollback_validated = bool(rollback.get("rollback_steps"))
+                                if rollback_validated:
+                                    validation_notes.append(
+                                        f"回退计划已就绪，包含 {len(rollback['rollback_steps'])} 个步骤"
+                                    )
+                                else:
+                                    validation_notes.append("回退计划标记为可回退但缺少步骤")
+                            else:
+                                reason = rollback.get("not_supported_reason", "未知原因")
+                                validation_notes.append(f"动作不可逆: {reason}")
+
+                            # 校验替代方案
+                            if decision_data.get("safer_alternative"):
+                                validation_notes.append("包含更安全替代方案")
+                        else:
+                            validation_notes.append("dry-run 未包含决策结果（旧版本）")
                     break
 
             checks.append(ScenarioCheck.model_validate({
@@ -543,8 +576,15 @@ class ScenariosService:
                     category="data_missing",
                 ))
 
+            # 构建决策校验结果
+            decision_validation = DecisionValidation(
+                has_decision=has_decision,
+                rollback_validated=rollback_validated,
+                validation_notes=validation_notes,
+            )
+
         stg.record_metrics({"checks_count": len(checks), "passed": sum(c.pass_ for c in checks)})
-        return checks
+        return checks, decision_validation
 
     def _stage_check_entities_and_features(
         self, alerts: list[Alert], expectations: dict, stg

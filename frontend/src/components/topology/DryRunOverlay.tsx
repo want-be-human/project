@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { DryRunResult } from '@/lib/api/types';
-import { AlertTriangle, X, Activity, ArrowRight, Loader2, Shield } from 'lucide-react';
+import { AlertTriangle, X, Activity, ArrowRight, Loader2, Shield, Zap } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { DryRunViewMode } from '@/app/(main)/topology/page';
 
@@ -174,6 +174,26 @@ export default function DryRunOverlay({ result, loading, notFound, viewMode, onV
                 </li>
               ))}
             </ul>
+          </div>
+        )}
+
+        {/* 决策摘要（精简版） */}
+        {result.decision && (
+          <div className="bg-indigo-50 border border-indigo-200 rounded p-2">
+            <div className="flex items-center gap-1 text-indigo-800 font-bold mb-1">
+              <Zap className="w-3 h-3" /> {t('dryRunDecision')}
+            </div>
+            <div className="text-indigo-700 text-[10px] space-y-0.5">
+              <div>
+                <span className="font-semibold">{result.decision.recommended_action.action.action_type}</span>
+                {' · '}
+                {result.decision.recommended_action.action.reversible
+                  ? <span className="text-green-600">{t('dryRunReversible')}</span>
+                  : <span className="text-red-600">{t('dryRunIrreversible')}</span>
+                }
+              </div>
+              <div className="text-gray-600">{result.decision.decision_summary}</div>
+            </div>
           </div>
         )}
 

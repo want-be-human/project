@@ -29,6 +29,7 @@ from app.schemas.topology import GraphResponseSchema
 from app.services.topology.service import TopologyService
 from app.services.twin.reachability import ReachabilityAnalyzer
 from app.services.twin.risk_scorer import RiskScorer
+from app.services.decision.recommender import DecisionRecommender
 
 logger = get_logger(__name__)
 
@@ -192,6 +193,24 @@ class TwinService:
             explain=explain,
             explain_sections=explain_sections,
         )
+
+        # 8. 三段式决策推荐
+        try:
+            alert = self.db.query(Alert).filter(Alert.id == plan.alert_id).first()
+            alert_severity = getattr(alert, "severity", "medium") if alert else "medium"
+            alert_type = getattr(alert, "type", "unknown") if alert else "unknown"
+
+            recommender = DecisionRecommender()
+            decision = recommender.recommend(
+                alert_severity=alert_severity,
+                alert_type=alert_type,
+                dry_run_result=result,
+                plan_actions=actions,
+            )
+            result.decision = decision
+        except Exception as e:
+            logger.warning(f"决策推荐生成失败，跳过: {e}")
+            # 决策推荐失败不影响主流程，result.decision 保持 None
 
         # 写入数据库
         dry_run_model = DryRun(
