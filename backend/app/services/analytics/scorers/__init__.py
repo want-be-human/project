@@ -6,15 +6,18 @@
 from app.services.analytics.scorers.action_safety import ActionSafetyScorer
 from app.services.analytics.scorers.base import BaseScorer
 from app.services.analytics.scorers.posture import PostureScorer
+from app.services.analytics.scorers.posture_v2 import PostureScorerV2
 
 SCORER_REGISTRY: dict[str, type[BaseScorer]] = {
     "posture_v1": PostureScorer,
+    "posture_v2": PostureScorerV2,
     "action_safety_v0": ActionSafetyScorer,
 }
 
 __all__ = [
     "BaseScorer",
     "PostureScorer",
+    "PostureScorerV2",
     "ActionSafetyScorer",
     "SCORER_REGISTRY",
 ]

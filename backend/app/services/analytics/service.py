@@ -21,8 +21,9 @@ from app.schemas.dashboard import (
     TopologySnapshotSchema,
     TrendsSchema,
 )
+from app.schemas.dashboard import TrendsSchema
 from app.services.analytics.scorers.action_safety import ActionSafetyScorer
-from app.services.analytics.scorers.posture import PostureScorer
+from app.services.analytics.scorers.posture_v2 import PostureScorerV2
 from app.services.dashboard.service import DashboardService
 
 logger = get_logger(__name__)
@@ -162,11 +163,24 @@ class AnalyticsService:
     # ------------------------------------------------------------------
 
     def _compute_posture(self, overview) -> ScoreResultSchema:
-        """从 overview 数据计算态势评分，供 get_overview 和 get_posture_score 共享。"""
-        scorer = PostureScorer(self.db)
+        """从 overview + 趋势 + 拓扑数据计算态势评分（v2 归一化风险指数）。"""
+        # 获取趋势数据（容错）
+        trends = self._safe_build(
+            self._dashboard._build_trends, TrendsSchema(days=[])
+        )
+        # 获取拓扑快照（容错）
+        topo = self._safe_build(
+            self._dashboard._build_topology_snapshot,
+            self._dashboard._default_topology(),
+        )
+
+        scorer = PostureScorerV2(self.db)
         return scorer.compute(
-            critical_count=overview.alert_by_severity.get("critical", 0),
-            high_count=overview.alert_by_severity.get("high", 0),
-            open_count=overview.alert_open_count,
-            avg_disruption_risk=overview.dryrun_avg_disruption_risk,
+            alert_by_severity=overview.alert_by_severity,
+            alert_total=overview.alert_total,
+            alert_open_count=overview.alert_open_count,
+            trend_days=trends.days,
+            top_risk_nodes=topo.top_risk_nodes,
+            dryrun_avg_disruption_risk=overview.dryrun_avg_disruption_risk,
+            dryrun_total=overview.dryrun_total,
         )

@@ -54,6 +54,7 @@ export default async function DashboardPage() {
         <HeroSection
           overview={data.overview}
           postureScore={analyticsOverview?.posture_score?.value ?? 0}
+          scoreResult={analyticsOverview?.posture_score ?? null}
           apiReachable={apiReachable}
         />
         {/* B 层：六张核心指标卡片 */}

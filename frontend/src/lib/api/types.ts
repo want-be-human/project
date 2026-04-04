@@ -786,6 +786,19 @@ export interface ScoreFactor {
   description: string;
 }
 
+/** 态势评分组件（v2 归一化风险指数） */
+export interface PostureComponent {
+  name: string;
+  raw_value: number;
+  normalized_value: number;
+  weight: number;
+  effective_weight: number;
+  contribution: number;
+  trend_direction: 'improving' | 'worsening' | 'stable' | 'unknown';
+  available: boolean;
+  description: string;
+}
+
 /** 标准化评分结果 */
 export interface ScoreResult {
   value: number;
@@ -794,6 +807,10 @@ export interface ScoreResult {
   computed_at: string;
   explain?: string | null;
   breakdown?: Record<string, any> | null;
+  // v2 扩展字段
+  risk_index?: number | null;
+  posture_components?: PostureComponent[] | null;
+  explain_summary?: string | null;
 }
 
 /** 分析总览（含评分） */

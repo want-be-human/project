@@ -22,6 +22,27 @@ class ScoreFactorSchema(BaseModel):
     description: str = Field(default="", description="因子说明")
 
 
+class PostureComponentSchema(BaseModel):
+    """态势评分组件（v2 归一化风险指数使用）"""
+
+    name: str = Field(..., description="组件标识，如 severity_pressure")
+    raw_value: float = Field(..., description="归一化前的原始值")
+    normalized_value: float = Field(..., description="归一化后的值 [0,1]")
+    weight: float = Field(..., description="基础权重")
+    effective_weight: float = Field(
+        ..., description="重分配后的有效权重（缺失组件时按比例分配）"
+    )
+    contribution: float = Field(
+        ..., description="对 RiskIndex 的贡献 = normalized × effective_weight"
+    )
+    trend_direction: str = Field(
+        default="unknown",
+        description='趋势方向："improving" | "worsening" | "stable" | "unknown"',
+    )
+    available: bool = Field(default=True, description="该组件数据是否可用")
+    description: str = Field(default="", description="中文说明")
+
+
 class ScoreResultSchema(BaseModel):
     """标准化评分结果"""
 
@@ -34,6 +55,16 @@ class ScoreResultSchema(BaseModel):
     explain: str | None = Field(default=None, description="可读的评分解释")
     breakdown: dict[str, Any] | None = Field(
         default=None, description="详细分解数据"
+    )
+    # v2 扩展字段（向后兼容，v1 不填充）
+    risk_index: float | None = Field(
+        default=None, description="归一化风险指数 [0,1]，PostureScore = 100×(1-risk_index)"
+    )
+    posture_components: list[PostureComponentSchema] | None = Field(
+        default=None, description="态势评分组件分解列表"
+    )
+    explain_summary: str | None = Field(
+        default=None, description="高层解释摘要，适合前端提示和图表展示"
     )
 
 
