@@ -46,7 +46,7 @@ async def get_posture_score(
 async def get_action_safety_score(
     db: Session = Depends(get_db),
 ) -> ApiResponse[ScoreResultSchema]:
-    """行动安全评分（占位）。"""
+    """行动安全评分（含因子分解与解释）。"""
     svc = AnalyticsService(db)
     return ApiResponse.success(svc.get_action_safety_score())
 

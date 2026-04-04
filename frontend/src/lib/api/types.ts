@@ -828,6 +828,7 @@ export interface AnalyticsOverview {
   scenario_total: number;
   scenario_pass_rate: number;
   posture_score: ScoreResult | null;
+  action_safety_score: ScoreResult | null;
 }
 
 /** 高风险资产条目 */

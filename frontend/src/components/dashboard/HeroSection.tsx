@@ -9,6 +9,8 @@ interface HeroSectionProps {
   overview: DashboardOverview;
   postureScore: number;
   scoreResult: ScoreResult | null;
+  actionSafetyScore: number;
+  actionSafetyResult: ScoreResult | null;
   apiReachable: boolean;
 }
 
@@ -24,6 +26,20 @@ export function ringStroke(score: number): string {
   if (score >= 80) return '#4ade80';
   if (score >= 50) return '#facc15';
   return '#f87171';
+}
+
+/** 行动安全 gauge 使用蓝色系主色调以区分态势评分 */
+function safetyRingStroke(score: number): string {
+  if (score >= 80) return '#60a5fa';
+  if (score >= 50) return '#fbbf24';
+  return '#f87171';
+}
+
+/** 行动安全 gauge 文字颜色 */
+function safetyScoreColor(score: number): string {
+  if (score >= 80) return 'text-blue-400';
+  if (score >= 50) return 'text-yellow-400';
+  return 'text-red-400';
 }
 
 /**
@@ -52,13 +68,23 @@ function formatTime(iso: string | null): string {
   }
 }
 
-/** 组件中文名映射 */
-const COMPONENT_CN: Record<string, string> = {
+/** 态势评分组件中文名映射 */
+const POSTURE_CN: Record<string, string> = {
   severity_pressure: '严重性压力',
   open_pressure: '开放告警压力',
   trend_pressure: '趋势压力',
   blast_radius: '爆炸半径',
   execution_risk: '执行风险',
+};
+
+/** 行动安全组件中文名映射 */
+const ACTION_SAFETY_CN: Record<string, string> = {
+  service_disruption_risk: '服务中断风险',
+  reachability_drop: '可达性损失',
+  impacted_ratio: '影响范围比例',
+  confidence_penalty: '置信度惩罚',
+  irreversibility_penalty: '不可逆惩罚',
+  rollback_complexity: '回退复杂度',
 };
 
 /** 趋势方向符号 */
@@ -76,14 +102,89 @@ function barColor(contribution: number): string {
   return 'bg-cyan-500';
 }
 
+/** 通用 Breakdown Tooltip */
+function BreakdownTooltip({
+  components,
+  cnNames,
+  explainSummary,
+  riskIndex,
+  scoreVersion,
+}: {
+  components: PostureComponent[];
+  cnNames: Record<string, string>;
+  explainSummary?: string | null;
+  riskIndex?: number | null;
+  scoreVersion?: string;
+}) {
+  return (
+    <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 z-[9999] w-80 bg-gray-900/95 border border-gray-600/60 rounded-xl p-4 shadow-2xl backdrop-blur-md">
+      {/* 解释摘要 */}
+      {explainSummary && (
+        <p className="text-xs text-gray-300 mb-3 leading-relaxed">
+          {explainSummary}
+        </p>
+      )}
+
+      {/* 组件分解 */}
+      <div className="space-y-2">
+        {components.map((comp) => {
+          const pct = Math.round(comp.contribution * 100);
+          const cnName = cnNames[comp.name] || comp.name;
+          return (
+            <div key={comp.name} className={`${!comp.available ? 'opacity-40' : ''}`}>
+              <div className="flex items-center justify-between text-xs mb-0.5">
+                <span className="text-gray-300">
+                  {cnName}
+                  <span className="text-gray-500">{trendArrow(comp.trend_direction)}</span>
+                </span>
+                <span className="text-gray-400 tabular-nums">
+                  {comp.available ? `${(comp.normalized_value * 100).toFixed(0)}%` : '--'}
+                  <span className="text-gray-600 ml-1">
+                    (w:{(comp.effective_weight * 100).toFixed(0)}%)
+                  </span>
+                </span>
+              </div>
+              {/* 贡献条 */}
+              <div className="h-1.5 bg-gray-700/60 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${barColor(comp.contribution)}`}
+                  style={{ width: `${Math.min(100, pct * 3)}%` }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 底部信息 */}
+      <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-700/50 text-xs text-gray-500">
+        <span>
+          Risk Index: <span className="text-gray-300 tabular-nums">
+            {riskIndex != null ? riskIndex.toFixed(4) : '--'}
+          </span>
+        </span>
+        <span>{scoreVersion || '--'}</span>
+      </div>
+    </div>
+  );
+}
+
 /**
  * Hero 区域组件
- * 三栏布局：左侧项目信息 | 中间态势评分环形图（视觉锚点）| 右侧关键上下文
+ * 三栏布局：左侧项目信息 | 中间评分环形图（双 gauge）| 右侧关键上下文
  * 统一 Card_Style_System 面板样式
  */
-export default function HeroSection({ overview, postureScore, scoreResult, apiReachable }: HeroSectionProps) {
+export default function HeroSection({
+  overview,
+  postureScore,
+  scoreResult,
+  actionSafetyScore,
+  actionSafetyResult,
+  apiReachable,
+}: HeroSectionProps) {
   const t = useTranslations('dashboard');
-  const [showBreakdown, setShowBreakdown] = useState(false);
+  const [showPostureBreakdown, setShowPostureBreakdown] = useState(false);
+  const [showSafetyBreakdown, setShowSafetyBreakdown] = useState(false);
 
   const score = postureScore;
   const lastUpdated = getLastUpdated(overview);
@@ -99,11 +200,22 @@ export default function HeroSection({ overview, postureScore, scoreResult, apiRe
   // 评分低于 50 视为高风险，启用呼吸发光动效
   const isHighRisk = score < 50;
 
-  // v2 组件数据
-  const components = scoreResult?.posture_components ?? [];
-  const riskIndex = scoreResult?.risk_index;
-  const explainSummary = scoreResult?.explain_summary;
-  const scoreVersion = scoreResult?.score_version;
+  // v2 态势评分组件数据
+  const postureComponents = scoreResult?.posture_components ?? [];
+  const postureRiskIndex = scoreResult?.risk_index;
+  const postureExplainSummary = scoreResult?.explain_summary;
+  const postureScoreVersion = scoreResult?.score_version;
+
+  // 行动安全评分数据
+  const hasSafetyScore = actionSafetyScore >= 0 && actionSafetyResult != null;
+  const safetyComponents = actionSafetyResult?.posture_components ?? [];
+  const safetyRiskIndex = actionSafetyResult?.risk_index;
+  const safetyExplainSummary = actionSafetyResult?.explain_summary;
+  const safetyScoreVersion = actionSafetyResult?.score_version;
+  const safetyOffset = hasSafetyScore
+    ? circumference - (actionSafetyScore / 100) * circumference
+    : circumference;
+  const isSafetyHighRisk = hasSafetyScore && actionSafetyScore < 50;
 
   return (
     <div className="relative z-20 bg-gray-900/80 border border-gray-700/50 rounded-2xl p-5 backdrop-blur-sm hover:border-cyan-500/40 transition-colors">
@@ -128,100 +240,102 @@ export default function HeroSection({ overview, postureScore, scoreResult, apiRe
           </div>
         </div>
 
-        {/* 中间：态势评分环形图（视觉锚点，160×160px）+ Breakdown Tooltip */}
-        <div
-          className="flex flex-col items-center gap-2 shrink-0 relative"
-          onMouseEnter={() => setShowBreakdown(true)}
-          onMouseLeave={() => setShowBreakdown(false)}
-        >
-          <span className="text-xs text-gray-400">{t('heroPostureScore')}</span>
-          <div className="relative w-40 h-40">
-            {/* 环形进度条 SVG，高风险时添加呼吸发光效果 */}
-            <svg className={`w-full h-full -rotate-90${isHighRisk ? ' animate-breathe-glow-ring' : ''}`} viewBox="0 0 160 160">
-              {/* 背景环 */}
-              <circle
-                cx="80" cy="80" r={radius}
-                fill="none" stroke="#374151" strokeWidth="8"
-              />
-              {/* 进度环 */}
-              <circle
-                cx="80" cy="80" r={radius}
-                fill="none"
-                stroke={ringStroke(score)}
-                strokeWidth="8"
-                strokeLinecap="round"
-                strokeDasharray={circumference}
-                strokeDashoffset={offset}
-                className="transition-all duration-1000 ease-out"
-              />
-            </svg>
-            {/* 中心评分数字，高风险时添加呼吸发光文字效果 */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className={`text-3xl font-bold ${scoreColor(score)}${isHighRisk ? ' animate-breathe-glow' : ''}`}>
-                <CountUp end={Math.round(score)} />
-              </span>
-            </div>
-          </div>
-
-          {/* 核心指标摘要 */}
-          <div className="flex gap-4 text-xs text-gray-400">
-            <span>PCAP: <span className="text-white">{overview.pcap_total}</span></span>
-            <span>Flow: <span className="text-white">{overview.flow_total}</span></span>
-            <span>Alert: <span className="text-white">{overview.alert_total}</span></span>
-          </div>
-
-          {/* Breakdown Tooltip — 悬浮评分环时显示 */}
-          {showBreakdown && components.length > 0 && (
-            <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 z-[9999] w-80 bg-gray-900/95 border border-gray-600/60 rounded-xl p-4 shadow-2xl backdrop-blur-md">
-              {/* 解释摘要 */}
-              {explainSummary && (
-                <p className="text-xs text-gray-300 mb-3 leading-relaxed">
-                  {explainSummary}
-                </p>
-              )}
-
-              {/* 组件分解 */}
-              <div className="space-y-2">
-                {components.map((comp) => {
-                  const pct = Math.round(comp.contribution * 100);
-                  const cnName = COMPONENT_CN[comp.name] || comp.name;
-                  return (
-                    <div key={comp.name} className={`${!comp.available ? 'opacity-40' : ''}`}>
-                      <div className="flex items-center justify-between text-xs mb-0.5">
-                        <span className="text-gray-300">
-                          {cnName}
-                          <span className="text-gray-500">{trendArrow(comp.trend_direction)}</span>
-                        </span>
-                        <span className="text-gray-400 tabular-nums">
-                          {comp.available ? `${(comp.normalized_value * 100).toFixed(0)}%` : '--'}
-                          <span className="text-gray-600 ml-1">
-                            (w:{(comp.effective_weight * 100).toFixed(0)}%)
-                          </span>
-                        </span>
-                      </div>
-                      {/* 贡献条 */}
-                      <div className="h-1.5 bg-gray-700/60 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all duration-500 ${barColor(comp.contribution)}`}
-                          style={{ width: `${Math.min(100, pct * 3)}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* 底部信息 */}
-              <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-700/50 text-xs text-gray-500">
-                <span>
-                  Risk Index: <span className="text-gray-300 tabular-nums">
-                    {riskIndex != null ? riskIndex.toFixed(4) : '--'}
-                  </span>
+        {/* 中间：双 gauge 并排 — 态势评分 + 行动安全 */}
+        <div className="flex items-start gap-6 shrink-0">
+          {/* 态势评分 gauge */}
+          <div
+            className="flex flex-col items-center gap-2 relative"
+            onMouseEnter={() => setShowPostureBreakdown(true)}
+            onMouseLeave={() => setShowPostureBreakdown(false)}
+          >
+            <span className="text-xs text-gray-400">{t('heroPostureScore')}</span>
+            <div className="relative w-40 h-40">
+              <svg className={`w-full h-full -rotate-90${isHighRisk ? ' animate-breathe-glow-ring' : ''}`} viewBox="0 0 160 160">
+                <circle
+                  cx="80" cy="80" r={radius}
+                  fill="none" stroke="#374151" strokeWidth="8"
+                />
+                <circle
+                  cx="80" cy="80" r={radius}
+                  fill="none"
+                  stroke={ringStroke(score)}
+                  strokeWidth="8"
+                  strokeLinecap="round"
+                  strokeDasharray={circumference}
+                  strokeDashoffset={offset}
+                  className="transition-all duration-1000 ease-out"
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className={`text-3xl font-bold ${scoreColor(score)}${isHighRisk ? ' animate-breathe-glow' : ''}`}>
+                  <CountUp end={Math.round(score)} />
                 </span>
-                <span>{scoreVersion || '--'}</span>
               </div>
+            </div>
+
+            {/* Posture Breakdown Tooltip */}
+            {showPostureBreakdown && postureComponents.length > 0 && (
+              <BreakdownTooltip
+                components={postureComponents}
+                cnNames={POSTURE_CN}
+                explainSummary={postureExplainSummary}
+                riskIndex={postureRiskIndex}
+                scoreVersion={postureScoreVersion}
+              />
+            )}
+          </div>
+
+          {/* 行动安全 gauge — 仅在有数据时渲染 */}
+          {hasSafetyScore && (
+            <div
+              className="flex flex-col items-center gap-2 relative"
+              onMouseEnter={() => setShowSafetyBreakdown(true)}
+              onMouseLeave={() => setShowSafetyBreakdown(false)}
+            >
+              <span className="text-xs text-gray-400">{t('heroActionSafety')}</span>
+              <div className="relative w-40 h-40">
+                <svg className={`w-full h-full -rotate-90${isSafetyHighRisk ? ' animate-breathe-glow-ring' : ''}`} viewBox="0 0 160 160">
+                  <circle
+                    cx="80" cy="80" r={radius}
+                    fill="none" stroke="#374151" strokeWidth="8"
+                  />
+                  <circle
+                    cx="80" cy="80" r={radius}
+                    fill="none"
+                    stroke={safetyRingStroke(actionSafetyScore)}
+                    strokeWidth="8"
+                    strokeLinecap="round"
+                    strokeDasharray={circumference}
+                    strokeDashoffset={safetyOffset}
+                    className="transition-all duration-1000 ease-out"
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className={`text-3xl font-bold ${safetyScoreColor(actionSafetyScore)}${isSafetyHighRisk ? ' animate-breathe-glow' : ''}`}>
+                    <CountUp end={Math.round(actionSafetyScore)} />
+                  </span>
+                </div>
+              </div>
+
+              {/* Safety Breakdown Tooltip */}
+              {showSafetyBreakdown && safetyComponents.length > 0 && (
+                <BreakdownTooltip
+                  components={safetyComponents}
+                  cnNames={ACTION_SAFETY_CN}
+                  explainSummary={safetyExplainSummary}
+                  riskIndex={safetyRiskIndex}
+                  scoreVersion={safetyScoreVersion}
+                />
+              )}
             </div>
           )}
+        </div>
+
+        {/* 核心指标摘要 — 放在 gauge 下方 */}
+        <div className="flex gap-4 text-xs text-gray-400 lg:hidden">
+          <span>PCAP: <span className="text-white">{overview.pcap_total}</span></span>
+          <span>Flow: <span className="text-white">{overview.flow_total}</span></span>
+          <span>Alert: <span className="text-white">{overview.alert_total}</span></span>
         </div>
 
         {/* 右侧：关键上下文信息 */}
@@ -240,6 +354,13 @@ export default function HeroSection({ overview, postureScore, scoreResult, apiRe
             <span className="text-sm text-gray-200 mt-0.5 block truncate">
               {formatTime(lastUpdated)}
             </span>
+          </div>
+
+          {/* 核心指标摘要 — 桌面端在右侧 */}
+          <div className="hidden lg:flex gap-3 text-xs text-gray-400">
+            <span>PCAP: <span className="text-white">{overview.pcap_total}</span></span>
+            <span>Flow: <span className="text-white">{overview.flow_total}</span></span>
+            <span>Alert: <span className="text-white">{overview.alert_total}</span></span>
           </div>
         </div>
       </div>

@@ -27,6 +27,7 @@
     "heroStatusOffline": "Offline",
     "heroLastUpdated": "Last Updated",
     "heroPostureScore": "Posture Score",
+    "heroActionSafety": "Action Safety",
     "heroUptime": "Uptime",
     "heroLastAnalysis": "Last Analysis",
     "heroCriticalAlerts": "Critical Alerts",

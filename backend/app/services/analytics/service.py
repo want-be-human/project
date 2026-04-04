@@ -4,11 +4,13 @@
 为 /api/v1/analytics/* 端点提供数据。
 """
 
+import json
 from typing import Callable, TypeVar
 
 from sqlalchemy.orm import Session
 
 from app.core.logging import get_logger
+from app.models.twin import DryRun
 from app.schemas.analytics import (
     AnalyticsOverviewSchema,
     ScoreResultSchema,
@@ -57,13 +59,16 @@ class AnalyticsService:
     # ------------------------------------------------------------------
 
     def get_overview(self) -> AnalyticsOverviewSchema:
-        """获取统一总览数据，内嵌态势评分。"""
+        """获取统一总览数据，内嵌态势评分和行动安全评分。"""
         overview = self._safe_build(
             self._dashboard._build_overview,
             self._dashboard._default_overview(),
         )
         posture = self._safe_build(
             lambda: self._compute_posture(overview), None
+        )
+        action_safety = self._safe_build(
+            self._compute_action_safety, None
         )
         return AnalyticsOverviewSchema(
             pcap_total=overview.pcap_total,
@@ -79,6 +84,7 @@ class AnalyticsService:
             scenario_total=overview.scenario_total,
             scenario_pass_rate=overview.scenario_pass_rate,
             posture_score=posture,
+            action_safety_score=action_safety,
         )
 
     # ------------------------------------------------------------------
@@ -94,9 +100,11 @@ class AnalyticsService:
         return self._compute_posture(overview)
 
     def get_action_safety_score(self) -> ScoreResultSchema:
-        """获取行动安全评分（占位）。"""
-        scorer = ActionSafetyScorer(self.db)
-        return scorer.compute()
+        """获取行动安全评分（含因子分解与解释）。"""
+        return self._safe_build(
+            self._compute_action_safety,
+            ActionSafetyScorer(self.db).compute(),
+        )
 
     # ------------------------------------------------------------------
     # 委托方法（薄包装 + _safe_build 容错）
@@ -161,6 +169,53 @@ class AnalyticsService:
     # ------------------------------------------------------------------
     # 内部方法
     # ------------------------------------------------------------------
+
+    def _compute_action_safety(self) -> ScoreResultSchema:
+        """从最新 dry-run 结果和决策数据计算行动安全评分。"""
+        # 查询最新 dry-run 记录
+        latest_dryrun = (
+            self.db.query(DryRun)
+            .order_by(DryRun.created_at.desc())
+            .first()
+        )
+
+        if not latest_dryrun:
+            # 无 dry-run 数据：所有组件不可用，返回满分（无动作 = 安全）
+            return ActionSafetyScorer(self.db).compute()
+
+        # 解析 payload JSON
+        payload = json.loads(latest_dryrun.payload)
+        impact = payload.get("impact", {})
+        decision = payload.get("decision")
+
+        # 提取 dry-run 影响数据
+        kwargs: dict = {
+            "service_disruption_risk": impact.get("service_disruption_risk"),
+            "reachability_drop": impact.get("reachability_drop"),
+            "impacted_nodes_count": impact.get("impacted_nodes_count"),
+            "confidence": impact.get("confidence"),
+        }
+
+        # 提取拓扑节点总数（用于计算影响范围比例）
+        topo = self._safe_build(
+            self._dashboard._build_topology_snapshot,
+            self._dashboard._default_topology(),
+        )
+        kwargs["total_node_count"] = topo.node_count if hasattr(topo, "node_count") else len(topo.top_risk_nodes)
+
+        # 提取决策数据（可逆性 + 回退复杂度）
+        if decision:
+            rec = decision.get("recommended_action", {})
+            action = rec.get("action", {})
+            kwargs["reversible"] = action.get("reversible")
+            kwargs["recovery_cost"] = action.get("estimated_recovery_cost")
+
+            rollback = decision.get("rollback_plan", {})
+            if rollback and rollback.get("rollback_supported"):
+                kwargs["rollback_complexity"] = rollback.get("rollback_complexity")
+                kwargs["rollback_risk"] = rollback.get("rollback_risk")
+
+        return ActionSafetyScorer(self.db).compute(**kwargs)
 
     def _compute_posture(self, overview) -> ScoreResultSchema:
         """从 overview + 趋势 + 拓扑数据计算态势评分（v2 归一化风险指数）。"""

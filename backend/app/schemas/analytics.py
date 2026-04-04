@@ -106,6 +106,9 @@ class AnalyticsOverviewSchema(BaseModel):
     posture_score: ScoreResultSchema | None = Field(
         default=None, description="安全态势评分"
     )
+    action_safety_score: ScoreResultSchema | None = Field(
+        default=None, description="行动安全评分"
+    )
 
 
 # ══════════════════════════════════════════════════════════════

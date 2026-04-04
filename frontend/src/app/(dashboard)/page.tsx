@@ -55,6 +55,8 @@ export default async function DashboardPage() {
           overview={data.overview}
           postureScore={analyticsOverview?.posture_score?.value ?? 0}
           scoreResult={analyticsOverview?.posture_score ?? null}
+          actionSafetyScore={analyticsOverview?.action_safety_score?.value ?? -1}
+          actionSafetyResult={analyticsOverview?.action_safety_score ?? null}
           apiReachable={apiReachable}
         />
         {/* B 层：六张核心指标卡片 */}

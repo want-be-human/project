@@ -27,6 +27,7 @@
     "heroStatusOffline": "离线",
     "heroLastUpdated": "最后更新",
     "heroPostureScore": "态势评分",
+    "heroActionSafety": "处置安全",
     "heroUptime": "运行时间",
     "heroLastAnalysis": "最后分析",
     "heroCriticalAlerts": "严重告警",

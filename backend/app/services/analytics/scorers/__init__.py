@@ -11,7 +11,7 @@ from app.services.analytics.scorers.posture_v2 import PostureScorerV2
 SCORER_REGISTRY: dict[str, type[BaseScorer]] = {
     "posture_v1": PostureScorer,
     "posture_v2": PostureScorerV2,
-    "action_safety_v0": ActionSafetyScorer,
+    "action_safety_v1": ActionSafetyScorer,
 }
 
 __all__ = [
