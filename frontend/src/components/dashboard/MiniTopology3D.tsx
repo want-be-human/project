@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import dynamic from 'next/dynamic';
 import type { TopologySnapshot } from '@/lib/api/types';
 import type { ForceGraphMethods } from 'react-force-graph-3d';
+import { useContainerSize } from './useContainerSize';
 
 /**
  * 风险等级颜色映射函数
@@ -65,6 +66,9 @@ interface MiniTopology3DProps {
   snapshot: TopologySnapshot;
 }
 
+/** 旋转状态：等待初始化 | 正在旋转 | resize 暂停中 */
+type RotationState = 'waiting' | 'rotating' | 'paused';
+
 // 使用 dynamic import 加载 ForceGraph3D，禁用 SSR
 // react-force-graph-3d 依赖浏览器 API（WebGL/Canvas），无法在服务端渲染
 const ForceGraph3D = dynamic(() => import('react-force-graph-3d'), {
@@ -80,11 +84,28 @@ const ForceGraph3D = dynamic(() => import('react-force-graph-3d'), {
  * 迷你 3D 拓扑组件
  * 基于 Dashboard API 返回的 topology_snapshot 数据渲染 3D 力导向图
  * 支持自动旋转、悬停高亮、点击导航至完整拓扑页
+ *
+ * 使用"尺寸驱动的重新居中"方案：
+ * - ResizeObserver 追踪容器真实尺寸
+ * - 容器尺寸变化时自动 zoomToFit + 重算旋转半径
+ * - resize 期间暂停旋转，fit 完成后恢复
  */
 export default function MiniTopology3D({ snapshot }: MiniTopology3DProps) {
   const t = useTranslations('dashboard');
   const router = useRouter();
   const graphRef = useRef<ForceGraphMethods | undefined>(undefined);
+
+  // ── 容器尺寸追踪（防抖 200ms） ──
+  const { containerRef, width: containerWidth, height: containerHeight } = useContainerSize(200);
+
+  // ── 旋转相关 refs（多个 effect 共享，避免闭包过期） ──
+  const orbitDistanceRef = useRef(120);                           // 旋转轨道半径
+  const rotationStateRef = useRef<RotationState>('waiting');      // 旋转状态机
+  const rotateStartTimeRef = useRef(0);                           // 旋转开始时间戳
+  const angleRef = useRef(0);                                     // 当前旋转角度
+  const frameIdRef = useRef<number>(0);                           // requestAnimationFrame ID
+  const initialFitDoneRef = useRef(false);                        // 首次 zoomToFit 是否完成
+  const prefersReducedMotionRef = useRef(false);                  // 用户是否偏好减少动画
 
   // 从 snapshot 构建图数据
   const graphData = useMemo(() => {
@@ -108,55 +129,118 @@ export default function MiniTopology3D({ snapshot }: MiniTopology3DProps) {
     return { nodes, links };
   }, [snapshot]);
 
-  // 自动旋转：先用 zoomToFit 居中节点，再通过 requestAnimationFrame 控制相机轨道旋转
-  // 支持 prefers-reduced-motion 时跳过自动旋转（需求 5.4）
+  // ── 旋转函数（稳定引用，全部通过 ref 读取可变状态） ──
+  const rotate = useCallback(() => {
+    const fg = graphRef.current;
+    if (!fg || rotationStateRef.current !== 'rotating') return;
+
+    const elapsed = Date.now() - rotateStartTimeRef.current;
+    const currentSpeed = computeRotationSpeed(elapsed);
+
+    angleRef.current += currentSpeed;
+    const x = orbitDistanceRef.current * Math.sin(angleRef.current);
+    const z = orbitDistanceRef.current * Math.cos(angleRef.current);
+    fg.cameraPosition({ x, y: 30, z });
+    frameIdRef.current = requestAnimationFrame(rotate);
+  }, []);
+
+  // ── 从 ForceGraph3D 读取当前相机水平距离的工具函数 ──
+  const readOrbitDistance = useCallback(() => {
+    const fg = graphRef.current;
+    if (!fg) return 120;
+    // cameraPosition 无参数调用为 getter，类型定义要求参数，使用断言绕过
+    const pos = (fg.cameraPosition as unknown as () => { x: number; y: number; z: number })();
+    return Math.sqrt(pos.x * pos.x + pos.z * pos.z) || 120;
+  }, []);
+
+  // ── Effect A：初始稳定 + 首次 zoomToFit + 开始旋转 ──
+  // 依赖 graphData：当图数据变化时重新走初始化流程
   useEffect(() => {
     const fg = graphRef.current;
     if (!fg) return;
 
-    // 检测用户是否偏好减少动画，若是则跳过整个旋转逻辑
-    const prefersReducedMotion =
+    // 重置状态（graphData 变化时重新初始化）
+    initialFitDoneRef.current = false;
+    rotationStateRef.current = 'waiting';
+    if (frameIdRef.current) {
+      cancelAnimationFrame(frameIdRef.current);
+      frameIdRef.current = 0;
+    }
+
+    // 检测用户是否偏好减少动画
+    prefersReducedMotionRef.current =
       typeof window !== 'undefined' &&
       window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (prefersReducedMotion) return;
-
-    let angle = 0;
-    let frameId: number;
-    let orbitDistance = 120;
-    let rotateStartTime = 0;
-
-    const rotate = () => {
-      // 计算渐入速度：前 1s 内从 0 线性增加到 TARGET_SPEED（需求 5.1）
-      const elapsed = Date.now() - rotateStartTime;
-      const currentSpeed = computeRotationSpeed(elapsed);
-
-      angle += currentSpeed;
-      const x = orbitDistance * Math.sin(angle);
-      const z = orbitDistance * Math.cos(angle);
-      fg.cameraPosition({ x, y: 30, z });
-      frameId = requestAnimationFrame(rotate);
-    };
 
     // 等待力导向图稳定后，先 zoomToFit 居中，再开始旋转
-    const timer = setTimeout(() => {
-      // zoomToFit 自动调整相机使所有节点可见并居中
+    const stabilizeTimer = setTimeout(() => {
       fg.zoomToFit(400, 40);
-      // zoomToFit 完成后获取当前相机距离作为旋转半径
-      setTimeout(() => {
-        // cameraPosition 无参数调用为 getter，类型定义要求参数，使用断言绕过
-        const pos = (fg.cameraPosition as unknown as () => { x: number; y: number; z: number })();
-        orbitDistance = Math.sqrt(pos.x * pos.x + pos.z * pos.z) || 120;
-        // 记录旋转开始时间，用于速度渐入计算
-        rotateStartTime = Date.now();
-        frameId = requestAnimationFrame(rotate);
+
+      // zoomToFit 动画完成后（400ms + 100ms 余量）获取相机距离
+      const postFitTimer = setTimeout(() => {
+        orbitDistanceRef.current = readOrbitDistance();
+        initialFitDoneRef.current = true;
+
+        // 若用户不偏好减少动画，启动自动旋转
+        if (!prefersReducedMotionRef.current) {
+          rotateStartTimeRef.current = Date.now();
+          rotationStateRef.current = 'rotating';
+          frameIdRef.current = requestAnimationFrame(rotate);
+        }
       }, 500);
+
+      // 将内层 timer 加入清理
+      timerRefs.push(postFitTimer);
     }, 1500);
 
+    // 收集所有需要清理的 timer
+    const timerRefs: ReturnType<typeof setTimeout>[] = [stabilizeTimer];
+
     return () => {
-      clearTimeout(timer);
-      if (frameId) cancelAnimationFrame(frameId);
+      timerRefs.forEach((t) => clearTimeout(t));
+      if (frameIdRef.current) {
+        cancelAnimationFrame(frameIdRef.current);
+        frameIdRef.current = 0;
+      }
     };
-  }, [graphData]);
+  }, [graphData, rotate, readOrbitDistance]);
+
+  // ── Effect B：容器尺寸变化时重新居中 ──
+  // 依赖 containerWidth/containerHeight：防抖后的真实尺寸
+  useEffect(() => {
+    const fg = graphRef.current;
+
+    // 守卫：尺寸未测量、图未挂载、首次 fit 未完成 → 跳过
+    if (!fg || containerWidth === 0 || containerHeight === 0) return;
+    if (!initialFitDoneRef.current) return;
+
+    // 1. 若正在旋转 → 暂停
+    const wasRotating = rotationStateRef.current === 'rotating';
+    if (wasRotating) {
+      rotationStateRef.current = 'paused';
+      if (frameIdRef.current) {
+        cancelAnimationFrame(frameIdRef.current);
+        frameIdRef.current = 0;
+      }
+    }
+
+    // 2. 重新 zoomToFit，padding 随容器较小维度自适应
+    const padding = Math.min(60, Math.max(20, Math.min(containerWidth, containerHeight) * 0.05));
+    fg.zoomToFit(400, padding);
+
+    // 3. zoomToFit 动画完成后（500ms）重算旋转半径并恢复旋转
+    const resumeTimer = setTimeout(() => {
+      orbitDistanceRef.current = readOrbitDistance();
+
+      // 仅在之前正在旋转时才恢复（保持速度连续性，不重置 rotateStartTime）
+      if (wasRotating) {
+        rotationStateRef.current = 'rotating';
+        frameIdRef.current = requestAnimationFrame(rotate);
+      }
+    }, 500);
+
+    return () => clearTimeout(resumeTimer);
+  }, [containerWidth, containerHeight, rotate, readOrbitDistance]);
 
   // 点击导航至完整拓扑页
   const handleClick = useCallback(() => {
@@ -178,6 +262,12 @@ export default function MiniTopology3D({ snapshot }: MiniTopology3DProps) {
 
   // 检查是否存在高风险节点，用于容器发光效果
   const hasHighRiskNodes = graphData.nodes.some((n) => n.risk >= 0.7);
+
+  // ── 计算传递给 ForceGraph3D 的显式尺寸 ──
+  // 首帧（0x0）传 undefined → ForceGraph3D 用自身默认尺寸
+  // 测量完成后传真实像素值 → 触发 renderer.setSize() 更新画布
+  const fgWidth = containerWidth > 0 ? containerWidth : undefined;
+  const fgHeight = containerHeight > 0 ? containerHeight : undefined;
 
   // min-h-0：允许拓扑卡片被 Grid 行高约束，防止 min-h-[200px] 撑高整行
   return (
@@ -213,13 +303,17 @@ export default function MiniTopology3D({ snapshot }: MiniTopology3DProps) {
       </div>
 
       {/* 3D 图或无数据提示，存在高风险节点时添加呼吸发光边框 */}
-      <div className={`flex-1 min-h-[200px] rounded-lg overflow-hidden bg-gray-950/50${hasHighRiskNodes ? ' animate-breathe-glow-box' : ''}`}>
+      {/* ref={containerRef}：ResizeObserver 追踪此容器的真实尺寸 */}
+      <div
+        ref={containerRef}
+        className={`flex-1 min-h-[200px] rounded-lg overflow-hidden bg-gray-950/50${hasHighRiskNodes ? ' animate-breathe-glow-box' : ''}`}
+      >
         {hasData ? (
           <ForceGraph3D
             ref={graphRef as React.MutableRefObject<ForceGraphMethods | undefined>}
             graphData={graphData}
-            width={undefined}
-            height={400}
+            width={fgWidth}
+            height={fgHeight}
             backgroundColor="rgba(0,0,0,0)"
             showNavInfo={false}
             enableNavigationControls={false}
