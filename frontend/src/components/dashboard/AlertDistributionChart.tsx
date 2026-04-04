@@ -5,6 +5,8 @@ import ReactECharts from 'echarts-for-react';
 import { useTranslations } from 'next-intl';
 import type { DashboardDistributions } from '@/lib/api/types';
 import { CHART_TOOLTIP_STYLE } from './chartStyles';
+import DashboardCard from './DashboardCard';
+import EmptyState from './EmptyState';
 
 interface AlertDistributionChartProps {
   distributions: DashboardDistributions;
@@ -33,6 +35,7 @@ const TYPE_I18N_KEYS: Record<string, string> = {
 /**
  * 告警类型分布环形饼图
  * 使用 ECharts 渲染，深色主题
+ * 无数据时保持完整卡片框架，内部显示空状态占位
  */
 export default function AlertDistributionChart({ distributions }: AlertDistributionChartProps) {
   const t = useTranslations('dashboard');
@@ -42,16 +45,9 @@ export default function AlertDistributionChart({ distributions }: AlertDistribut
     distributions.items.length === 0 ||
     distributions.items.every((i) => i.count === 0);
 
-  if (isEmpty) {
-    return (
-      <div className="bg-gray-900/80 border border-gray-700/50 hover:border-cyan-500/40 transition-colors rounded-2xl p-5 flex items-center justify-center">
-        <p className="text-sm text-gray-500">{t('emptyAlertDistribution')}</p>
-      </div>
-    );
-  }
-
   // 构建饼图数据，翻译类型名称并映射颜色
   const { data, colors } = useMemo(() => {
+    if (isEmpty) return { data: [], colors: [] };
     const d = distributions.items.map((item) => ({
       name: t(TYPE_I18N_KEYS[item.type] ?? 'alertTypeUnknown'),
       value: item.count,
@@ -60,62 +56,63 @@ export default function AlertDistributionChart({ distributions }: AlertDistribut
       (item) => TYPE_COLORS[item.type] ?? TYPE_COLORS.unknown,
     );
     return { data: d, colors: c };
-  }, [distributions.items, t]);
+  }, [distributions.items, isEmpty, t]);
 
-  const option = {
-    backgroundColor: 'transparent',
-    tooltip: {
-      trigger: 'item' as const,
-      ...CHART_TOOLTIP_STYLE,
-      formatter: (params: any) => {
-        const name = params.name;
-        const value = params.value;
-        const percent = params.percent;
-        return `${params.marker} ${name}: <b>${value}</b> (${percent}%)`;
-      },
-    },
-    legend: {
-      orient: 'vertical' as const,
-      right: 8,
-      top: 'center' as const,
-      textStyle: { color: '#9ca3af', fontSize: 11 },
-      icon: 'circle',
-      itemWidth: 8,
-      itemHeight: 8,
-    },
-    color: colors,
-    series: [
-      {
-        type: 'pie' as const,
-        radius: ['45%', '70%'],
-        center: ['35%', '50%'],
-        avoidLabelOverlap: false,
-        itemStyle: { borderColor: '#111827', borderWidth: 2 },
-        label: { show: false },
-        emphasis: {
-          label: { show: true, color: '#e5e7eb', fontSize: 13, fontWeight: 'bold' as const },
+  const option = useMemo(() => {
+    if (isEmpty) return null;
+    return {
+      backgroundColor: 'transparent',
+      tooltip: {
+        trigger: 'item' as const,
+        ...CHART_TOOLTIP_STYLE,
+        formatter: (params: any) => {
+          const name = params.name;
+          const value = params.value;
+          const percent = params.percent;
+          return `${params.marker} ${name}: <b>${value}</b> (${percent}%)`;
         },
-        data,
       },
-    ],
-  };
+      legend: {
+        orient: 'vertical' as const,
+        right: 8,
+        top: 'center' as const,
+        textStyle: { color: '#9ca3af', fontSize: 11 },
+        icon: 'circle',
+        itemWidth: 8,
+        itemHeight: 8,
+      },
+      color: colors,
+      series: [
+        {
+          type: 'pie' as const,
+          radius: ['45%', '70%'],
+          center: ['35%', '50%'],
+          avoidLabelOverlap: false,
+          itemStyle: { borderColor: '#111827', borderWidth: 2 },
+          label: { show: false },
+          emphasis: {
+            label: { show: true, color: '#e5e7eb', fontSize: 13, fontWeight: 'bold' as const },
+          },
+          data,
+        },
+      ],
+    };
+  }, [isEmpty, colors, data]);
 
   return (
-    <div className="bg-gray-900/80 border border-gray-700/50 hover:border-cyan-500/40 transition-colors rounded-2xl p-4 backdrop-blur-sm h-full flex flex-col">
-      {/* 标题 */}
-      <h3 className="text-sm font-semibold text-gray-200 mb-3">
-        {t('chartAlertDistributionTitle')}
-      </h3>
-
-      {/* ECharts 环形饼图 */}
-      <div className="flex-1 min-h-0">
-        <ReactECharts
-          option={option}
-          style={{ height: '100%' }}
-          opts={{ renderer: 'canvas' }}
-          notMerge
-        />
-      </div>
-    </div>
+    <DashboardCard title={t('chartAlertDistributionTitle')}>
+      {isEmpty ? (
+        <EmptyState message={t('emptyAlertDistribution')} />
+      ) : (
+        <div className="flex-1 min-h-0">
+          <ReactECharts
+            option={option!}
+            style={{ height: '100%' }}
+            opts={{ renderer: 'canvas' }}
+            notMerge
+          />
+        </div>
+      )}
+    </DashboardCard>
   );
 }
