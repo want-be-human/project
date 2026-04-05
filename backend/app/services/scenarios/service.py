@@ -93,7 +93,7 @@ class ScenariosService:
             tags=tags,
         )
         
-        logger.info(f"Created scenario {scenario_id}: {name}")
+        logger.info(f"已创建场景 {scenario_id}: {name}")
         return scenario
 
     def list_scenarios(
@@ -123,10 +123,10 @@ class ScenariosService:
         返回：
             ScenarioRunResult Schema（含 timeline）
         """
-        logger.info(f"Running scenario {scenario.id}: {scenario.name}")
+        logger.info(f"正在执行场景 {scenario.id}: {scenario.name}")
 
         if scenario.status == "archived":
-            raise HTTPException(status_code=409, detail="Cannot run an archived scenario")
+            raise HTTPException(status_code=409, detail="无法执行已归档的场景")
 
         run_id = generate_uuid()
         tracker = ScenarioRunTracker(scenario.id, run_id, self.db)
@@ -226,7 +226,7 @@ class ScenariosService:
         self.db.add(run_model)
         self.db.commit()
 
-        logger.info(f"Scenario run {run_id} completed: {status}")
+        logger.info(f"场景运行 {run_id} 已完成: {status}")
         return result
 
     # ── 私有阶段方法 ──────────────────────────────────────────────
@@ -382,36 +382,36 @@ class ScenariosService:
         """将场景归档。已归档场景返回 409。"""
         scenario = self.get_scenario(scenario_id)
         if not scenario:
-            raise HTTPException(status_code=404, detail=f"Scenario {scenario_id} not found")
+            raise HTTPException(status_code=404, detail=f"场景 {scenario_id} 不存在")
         if scenario.status == "archived":
-            raise HTTPException(status_code=409, detail="Scenario is already archived")
+            raise HTTPException(status_code=409, detail="场景已经是归档状态")
         scenario.status = "archived"
         self.db.commit()
-        logger.info(f"Archived scenario {scenario_id}")
+        logger.info(f"已归档场景 {scenario_id}")
         return self._model_to_schema(scenario)
 
     def unarchive_scenario(self, scenario_id: str) -> ScenarioSchema:
         """恢复已归档场景。已激活场景返回 409。"""
         scenario = self.get_scenario(scenario_id)
         if not scenario:
-            raise HTTPException(status_code=404, detail=f"Scenario {scenario_id} not found")
+            raise HTTPException(status_code=404, detail=f"场景 {scenario_id} 不存在")
         if scenario.status == "active":
-            raise HTTPException(status_code=409, detail="Scenario is already active")
+            raise HTTPException(status_code=409, detail="场景已经是激活状态")
         scenario.status = "active"
         self.db.commit()
-        logger.info(f"Unarchived scenario {scenario_id}")
+        logger.info(f"已恢复场景 {scenario_id}")
         return self._model_to_schema(scenario)
 
     def delete_scenario(self, scenario_id: str) -> None:
         """物理删除场景及其所有运行记录。"""
         scenario = self.get_scenario(scenario_id)
         if not scenario:
-            raise HTTPException(status_code=404, detail=f"Scenario {scenario_id} not found")
+            raise HTTPException(status_code=404, detail=f"场景 {scenario_id} 不存在")
         # ScenarioRun 有 ondelete="CASCADE"，但显式删除更安全
         self.db.query(ScenarioRun).filter(ScenarioRun.scenario_id == scenario_id).delete()
         self.db.delete(scenario)
         self.db.commit()
-        logger.info(f"Hard-deleted scenario {scenario_id}")
+        logger.info(f"已物理删除场景 {scenario_id}")
     def _stage_check_required_patterns(
         self, alerts: list[Alert], expectations: dict, stg
     ) -> list[ScenarioCheck]:

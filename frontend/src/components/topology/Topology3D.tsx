@@ -28,7 +28,7 @@ import {
 export interface Topology3DProps {
   nodes: GraphNode[];
   edges: GraphEdge[];
-  currentTime: number;       // unix ms
+  currentTime: number;       // Unix 毫秒时间戳
   highlightAlertId?: string | null;
   // 三类影响集合（替代旧的 impactedNodeIds / impactedEdgeIds）
   removedNodeIds?: Set<string>;
@@ -524,7 +524,7 @@ function Scene({
   // 决定哪些边显示箭头
   const arrowEdgeIds = useMemo(() => {
     // DAG 模式：默认全部显示箭头
-    if (layoutMode === 'dag' || showArrows) return null; // null = all
+    if (layoutMode === 'dag' || showArrows) return null; // null = 全部显示
     // 选中节点时，仅显示其相关边的箭头
     if (selectedNodeId) {
       return new Set(
@@ -535,7 +535,7 @@ function Scene({
     }
     // 选中边时，仅显示该边箭头
     if (selectedEdgeId) return new Set([selectedEdgeId]);
-    return new Set<string>(); // empty = none
+    return new Set<string>(); // 空集 = 不显示箭头
   }, [layoutMode, showArrows, selectedNodeId, selectedEdgeId, displayEdges]);
 
   const shouldShowArrow = (edgeId: string) =>
@@ -639,7 +639,7 @@ function Scene({
         const pos = positions[node.id];
         if (!pos) return null;
         const lod = nodeLODs.get(node.id) ?? 'full';
-        // hidden 级别不渲染
+        // hidden 级别不进行渲染
         if (lod === 'hidden') return null;
         const optNode = node as OptimizedNode;
         const isCluster = optNode.cluster?.isCluster ?? false;

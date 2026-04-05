@@ -40,14 +40,14 @@ class AgentService:
 
     def triage(self, alert: Alert, language: str = "en") -> str:
         """
-        Generate short triage summary for alert.
-        
+        为告警生成简短的分诊摘要。
+
         Args:
-            alert: Alert model instance
-            language: 'zh' for Chinese, 'en' for English
-            
+            alert: Alert 模型实例
+            language: 'zh' 为中文，'en' 为英文
+
         Returns:
-            Triage summary string
+            分诊摘要字符串
         """
         aggregation = json.loads(alert.aggregation) if isinstance(alert.aggregation, str) else alert.aggregation
         
@@ -74,17 +74,17 @@ class AgentService:
         alert.agent = json.dumps(agent_data)
         self.db.commit()
         
-        logger.info(f"Generated triage for alert {alert.id}")
+        logger.info(f"已为告警 {alert.id} 生成分诊摘要")
         return summary
 
     def investigate(self, alert: Alert, language: str = "en") -> InvestigationSchema:
         """
-        Generate structured investigation for alert.
-        
+        为告警生成结构化调查报告。
+
         Args:
-            alert: Alert model instance
-            language: 'zh' for Chinese, 'en' for English
-            
+            alert: Alert 模型实例
+            language: 'zh' 为中文，'en' 为英文
+
         Returns:
             Investigation schema
         """
@@ -142,17 +142,17 @@ class AgentService:
         
         self.db.commit()
         
-        logger.info(f"Generated investigation {inv_id} for alert {alert.id}")
+        logger.info(f"已为告警 {alert.id} 生成调查报告 {inv_id}")
         return investigation
 
     def recommend(self, alert: Alert, language: str = "en") -> RecommendationSchema:
         """
-        Generate action recommendations for alert.
-        
+        为告警生成动作建议。
+
         Args:
-            alert: Alert model instance
-            language: 'zh' for Chinese, 'en' for English
-            
+            alert: Alert 模型实例
+            language: 'zh' 为中文，'en' 为英文
+
         Returns:
             Recommendation schema
         """
@@ -193,7 +193,7 @@ class AgentService:
         
         self.db.commit()
         
-        logger.info(f"Generated recommendation {rec_id} for alert {alert.id}")
+        logger.info(f"已为告警 {alert.id} 生成建议 {rec_id}")
         return recommendation
 
     def _type_to_zh(self, alert_type: str) -> str:

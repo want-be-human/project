@@ -79,9 +79,9 @@ class PlanCompiler:
                 skipped.append(self._build_skip_info(action, language))
 
         logger.info(
-            "Compiled %d actions from recommendation %s (%d skipped)",
-            len(compiled),
+            "从推荐 %s 编译了 %d 个动作（跳过 %d 个）",
             recommendation.id,
+            len(compiled),
             len(skipped),
         )
         return compiled, skipped
@@ -99,7 +99,7 @@ class PlanCompiler:
         hint_dict = action.compile_hint.model_dump() if action.compile_hint else None
         action_type, _method = match_action_type_with_hint(action.title, hint_dict)
         if action_type is None:
-            logger.debug("Skipping non-compilable action: %s (method=%s)", action.title, _method)
+            logger.debug("跳过不可编译动作: %s (方法=%s)", action.title, _method)
             return None
 
         target = self._resolve_target(action_type, alert)

@@ -1,8 +1,8 @@
 """
-PlanCompiler mapping rules.
-All rules are deterministic, keyword-based, and auditable.
-Inspired by agentic-soc-platform's modular playbook approach:
-  research results are structured into actionable, standardized operations.
+PlanCompiler 映射规则。
+所有规则均为确定性、基于关键词且可审计。
+借鉴 agentic-soc-platform 的模块化剧本方法：
+  将研究结果结构化为可操作的标准化操作。
 """
 
 from typing import Literal
@@ -13,23 +13,23 @@ from app.core.scoring_policy import (
     CONFIDENCE_CAP,
 )
 
-# -- Action type matching rules --
-# Keywords (case-insensitive) -> action_type.
-# Order matters: first match wins. None means "skip, not compilable".
+# -- 动作类型匹配规则 --
+# 关键词（不区分大小写）-> action_type。
+# 顺序重要：首次匹配优先。None 表示"跳过，不可编译"。
 ACTION_TYPE_RULES: list[tuple[list[str], str | None]] = [
-    # block/firewall -> block_ip
+    # 封锁/防火墙 -> block_ip
     (["block", "\u5c01\u7981", "ban", "blacklist", "blocklist", "firewall rule",
       "deny", "reject", "drop", "\u62d2\u7edd", "\u4e22\u5f03"], "block_ip"),
-    # network segmentation -> segment_subnet (before isolate, title may match both)
+    # 网络分段 -> segment_subnet（在隔离之前匹配，标题可能同时匹配两者）
     (["segment", "\u5206\u6bb5", "vlan", "micro-segment",
       "partition", "\u5212\u5206", "segregate"], "segment_subnet"),
-    # host isolation -> isolate_host
+    # 主机隔离 -> isolate_host
     (["isolat", "\u9694\u79bb", "quarantine",
       "contain", "\u904f\u5236", "restrict", "\u9650\u5236\u8bbf\u95ee"], "isolate_host"),
-    # rate limiting -> rate_limit_service
+    # 速率限制 -> rate_limit_service
     (["rate limit", "rate-limit", "ratelimit", "\u9650\u6d41", "\u9650\u901f", "\u901f\u7387\u9650\u5236", "throttl",
       "slow down", "cap", "\u63a7\u5236\u901f\u7387"], "rate_limit_service"),
-    # non-compilable: monitoring/logging/auth changes -> skip
+    # 不可编译：监控/日志/认证变更 -> 跳过
     (["monitor", "\u76d1\u63a7", "watchlist", "\u65e5\u5fd7", "logging", "alert", "\u544a\u8b66",
       "key-only", "\u5bc6\u94a5", "authentication", "\u8ba4\u8bc1", "audit", "\u5ba1\u8ba1",
       "observe", "\u89c2\u5bdf", "track", "\u8ffd\u8e2a", "review", "\u68c0\u67e5", "inspect", "\u6392\u67e5"], None),
@@ -41,10 +41,10 @@ CompilableActionType = Literal["block_ip", "isolate_host", "segment_subnet", "ra
 
 def match_action_type(title: str) -> str | None:
     """
-    Match a RecommendedAction title to a PlanAction action_type.
+    将 RecommendedAction 标题匹配到 PlanAction action_type。
 
-    Returns:
-        action_type string if compilable, None if the action should be skipped.
+    返回：
+        可编译时返回 action_type 字符串，应跳过时返回 None。
     """
     lower = title.lower()
     for keywords, action_type in ACTION_TYPE_RULES:
@@ -59,10 +59,10 @@ def match_action_type_with_hint(
     compile_hint: dict | None = None,
 ) -> tuple[str | None, str]:
     """
-    Match action type, preferring compile_hint if present.
+    匹配动作类型，优先使用 compile_hint。
 
-    Returns:
-        (action_type, match_method) where match_method is "hint", "keyword", or "none".
+    返回：
+        (action_type, match_method)，其中 match_method 为 "hint"、"keyword" 或 "none"。
     """
     if compile_hint and compile_hint.get("preferred_action_type"):
         preferred = compile_hint["preferred_action_type"]
@@ -76,7 +76,7 @@ def match_action_type_with_hint(
     return None, "none"
 
 
-# -- Skip reason templates --
+# -- 跳过原因模板 --
 SKIP_REASON_TEMPLATES: dict[str, dict[str, str]] = {
     "monitoring": {
         "en": "Monitoring/observability action cannot be compiled into an executable operation",
@@ -108,7 +108,7 @@ SKIP_SUGGESTION_TEMPLATES: dict[str, dict[str, str]] = {
 }
 
 
-# -- Default params per action type --
+# -- 各动作类型的默认参数 --
 PARAMS_DEFAULTS: dict[str, dict] = {
     "block_ip": {"duration_minutes": 60},
     "isolate_host": {"duration_minutes": 120},
@@ -117,7 +117,7 @@ PARAMS_DEFAULTS: dict[str, dict] = {
 }
 
 
-# -- Rollback mapping --
+# -- 回滚映射 --
 ROLLBACK_MAPPING: dict[str, tuple[str, dict]] = {
     "block_ip": ("unblock_ip", {}),
     "isolate_host": ("restore_host", {}),
@@ -126,7 +126,7 @@ ROLLBACK_MAPPING: dict[str, tuple[str, dict]] = {
 }
 
 
-# -- Confidence computation --
+# -- 置信度计算 --
 
 
 def compute_confidence(
@@ -136,11 +136,11 @@ def compute_confidence(
     investigation_confidence: float | None = None,
 ) -> float:
     """
-    Compute a deterministic confidence score for a compiled action.
+    计算编译动作的确定性置信度分数。
 
-    Formula:
+    公式：
         base(severity) + bonus(priority) + min(evidence_nodes * 0.01, 0.05)
-        Then blend with investigation confidence if available.
+        若有 investigation 置信度则进行混合。
     """
     base = SEVERITY_BASE.get(severity, 0.50)
     bonus = PRIORITY_BONUS.get(priority, 0.00)

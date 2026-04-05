@@ -1,23 +1,23 @@
-# Git and editor
+# Git 和编辑器
 .git
 .gitignore
 .vscode
 
-# Python caches and local environments
+# Python 缓存和本地环境
 **/__pycache__
 **/.pytest_cache
 **/.mypy_cache
 **/.venv
 **/venv
 
-# Frontend build artifacts
+# 前端构建产物
 frontend/node_modules
 frontend/.next
 
-# Backend data and artifacts
+# 后端数据和产物
 backend/data
 backend/.pytest_cache
 
-# Common OS files
+# 操作系统文件
 **/.DS_Store
 **/Thumbs.db

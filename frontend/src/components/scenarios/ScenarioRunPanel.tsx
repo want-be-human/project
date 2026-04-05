@@ -173,7 +173,7 @@ export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props)
 
   return (
     <div className="bg-white rounded-lg shadow border border-gray-200 h-full flex flex-col">
-      {/* Header */}
+      {/* 头部 */}
       <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-start bg-gray-50 rounded-t-lg">
         <div>
           <h2 className="text-xl font-bold text-gray-900 mb-1">{scenario.name}</h2>
@@ -217,10 +217,10 @@ export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props)
         </div>
       </div>
 
-      {/* Body */}
+      {/* 主体内容 */}
       <div className="flex-1 overflow-y-auto p-6 bg-gray-50/50">
         
-        {/* Archived notice */}
+        {/* 已归档提示 */}
         {scenario.status === 'archived' && (
           <div className="p-3 bg-gray-100 border border-gray-200 rounded-md text-sm text-gray-500 flex items-center gap-2 mb-4">
             <span className="font-medium">{t('archived')}</span>
@@ -229,7 +229,7 @@ export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props)
           </div>
         )}
 
-        {/* Pre-run state */}
+        {/* 运行前状态 */}
         {!result && !running && !error && (
           <div className="flex flex-col items-center justify-center h-40 text-gray-400">
             <p>{t('ready')}</p>
@@ -237,7 +237,7 @@ export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props)
           </div>
         )}
 
-        {/* Loading state with real-time progress */}
+        {/* 运行中状态（含实时进度） */}
         {running && (
           <div className="space-y-4">
             <div className="flex flex-col items-center justify-center py-6">
@@ -279,7 +279,7 @@ export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props)
           </div>
         )}
 
-        {/* Error state */}
+        {/* 错误状态 */}
         {error && (
           <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-md">
             <p className="font-bold flex items-center gap-2"><XCircle className="w-5 h-5"/> <span>{t('error')}</span></p>
@@ -287,11 +287,11 @@ export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props)
           </div>
         )}
 
-        {/* Result state */}
+        {/* 运行结果 */}
         {result && !running && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
             
-            {/* Status Banner */}
+            {/* 状态横幅 */}
             <div className={`p-4 rounded-lg flex items-center gap-3 border ${
               result.status === 'pass' 
                 ? 'bg-green-50 border-green-200 text-green-800' 
@@ -304,7 +304,7 @@ export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props)
               </div>
             </div>
 
-            {/* Metrics with Latency Breakdown */}
+            {/* 指标与延迟分解 */}
             {result.metrics && (
               <div>
                 <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
@@ -335,7 +335,7 @@ export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props)
               </div>
             )}
 
-            {/* Checks Checklist */}
+            {/* 检查项清单 */}
             {result.checks && result.checks.length > 0 && (
               <div>
                 <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
@@ -369,7 +369,7 @@ export default function ScenarioRunPanel({ scenario, onRunStatusChange }: Props)
               </div>
             )}
 
-            {/* Scenario Stage Timeline */}
+            {/* 场景阶段时间线 */}
             {liveTimeline && (
               <div>
                 <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">

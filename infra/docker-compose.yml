@@ -51,7 +51,7 @@ services:
       - frontend_next:/app/.next
     restart: unless-stopped
 
-  # Optional PostgreSQL database - uncomment for production
+  # 可选的 PostgreSQL 数据库 - 生产环境取消注释即可启用
   # db:
   #   image: postgres:15-alpine
   #   ports:

@@ -48,14 +48,14 @@ class AlertingService:
         pcap_id: str,
     ) -> list[dict]:
         """
-        Generate alerts from scored flows.
-        
+        从评分后的流量中生成告警。
+
         Args:
-            flows: List of flows with anomaly_score
-            pcap_id: ID of the source PCAP
-            
+            flows: 包含 anomaly_score 的流量列表
+            pcap_id: 来源 PCAP 的 ID
+
         Returns:
-            List of alert dictionaries
+            告警字典列表
         """
         # 筛选异常流
         anomalous = [
@@ -64,10 +64,10 @@ class AlertingService:
         ]
         
         if not anomalous:
-            logger.info("No anomalous flows found above threshold")
+            logger.info("未发现超过阈值的异常流")
             return []
         
-        logger.info(f"Found {len(anomalous)} anomalous flows")
+        logger.info(f"发现 {len(anomalous)} 条异常流")
         
         # 按聚合规则分组：same_src_ip + window
         groups = self._aggregate_flows(anomalous)
@@ -78,7 +78,7 @@ class AlertingService:
             alert = self._create_alert(group_key, group_flows, pcap_id)
             alerts.append(alert)
         
-        logger.info(f"Generated {len(alerts)} alerts")
+        logger.info(f"已生成 {len(alerts)} 条告警")
         return alerts
 
     @staticmethod

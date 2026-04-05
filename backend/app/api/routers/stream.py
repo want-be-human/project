@@ -161,7 +161,7 @@ async def websocket_stream(websocket: WebSocket):
                 # 等待消息（ping/pong 或其他指令）
                 data = await asyncio.wait_for(
                     websocket.receive_text(),
-                    timeout=30.0  # Heartbeat timeout
+                    timeout=30.0  # 心跳超时
                 )
 
                 # 处理 ping

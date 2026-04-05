@@ -279,7 +279,7 @@ export default function ScoreDial({
         </div>
       </div>
 
-      {/* Breakdown Tooltip（hover 时显示，需有分解数据） */}
+      {/* 分解提示框（hover 时显示，需有分解数据） */}
       {showBreakdown && hasData && breakdown.length > 0 && (
         <BreakdownTooltip
           components={breakdown}

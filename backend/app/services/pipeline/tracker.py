@@ -230,7 +230,7 @@ class PipelineTracker(LoggerMixin):
         try:
             self._db.flush()
         except Exception:
-            self.logger.warning("Failed to persist pipeline run %s", self._run.id, exc_info=True)
+            self.logger.warning("持久化流水线运行 %s 失败", self._run.id, exc_info=True)
 
     def _publish_stage_event(self, record: StageRecord) -> None:
         """通过 EventBus 以 fire-and-forget 方式发布阶段事件。"""

@@ -65,7 +65,7 @@ DEFAULT_TB_DIR = BACKEND_DIR / "runs"
 # ---------------------------------------------------------------------------
 
 def _detect_gpu() -> bool:
-    """Check if XGBoost CUDA GPU is available."""
+    """检查 XGBoost CUDA GPU 是否可用。"""
     try:
         import xgboost as xgb
         m = xgb.XGBClassifier(device="cuda", n_estimators=1, verbosity=0)
@@ -80,7 +80,7 @@ def _detect_gpu() -> bool:
 # ---------------------------------------------------------------------------
 
 def _make_tb_callback(writer):
-    """Build an XGBoost TrainingCallback that logs to TensorBoard."""
+    """构建记录到 TensorBoard 的 XGBoost TrainingCallback。"""
     from xgboost.callback import TrainingCallback  # type: ignore[attr-defined]
 
     class _TBCallback(TrainingCallback):
@@ -97,7 +97,7 @@ def _make_tb_callback(writer):
 
 
 # ---------------------------------------------------------------------------
-# Data splitting
+# 数据划分
 # ---------------------------------------------------------------------------
 
 def three_way_split(
@@ -218,7 +218,7 @@ def resolve_calibration_method(
 
 
 # ---------------------------------------------------------------------------
-# Model training
+# 模型训练
 # ---------------------------------------------------------------------------
 
 def train_supervised(
@@ -323,7 +323,7 @@ def train_supervised(
     )
     model.fit(X_train, y_train)
 
-    # Log staged training loss to TensorBoard
+    # 将分阶段训练损失记录到 TensorBoard
     if writer is not None:
         try:
             for i, y_pred in enumerate(model.staged_predict_proba(X_val)):
@@ -454,7 +454,7 @@ def _get_scores(model: object, X: np.ndarray) -> np.ndarray:
 
 
 # ---------------------------------------------------------------------------
-# Data loading
+# 数据加载
 # ---------------------------------------------------------------------------
 
 def load_training_flows(
@@ -618,7 +618,7 @@ def build_feature_groups(feature_names: list[str]) -> dict[str, list[str]]:
 
 
 # ---------------------------------------------------------------------------
-# Main
+# 主入口
 # ---------------------------------------------------------------------------
 
 def main() -> None:
@@ -813,7 +813,7 @@ def main() -> None:
         writer.add_scalar("timing/supervised_train_sec", train_time, 0)
         print(f"  模型训练耗时: {train_time:.1f}s")
 
-        # Log actual model type used
+        # 记录实际使用的模型类型
         actual_model_type = type(base_model).__name__
         writer.add_text("config/actual_model_type", actual_model_type, 0)
 
@@ -863,7 +863,7 @@ def main() -> None:
             if isinstance(v, (int, float)) and v is not None:
                 writer.add_scalar(f"eval/{k}", v, 0)
 
-        # Baseline-only metrics for comparison
+        # 仅基线模型指标（用于对比）
         if comparison is not None:
             for k, v in comparison.get("baseline", {}).items():
                 if isinstance(v, (int, float)) and v is not None:
@@ -872,13 +872,13 @@ def main() -> None:
                 if isinstance(v, (int, float)) and v is not None:
                     writer.add_scalar(f"delta/{k}", v, 0)
 
-        # Per-type metrics
+        # 按攻击类型的指标
         for atk_type, metrics in per_type_metrics.items():
             for k, v in metrics.items():
                 if isinstance(v, (int, float)) and v is not None:
                     writer.add_scalar(f"per_type/{atk_type}/{k}", v, 0)
 
-        # Score distributions
+        # 分数分布
         writer.add_histogram("scores/test_all", test_scores, 0)
         if y_test.sum() > 0:
             writer.add_histogram("scores/test_positive", test_scores[y_test == 1], 0)
@@ -886,7 +886,7 @@ def main() -> None:
             writer.add_histogram("scores/test_negative", test_scores[y_test == 0], 0)
         writer.add_histogram("scores/baseline_test", baseline_test_scores, 0)
 
-        # Hyperparameters
+        # 超参数
         hparam_dict = {
             "model_type": actual_model_type,
             "split_strategy": args.split_strategy,
@@ -956,12 +956,12 @@ def main() -> None:
         import joblib
         import sklearn
 
-        # Strip unpicklable TensorBoard callbacks before saving
+        # 保存前移除不可序列化的 TensorBoard 回调
         def _strip_callbacks(m):
-            """Remove callback references that can't be pickled."""
+            """移除无法被 pickle 的回调引用。"""
             if hasattr(m, "callbacks"):
                 m.callbacks = None
-            # CalibratedClassifierCV wraps estimators in calibrated_classifiers_
+            # CalibratedClassifierCV 在 calibrated_classifiers_ 中包装估计器
             for attr in ("estimator", "estimator_"):
                 inner = getattr(m, attr, None)
                 if inner is not None:

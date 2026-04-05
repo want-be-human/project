@@ -107,7 +107,7 @@ export default function AlertDetailView({ alert, evidenceChain, onAlertUpdate, o
         <span>{t('backToAlerts')}</span>
       </button>
 
-      {/* Alert Header */}
+      {/* 告警头部 */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
         <div className="flex justify-between items-start mb-4">
           <div>
@@ -229,7 +229,7 @@ export default function AlertDetailView({ alert, evidenceChain, onAlertUpdate, o
         )}
       </div>
 
-      {/* Agent + Remediation */}
+      {/* 智能体 + 处置 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="space-y-6">
           {/* ① Recommendation —— 由 AgentPanel 提供 AI 建议 */}

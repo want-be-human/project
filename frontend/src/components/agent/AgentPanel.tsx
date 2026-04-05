@@ -149,7 +149,7 @@ export default function AgentPanel({
           </div>
         )}
 
-        {/* ─── Triage Tab ─── */}
+        {/* ─── 分诊标签页 ─── */}
         {!loading && activeTab === 'triage' && (
           <div>
             {!triageSummary ? (
@@ -174,7 +174,7 @@ export default function AgentPanel({
           </div>
         )}
 
-        {/* ─── Investigate Tab ─── */}
+        {/* ─── 调查标签页 ─── */}
         {!loading && activeTab === 'investigate' && (
           <div>
             {!investigation ? (
@@ -221,7 +221,7 @@ export default function AgentPanel({
           </div>
         )}
 
-        {/* ─── Recommend Tab ─── */}
+        {/* ─── 建议标签页 ─── */}
         {!loading && activeTab === 'recommend' && (
           <div>
             {!recommendation ? (

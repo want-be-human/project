@@ -1,10 +1,10 @@
-# Stage 1: Dependencies
+# 阶段 1：安装依赖
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm ci
 
-# Stage 2: Development
+# 阶段 2：开发环境
 FROM node:20-alpine AS dev
 WORKDIR /app
 
@@ -17,13 +17,13 @@ EXPOSE 3000
 
 CMD ["npm", "run", "dev", "--", "--hostname", "0.0.0.0", "--port", "3000", "--webpack"]
 
-# Stage 3: Build
+# 阶段 3：构建
 FROM node:20-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY frontend/ ./
 
-# Contract samples needed by real API type imports at build time.
+# 构建时需要 contract 样例文件用于真实 API 类型导入
 COPY contract /contract
 
 ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
@@ -35,7 +35,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN npm run build
 
-# Stage 4: Production
+# 阶段 4：生产环境
 FROM node:20-alpine AS runner
 WORKDIR /app
 

@@ -82,7 +82,7 @@ export default function DryRunOverlay({ result, loading, notFound, viewMode, onV
           </div>
         )}
 
-        {/* Key Metrics */}
+        {/* 关键指标 */}
         <div className="grid grid-cols-3 gap-2">
           <div className="text-center p-2 bg-red-50 rounded border border-red-100">
             <div className="text-[10px] text-red-500 font-bold uppercase">{t('risk')}</div>
@@ -151,7 +151,7 @@ export default function DryRunOverlay({ result, loading, notFound, viewMode, onV
           </div>
         )}
 
-        {/* Warnings */}
+        {/* 警告 */}
         {result.impact.warnings && result.impact.warnings.length > 0 && (
           <div className="bg-amber-50 border border-amber-200 rounded p-2">
             <div className="flex items-center gap-1 text-amber-800 font-bold mb-1">
@@ -163,7 +163,7 @@ export default function DryRunOverlay({ result, loading, notFound, viewMode, onV
           </div>
         )}
 
-        {/* Explanations */}
+        {/* 分析说明 */}
         {result.explain && result.explain.length > 0 && (
           <div>
             <div className="font-bold text-gray-600 mb-1">{t('dryRunAnalysis')}</div>
@@ -197,7 +197,7 @@ export default function DryRunOverlay({ result, loading, notFound, viewMode, onV
           </div>
         )}
 
-        {/* Alternative Paths */}
+        {/* 替代路径 */}
         {result.alternative_paths && result.alternative_paths.length > 0 && (
           <div>
             <div className="font-bold text-gray-600 mb-1">{t('dryRunAltPaths')}</div>

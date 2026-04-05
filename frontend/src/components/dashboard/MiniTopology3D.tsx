@@ -252,7 +252,7 @@ export default function MiniTopology3D({ snapshot }: MiniTopology3DProps) {
     (node: GraphNode) =>
       `<div style="background:rgba(0,0,0,0.8);padding:4px 8px;border-radius:4px;color:#fff;font-size:12px;">
         <b>${node.label}</b><br/>
-        Risk: ${(node.risk * 100).toFixed(0)}%
+        风险: ${(node.risk * 100).toFixed(0)}%
       </div>`,
     [],
   );

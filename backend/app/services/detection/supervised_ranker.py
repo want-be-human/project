@@ -1,10 +1,10 @@
 """
-Layer 3 supervised ranker.
+Layer 3 监督排序器。
 
-Supports:
-- persisted mode: load a trained classifier and infer final_score/final_label
-- fallback mode: combine baseline/rule/graph scores with fixed weights
-- guardrails: protect strong rule signals and multi-source consensus from being overridden
+支持：
+- 持久化模式：加载已训练的分类器推断 final_score/final_label
+- 降级模式：使用固定权重组合 baseline/rule/graph 分数
+- 保护机制：防止强规则信号和多源一致性被监督模型覆盖
 """
 
 import json
@@ -34,7 +34,7 @@ RANKER_META_PATH = MODEL_DIR / "composite_ranker.meta.json"
 
 
 class SupervisedRanker:
-    """Final scorer built on top of the composite feature vector."""
+    """基于复合特征向量的最终评分器。"""
 
     def __init__(self, mode: str = "persisted"):
         self.model = None
@@ -47,20 +47,20 @@ class SupervisedRanker:
                 self.mode = "persisted"
             else:
                 self.mode = "fallback"
-                logger.info("SupervisedRanker downgraded to fallback mode")
+                logger.info("SupervisedRanker 已降级为 fallback 模式")
         else:
             self.mode = "fallback"
 
-        logger.info("SupervisedRanker initialized, mode=%s", self.mode)
+        logger.info("SupervisedRanker 初始化完成, 模式=%s", self.mode)
 
     def _load_model(self) -> bool:
-        """Load the persisted supervised model and metadata."""
+        """加载持久化的监督模型和元数据。"""
         try:
             import joblib
 
             if not RANKER_MODEL_PATH.exists() or not RANKER_META_PATH.exists():
                 logger.info(
-                    "Supervised model files do not exist (%s); using fallback mode",
+                    "监督模型文件不存在 (%s)；使用 fallback 模式",
                     RANKER_MODEL_PATH,
                 )
                 return False
@@ -74,7 +74,7 @@ class SupervisedRanker:
             self.threshold = meta.get("threshold", self.threshold)
 
             logger.info(
-                "Loaded supervised model: type=%s, features=%d, threshold=%.3f",
+                "已加载监督模型: 类型=%s, 特征数=%d, 阈值=%.3f",
                 meta.get("model_type", "unknown"),
                 len(meta.get("feature_names", [])),
                 float(self.threshold),
@@ -82,7 +82,7 @@ class SupervisedRanker:
             return True
 
         except Exception as exc:
-            logger.warning("Failed to load supervised model: %s", exc)
+            logger.warning("加载监督模型失败: %s", exc)
             return False
 
     def predict(
@@ -91,7 +91,7 @@ class SupervisedRanker:
         feature_matrix: list[list[float]],
         feature_names: list[str],
     ) -> list[dict]:
-        """Compute final_score/final_label for each flow."""
+        """计算每条流的 final_score/final_label。"""
         if not flows:
             return flows
 
@@ -105,13 +105,13 @@ class SupervisedRanker:
         feature_matrix: list[list[float]],
         feature_names: list[str],
     ) -> list[dict]:
-        """Infer with the persisted classifier."""
+        """使用持久化分类器进行推断。"""
         try:
             X = np.array(feature_matrix)
             expected_features = self.meta.get("feature_names", [])
             if X.shape[1] != len(expected_features):
                 logger.warning(
-                    "Feature dimension mismatch: expected %d, got %d; using fallback",
+                    "特征维度不匹配: 期望 %d, 实际 %d; 使用 fallback",
                     len(expected_features),
                     X.shape[1],
                 )
@@ -130,7 +130,7 @@ class SupervisedRanker:
                 det = flow.setdefault("_detection", {})
                 raw_score = float(scores[i])
 
-                # 应用 guardrails
+                # 应用保护机制
                 guarded_score, guard_triggers = self._apply_guardrails(flow, raw_score)
                 mode = f"guarded_{base_mode}" if guard_triggers else base_mode
 
@@ -145,14 +145,14 @@ class SupervisedRanker:
                 )
 
             logger.info(
-                "SupervisedRanker(persisted) completed: %d flows, max=%.3f",
+                "SupervisedRanker(persisted) 完成: %d 条流, 最大值=%.3f",
                 len(flows),
                 float(scores.max()),
             )
             return flows
 
         except Exception as exc:
-            logger.error("Supervised inference failed: %s; using fallback", exc)
+            logger.error("监督推断失败: %s; 使用 fallback", exc)
             return self._predict_fallback(flows, feature_names)
 
     def _predict_fallback(
@@ -160,7 +160,7 @@ class SupervisedRanker:
         flows: list[dict],
         feature_names: list[str],
     ) -> list[dict]:
-        """Fallback: weighted fusion of baseline_score, rule_score, and graph_score."""
+        """降级模式：baseline_score、rule_score 和 graph_score 的加权融合。"""
         weights = COMPOSITE_DETECTION_WEIGHTS
         base_mode = "fallback"
 
@@ -177,7 +177,7 @@ class SupervisedRanker:
             )
             raw_score = float(np.clip(raw_score, 0.0, 1.0))
 
-            # 应用 guardrails
+            # 应用保护机制
             guarded_score, guard_triggers = self._apply_guardrails(flow, raw_score)
             mode = f"guarded_{base_mode}" if guard_triggers else base_mode
 
@@ -192,7 +192,7 @@ class SupervisedRanker:
             )
 
         logger.info(
-            "SupervisedRanker(fallback) completed: %d flows, max=%.3f",
+            "SupervisedRanker(fallback) 完成: %d 条流, 最大值=%.3f",
             len(flows),
             max((f.get("_detection", {}).get("final_score", 0) for f in flows), default=0),
         )
@@ -244,7 +244,7 @@ class SupervisedRanker:
         return float(np.clip(guarded, 0.0, 1.0)), guards
 
     def _score_to_label(self, final_score: float, rule_type: str) -> str:
-        """Map final_score to a final label."""
+        """将 final_score 映射为最终标签。"""
         if final_score >= self.threshold:
             return rule_type if rule_type != "anomaly" else "anomaly"
         return "normal"
@@ -258,7 +258,7 @@ class SupervisedRanker:
         guard_triggers: list[str] | None = None,
         original_score: float | None = None,
     ) -> dict:
-        """Build a compact per-flow explanation payload."""
+        """构建紧凑的逐流解释负载。"""
         det = flow.get("_detection", {})
         explanation: dict = {
             "mode": mode,
@@ -271,7 +271,7 @@ class SupervisedRanker:
             "rule_reasons": det.get("rule_reasons", []),
         }
 
-        # Guardrail 信息
+        # 保护机制信息
         if guard_triggers:
             explanation["guard_triggers"] = guard_triggers
             explanation["final_decision_reason"] = "guardrail_applied"
@@ -296,7 +296,7 @@ class SupervisedRanker:
         feature_names: list[str],
         feature_values: list[float],
     ) -> list[dict]:
-        """Return model feature importance when available."""
+        """返回模型特征重要性（如果可用）。"""
         try:
             estimator = self.model
             if not hasattr(estimator, "feature_importances_") and hasattr(estimator, "estimator"):

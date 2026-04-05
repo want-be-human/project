@@ -38,7 +38,7 @@ export default function ThreatContextCard({ threatContext }: ThreatContextCardPr
 
   return (
     <div className="mt-4 border border-rose-200 bg-rose-50/50 rounded-lg overflow-hidden">
-      {/* Header */}
+      {/* 头部 */}
       <div className="flex items-center gap-2 px-4 py-2.5 bg-rose-100/60 border-b border-rose-200">
         <ShieldAlert className="w-4 h-4 text-rose-600" />
         <h4 className="text-xs font-bold text-rose-800 uppercase tracking-wider">{t('threatContext')}</h4>
@@ -51,7 +51,7 @@ export default function ThreatContextCard({ threatContext }: ThreatContextCardPr
       </div>
 
       <div className="p-4 space-y-3">
-        {/* Tactics row */}
+        {/* 战术行 */}
         {displayTactics.length > 0 && (
           <div>
             <h5 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">{t('tactics')}</h5>
@@ -71,7 +71,7 @@ export default function ThreatContextCard({ threatContext }: ThreatContextCardPr
           </div>
         )}
 
-        {/* Techniques list */}
+        {/* 技术列表 */}
         <div>
           <h5 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">{t('techniques')}</h5>
           <div className="space-y-2">
@@ -127,7 +127,7 @@ export default function ThreatContextCard({ threatContext }: ThreatContextCardPr
           </div>
         </div>
 
-        {/* Source footer + disclaimer */}
+        {/* 来源脚注 + 免责声明 */}
         <div className="text-[10px] text-gray-400 pt-1 border-t border-rose-100 space-y-0.5">
           <div>{t('enrichmentSource')} {threatContext.enrichment_source}</div>
           <div>{tc('disclaimer')}</div>

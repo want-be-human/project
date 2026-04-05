@@ -43,7 +43,7 @@ export default function TopologyLegend() {
 
       {!collapsed && (
         <div className="px-3 pb-2 space-y-2">
-          {/* Node colors */}
+          {/* 节点颜色 */}
           <div>
             <div className="text-[10px] uppercase tracking-wide text-gray-400 mb-1">{t('nodes')}</div>
             <ul className="space-y-0.5">
@@ -59,7 +59,7 @@ export default function TopologyLegend() {
             </ul>
           </div>
 
-          {/* Edge colors */}
+          {/* 边颜色 */}
           <div>
             <div className="text-[10px] uppercase tracking-wide text-gray-400 mb-1">{t('edges')}</div>
             <ul className="space-y-0.5">
@@ -75,7 +75,7 @@ export default function TopologyLegend() {
             </ul>
           </div>
 
-          {/* Risk heat gradient */}
+          {/* 风险热力渐变 */}
           <div>
             <div className="text-[10px] uppercase tracking-wide text-gray-400 mb-1">{t('riskHeatLegend')}</div>
             <div className="flex items-center gap-1.5">
@@ -84,7 +84,7 @@ export default function TopologyLegend() {
             </div>
           </div>
 
-          {/* Arrow legend */}
+          {/* 箭头图例 */}
           <div className="flex items-center gap-1.5 text-gray-500">
             <span className="text-[10px]">▸</span>
             <span>{t('arrowLegend')}</span>

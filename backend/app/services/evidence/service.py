@@ -28,11 +28,11 @@ class EvidenceService:
 
     def build_evidence_chain(self, alert: Alert) -> EvidenceChainSchema:
         """
-        Build evidence chain for an alert.
-        
+        为告警构建证据链。
+
         Args:
-            alert: Alert model instance
-            
+            alert: Alert 模型实例
+
         Returns:
             EvidenceChain schema
         """
@@ -190,7 +190,7 @@ class EvidenceService:
         self.db.add(chain_model)
         self.db.commit()
         
-        logger.info(f"Built evidence chain {chain_id} for alert {alert.id}")
+        logger.info(f"已构建证据链 {chain_id}，关联告警 {alert.id}")
         return chain
 
     # ------------------------------------------------------------------

@@ -657,7 +657,7 @@ def generate_bruteforce_pcap(output_path: Path):
 
 
 def write_packets_to_pcap(output_path: Path, packets: list[tuple[float, bytes]]) -> None:
-    """Write packet tuples to a PCAP file in timestamp order."""
+    """按时间戳顺序将数据包元组写入 PCAP 文件。"""
     with open(output_path, 'wb') as f:
         write_pcap_header(f)
         for ts, pkt in sorted(packets, key=lambda x: x[0]):
@@ -666,7 +666,7 @@ def write_packets_to_pcap(output_path: Path, packets: list[tuple[float, bytes]])
 
 
 def build_scan_packets(base_time: float | None = None) -> list[tuple[float, bytes]]:
-    """Build a TCP port scan packet list for training composition."""
+    """构建用于训练组合的 TCP 端口扫描数据包列表。"""
     attacker_mac = b'\x00\x11\x22\x33\x44\x55'
     target_mac = b'\x66\x77\x88\x99\xaa\xbb'
     attacker_ip = "192.0.2.100"
@@ -712,7 +712,7 @@ def build_bruteforce_packets(
     base_time: float | None = None,
     num_attempts: int = 100,
 ) -> list[tuple[float, bytes]]:
-    """Build an SSH brute-force packet list for training composition."""
+    """构建用于训练组合的 SSH 暴力破解数据包列表。"""
     attacker_mac = b'\x00\x11\x22\x33\x44\x56'
     target_mac = b'\x66\x77\x88\x99\xaa\xbc'
     attacker_ip = "192.0.2.10"
@@ -747,7 +747,7 @@ def build_dos_packets(
     packets_per_flow: int = 180,
     payload_size: int = 1400,
 ) -> list[tuple[float, bytes]]:
-    """Build a UDP flood packet list that trips the dos rules."""
+    """构建会触发 DoS 规则的 UDP 洪泛数据包列表。"""
     base_time = time.time() if base_time is None else base_time
     packets: list[tuple[float, bytes]] = []
     target_mac = b'\x66\x77\x88\x99\xaa\xbd'
@@ -779,13 +779,13 @@ def build_dos_packets(
 
 
 def generate_dos_pcap(output_path: Path):
-    """Generate a DoS / flood PCAP."""
+    """生成 DoS / 洪泛攻击 PCAP。"""
     print(f"Generating DoS PCAP: {output_path}")
     write_packets_to_pcap(output_path, build_dos_packets())
 
 
 def generate_training_attack_pcap(output_path: Path):
-    """Generate an attack training PCAP with scan, bruteforce, and dos flows."""
+    """生成包含扫描、暴力破解和 DoS 流量的攻击训练 PCAP。"""
     print(f"Generating training attack PCAP: {output_path}")
     base_time = time.time()
     packets: list[tuple[float, bytes]] = []

@@ -31,7 +31,7 @@ export default function ScenarioList({
 
   return (
     <div className="bg-white rounded-lg shadow border border-gray-200 flex flex-col min-h-0">
-      {/* Header */}
+      {/* 头部 */}
       <div className="px-4 py-3 border-b border-gray-200 flex justify-between items-center shrink-0">
         <h2 className="text-lg font-semibold text-gray-800">{t('listTitle')}</h2>
         <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
@@ -39,7 +39,7 @@ export default function ScenarioList({
         </span>
       </div>
 
-      {/* Tabs */}
+      {/* 标签页 */}
       <div className="flex border-b border-gray-200 shrink-0">
         <button
           onClick={() => onViewModeChange('active')}
@@ -63,7 +63,7 @@ export default function ScenarioList({
         </button>
       </div>
 
-      {/* List */}
+      {/* 列表 */}
       <div className="divide-y divide-gray-100 overflow-y-auto flex-1">
         {scenarios.length === 0 && (
           <div className="p-6 text-center text-sm text-gray-400">
@@ -131,7 +131,7 @@ export default function ScenarioList({
                 <span className="font-mono text-[10px]">{s.pcap_ref?.pcap_id?.slice(0, 18)}...</span>
               </div>
 
-              {/* Action buttons — stop click from selecting the row */}
+              {/* 操作按钮 — 阻止点击事件冒泡到行选中 */}
               <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                 {!isArchived ? (
                   <button

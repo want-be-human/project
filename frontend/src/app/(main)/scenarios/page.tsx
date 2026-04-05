@@ -17,14 +17,14 @@ export default function ScenariosPage() {
   const [selectedScenario, setSelectedScenario] = useState<Scenario | null>(null);
   const [runningScenarioId, setRunningScenarioId] = useState<string | undefined>();
 
-  // View mode: active | archived
+  // 视图模式：active | archived
   const [viewMode, setViewMode] = useState<'active' | 'archived'>('active');
 
-  // Delete confirmation
+  // 删除确认
   const [deleteTarget, setDeleteTarget] = useState<Scenario | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // Create dialog state - 基础信息
+  // 创建对话框状态 - 基础信息
   const [showCreate, setShowCreate] = useState(false);
   const [pcaps, setPcaps] = useState<PcapFile[]>([]);
   const [creating, setCreating] = useState(false);
@@ -128,7 +128,7 @@ export default function ScenariosPage() {
       const done = list.filter(p => p.status === 'done');
       setPcaps(done);
       if (done.length > 0 && !formPcapId) setFormPcapId(done[0].id);
-    } catch { /* ignore */ }
+    } catch { /* 忽略 */ }
   };
 
   const handleCreate = async () => {
@@ -196,7 +196,7 @@ export default function ScenariosPage() {
         </button>
       </div>
 
-      {/* Create dialog - 可配置 benchmark 创建器 */}
+      {/* 创建对话框 - 可配置 benchmark 创建器 */}
       {showCreate && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={() => setShowCreate(false)}>
           <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
@@ -301,7 +301,7 @@ export default function ScenariosPage() {
                     </div>
                   ))}
                 </div>
-                {/* forbidden_types */}
+                {/* 禁止类型列表 */}
                 <StringArrayInput label={t('forbiddenTypes')} items={formForbiddenTypes}
                   onChange={setFormForbiddenTypes} placeholder={t('alertTypePlaceholder')} addLabel={t('addItem')} />
               </FormSection>
@@ -355,7 +355,7 @@ export default function ScenariosPage() {
         </div>
       )}
 
-      {/* Hard delete confirmation dialog */}
+      {/* 永久删除确认对话框 */}
       {deleteTarget && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={() => !deleting && setDeleteTarget(null)}>
           <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>

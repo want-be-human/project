@@ -132,7 +132,7 @@ function TopologyInner() {
   const [filterStart, setFilterStart] = useState(urlStart || '');
   const [filterEnd, setFilterEnd] = useState(urlEnd || '');
 
-  // Dry-run 状态
+  // Dry-run 相关状态
   const [dryRunResult, setDryRunResult] = useState<DryRunResult | null>(null);
   const [dryRunLoading, setDryRunLoading] = useState(false);
   const [dryRunNotFound, setDryRunNotFound] = useState(false);
@@ -140,7 +140,7 @@ function TopologyInner() {
   // dry-run 视图模式（默认 diff）
   const [viewMode, setViewMode] = useState<DryRunViewMode>('diff');
 
-  // SideInspector 选中状态
+  // 侧边检查器选中状态
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<GraphEdge | null>(null);
 

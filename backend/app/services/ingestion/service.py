@@ -72,7 +72,7 @@ class IngestionService:
             )
 
         storage_path.write_bytes(content)
-        logger.info(f"Saved PCAP file: {pcap_id} ({size_bytes} bytes)")
+        logger.info(f"已保存 PCAP 文件: {pcap_id} ({size_bytes} 字节)")
 
         # 计算哈希（可选但有帮助）
         file_hash = compute_file_hash(storage_path)
@@ -225,11 +225,11 @@ class IngestionService:
 
         magic = content[:4]
         valid_magics = [
-            b"\xa1\xb2\xc3\xd4",  # PCAP big endian
-            b"\xd4\xc3\xb2\xa1",  # PCAP little endian
-            b"\xa1\xb2\x3c\x4d",  # PCAP-NG big endian (modified)
-            b"\x4d\x3c\xb2\xa1",  # PCAP-NG little endian (modified)
-            b"\x0a\x0d\x0d\x0a",  # PCAP-NG Section Header Block
+            b"\xa1\xb2\xc3\xd4",  # PCAP 大端序
+            b"\xd4\xc3\xb2\xa1",  # PCAP 小端序
+            b"\xa1\xb2\x3c\x4d",  # PCAP-NG 大端序（修改版）
+            b"\x4d\x3c\xb2\xa1",  # PCAP-NG 小端序（修改版）
+            b"\x0a\x0d\x0d\x0a",  # PCAP-NG 段头块
         ]
         return magic in valid_magics
 
@@ -278,9 +278,9 @@ class IngestionService:
         path = Path(storage_path)
         if path.exists():
             path.unlink()
-            logger.info(f"Deleted PCAP disk file: {storage_path}")
+            logger.info(f"已删除 PCAP 磁盘文件: {storage_path}")
         else:
-            logger.warning(f"PCAP disk file not found (already removed?): {storage_path}")
+            logger.warning(f"PCAP 磁盘文件不存在（可能已删除）: {storage_path}")
 
 
     def delete_pcap(self, pcap_id: str) -> None:

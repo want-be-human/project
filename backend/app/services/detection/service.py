@@ -1,10 +1,10 @@
 """
-DetectionService.
+检测服务。
 
-Provides the Layer 1 baseline anomaly detector backed by IsolationForest.
-It supports:
-- persisted mode: load a pre-trained model and score without fitting
-- runtime mode: fit an IsolationForest on the current batch
+提供基于 IsolationForest 的 Layer 1 基线异常检测器。
+支持：
+- 持久化模式：加载预训练模型直接评分
+- 运行时模式：在当前批次上拟合 IsolationForest
 """
 
 import json
@@ -24,7 +24,7 @@ META_PATH = MODEL_DIR / "flow_iforest.meta.json"
 
 
 class DetectionService:
-    """Baseline anomaly scoring service using IsolationForest."""
+    """基于 IsolationForest 的基线异常评分服务。"""
 
     DEFAULT_FEATURE_NAMES = [
         "total_packets",
@@ -59,13 +59,13 @@ class DetectionService:
             self.mode = "runtime"
 
     def _load_model(self) -> bool:
-        """Load the persisted IsolationForest model and metadata."""
+        """加载持久化的 IsolationForest 模型和元数据。"""
         try:
             import joblib
 
             if not MODEL_PATH.exists() or not META_PATH.exists():
                 logger.warning(
-                    "Persisted model files do not exist (%s); falling back to runtime mode",
+                    "持久化模型文件不存在 (%s); 回退到运行时模式",
                     MODEL_PATH,
                 )
                 return False
@@ -75,10 +75,10 @@ class DetectionService:
             normalization = meta.get("normalization", {})
 
             if not feature_names or not isinstance(feature_names, list):
-                logger.warning("Invalid model metadata: feature_names missing or malformed")
+                logger.warning("无效的模型元数据: feature_names 缺失或格式错误")
                 return False
             if "p5" not in normalization or "p95" not in normalization:
-                logger.warning("Invalid model metadata: normalization parameters missing")
+                logger.warning("无效的模型元数据: 归一化参数缺失")
                 return False
             if not validate_sklearn_version(meta, "flow_iforest"):
                 return False
@@ -88,18 +88,18 @@ class DetectionService:
             self.feature_names = feature_names
 
             logger.info(
-                "Loaded persisted baseline model (samples=%d, features=%d)",
+                "已加载持久化基线模型 (样本数=%d, 特征数=%d)",
                 meta.get("training_samples", 0),
                 len(feature_names),
             )
             return True
 
         except Exception as exc:
-            logger.warning("Failed to load persisted baseline model: %s", exc)
+            logger.warning("加载持久化基线模型失败: %s", exc)
             return False
 
     def score_flows(self, flows: list[dict]) -> list[dict]:
-        """Score flows and write anomaly_score in place."""
+        """对流量评分并��地写入 anomaly_score。"""
         if not flows:
             return flows
 
@@ -113,13 +113,13 @@ class DetectionService:
         return self._score_runtime(flows)
 
     def _score_persisted(self, flows: list[dict]) -> list[dict]:
-        """Score using the persisted model without fitting."""
+        """使用持久化模型直接评分，无需拟合。"""
         try:
             X = self._flows_to_matrix(flows)
             expected_cols = len(self.feature_names)
             if X.shape[1] != expected_cols:
                 logger.error(
-                    "Feature dimension mismatch: expected %d, got %d; falling back to runtime",
+                    "特征维度不匹配: 期望 %d, 实际 %d; 回退到运行时模式",
                     expected_cols,
                     X.shape[1],
                 )
@@ -141,7 +141,7 @@ class DetectionService:
                 flow["anomaly_score"] = float(normalized[i])
 
             logger.info(
-                "Persisted baseline inference completed: %d flows, max=%.3f",
+                "持久化基线推断完成: %d 条流, 最大值=%.3f",
                 len(flows),
                 float(normalized.max()),
             )
@@ -149,12 +149,12 @@ class DetectionService:
 
         except Exception as exc:
             logger.error(
-                "Persisted baseline inference failed: %s; falling back to runtime", exc
+                "持久化基线推断失败: %s; 回退到运行时模式", exc
             )
             return self._score_runtime(flows)
 
     def _score_runtime(self, flows: list[dict]) -> list[dict]:
-        """Fit an IsolationForest on the current batch and score it."""
+        """在当前批次上拟合 IsolationForest 并评分。"""
         try:
             from sklearn.ensemble import IsolationForest
 
@@ -192,7 +192,7 @@ class DetectionService:
                 flow["anomaly_score"] = float(normalized[i])
 
             logger.info(
-                "Runtime anomaly detection completed: %d flows, p5=%.4f, p95=%.4f, max=%.3f",
+                "运行时异常检测完成: %d 条流, p5=%.4f, p95=%.4f, 最大值=%.3f",
                 len(flows),
                 float(p5),
                 float(p95),
@@ -201,18 +201,18 @@ class DetectionService:
             return flows
 
         except ImportError:
-            logger.warning("scikit-learn is not installed; using random fallback scores")
+            logger.warning("scikit-learn 未安装; 使用随机降级分数")
             for flow in flows:
                 flow["anomaly_score"] = np.random.random() * 0.5
             return flows
         except Exception as exc:
-            logger.error("Runtime anomaly detection failed: %s", exc)
+            logger.error("运行时异常检测失败: %s", exc)
             for flow in flows:
                 flow["anomaly_score"] = 0.5
             return flows
 
     def _flows_to_matrix(self, flows: list[dict]) -> np.ndarray:
-        """Convert a flow list into a numeric feature matrix."""
+        """将流量列表转换为数值特征矩阵。"""
         rows = []
         for flow in flows:
             features = flow.get("features", {})
@@ -231,7 +231,7 @@ class DetectionService:
         threshold: float = 0.7,
         limit: int = 10,
     ) -> list[dict]:
-        """Return the top anomalous flows above threshold."""
+        """返回超过阈值的最异常流量。"""
         anomalous = [f for f in flows if (f.get("anomaly_score") or 0) >= threshold]
         anomalous.sort(key=lambda x: x.get("anomaly_score", 0), reverse=True)
         return anomalous[:limit]

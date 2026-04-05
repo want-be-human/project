@@ -41,7 +41,7 @@ class ParsingService:
             会话键为 (canon_ip1, canon_port1, canon_ip2, canon_port2, proto, bucket_start)
             其中 canon 为排序后的端点；输出中的 src/dst 对应发起方/响应方。
         """
-        logger.info(f"Parsing PCAP: {pcap_path}, window={window_sec}s")
+        logger.info(f"正在解析 PCAP: {pcap_path}, 窗口={window_sec}s")
         
         flows = {}
         
@@ -65,12 +65,12 @@ class ParsingService:
             # 若未安装 dpkt，则返回空结果
             return []
         except Exception as e:
-            logger.error(f"Error parsing PCAP: {e}")
+            logger.error(f"解析 PCAP 出错: {e}")
             raise
         
         # 将 flow 字典转换为列表
         flow_list = self._finalize_flows(flows)
-        logger.info(f"Extracted {len(flow_list)} flows from PCAP")
+        logger.info(f"从 PCAP 中提取了 {len(flow_list)} 条流")
         
         return flow_list
 
@@ -170,7 +170,7 @@ class ParsingService:
                 flow["tcp_flags"][flag] = flow["tcp_flags"].get(flag, 0) + count
                 
         except Exception as e:
-            logger.debug(f"Error processing packet: {e}")
+            logger.debug(f"处理数据包出错: {e}")
 
     def _extract_tcp_flags(self, tcp) -> dict:
         """从报文中提取 TCP 标志位。"""

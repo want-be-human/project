@@ -69,7 +69,7 @@ class ThreatEnrichmentService:
                 evidence_keywords=evidence_keywords or [],
             )
         except Exception:
-            logger.warning("Threat enrichment failed – degrading gracefully", exc_info=True)
+            logger.warning("威胁增强失败 - 静默降级", exc_info=True)
             return None
 
     # ── 内部实现 ───────────────────────────────────────────────────────

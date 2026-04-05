@@ -34,20 +34,20 @@ class TopologyService:
         mode: Literal["ip", "subnet"] = "ip",
     ) -> GraphResponseSchema:
         """
-        Build topology graph for time window.
-        
+        为指定时间窗口构建拓扑图。
+
         Args:
-            start: Start timestamp
-            end: End timestamp
-            mode: 'ip' for host-level, 'subnet' for subnet grouping
-            
+            start: 起始时间戳
+            end: 结束时间戳
+            mode: 'ip' 为主机级别，'subnet' 为子网分组
+
         Returns:
-            GraphResponse with nodes, edges, and metadata
+            包含节点、边和元数据的 GraphResponse
         """
         from app.models.flow import Flow
         from app.models.alert import Alert
         
-        logger.info(f"Building graph: {start} to {end}, mode={mode}")
+        logger.info(f"构建拓扑图: {start} 至 {end}, 模式={mode}")
         
         # 规范化为 naive UTC，便于与 SQLite 存储的时间比较
         _start = start.replace(tzinfo=None) if start.tzinfo else start
@@ -60,7 +60,7 @@ class TopologyService:
             Flow.ts_end >= _start,
         ).all()
         
-        logger.info(f"Found {len(flows)} flows in window")
+        logger.info(f"时间窗口内找到 {len(flows)} 条流")
         
         # 构建节点与边的字典
         nodes: dict[str, GraphNode] = {}
@@ -174,7 +174,7 @@ class TopologyService:
             ),
         )
         
-        logger.info(f"Built graph with {len(nodes)} nodes and {len(edge_list)} edges")
+        logger.info(f"已构建拓扑图：{len(nodes)} 个节点，{len(edge_list)} 条边")
         return graph
 
     # ------------------------------------------------------------------

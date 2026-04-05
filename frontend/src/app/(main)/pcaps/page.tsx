@@ -463,7 +463,7 @@ export default function PcapsPage() {
         <p className="text-sm text-gray-500 mt-1">{t('description')}</p>
       </div>
 
-      {/* Toast */}
+      {/* 提示消息 */}
       {toast && (
         <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg text-sm font-medium ${
           toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
@@ -472,7 +472,7 @@ export default function PcapsPage() {
         </div>
       )}
 
-      {/* ── Section 1: 统一上传区 ── */}
+      {/* ── 区域 1：统一上传区 ── */}
       <UnifiedUploadPanel
         isUploading={isUploading}
         uploadError={uploadError}
@@ -483,7 +483,7 @@ export default function PcapsPage() {
         }}
       />
 
-      {/* ── Section 2: 批次总览 ── */}
+      {/* ── 区域 2：批次总览 ── */}
       <BatchOverviewSection
         batches={batches}
         loading={batchesLoading}
@@ -493,7 +493,7 @@ export default function PcapsPage() {
         deletingBatchId={deletingBatchId}
       />
 
-      {/* ── Section 3: 批次详情（inline） ── */}
+      {/* ── 区域 3：批次详情（内联） ── */}
       {batchDetail && (
         <BatchDetailPanel
           batch={batchDetail}
@@ -509,7 +509,7 @@ export default function PcapsPage() {
         />
       )}
 
-      {/* ── Section 4: 历史文件列表 ── */}
+      {/* ── 区域 4：历史文件列表 ── */}
       <div>
         <h2 className="text-lg font-semibold text-gray-900 mb-3">{t('allFiles')}</h2>
         {loading ? (
@@ -527,7 +527,7 @@ export default function PcapsPage() {
         )}
       </div>
 
-      {/* ── Pipeline Timeline ── */}
+      {/* ── 流水线时间线 ── */}
       {selectedPcap && (
         <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between mb-4">

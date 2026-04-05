@@ -17,7 +17,7 @@ export default function ActionBuilder({ alertId, initialRecommendation, onPlanCr
   const tc = useTranslations('confidence');
   const locale = useLocale();
 
-  // compile-plan 状态
+  // 编译计划状态
   const [compiledResult, setCompiledResult] = useState<CompilePlanResponse | null>(null);
   const [compiling, setCompiling] = useState(false);
   const [expandedActions, setExpandedActions] = useState<number[]>([]);
@@ -27,7 +27,7 @@ export default function ActionBuilder({ alertId, initialRecommendation, onPlanCr
   // ── 根据错误消息分类，返回对应的用户提示 ──
   const classifyCompileError = (err: unknown): string => {
     const msg = err instanceof Error ? err.message : String(err);
-    // fetchJson 抛出格式: "API Error: {status} {statusText} - {detail}"
+    // fetchJson 抛出格式："API Error: {status} {statusText} - {detail}"
     const statusMatch = msg.match(/API Error:\s*(\d{3})/);
     const status = statusMatch ? parseInt(statusMatch[1], 10) : 0;
 

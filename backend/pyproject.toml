@@ -1,7 +1,7 @@
 [project]
 name = "nettwin-soc-backend"
 version = "1.1.0"
-description = "NetTwin-SOC Backend - Network Traffic Analysis & Digital Twin Security Platform"
+description = "NetTwin-SOC 后端 - 网络流量分析与数字孪生安全平台"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.109.0",

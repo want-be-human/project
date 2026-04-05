@@ -6,8 +6,8 @@ import { format } from 'date-fns';
 import { useTranslations } from 'next-intl';
 
 interface TimeSliderProps {
-  startTime: number;  // unix ms
-  endTime: number;    // unix ms
+  startTime: number;  // Unix 毫秒时间戳
+  endTime: number;    // Unix 毫秒时间戳
   currentTime: number;
   onChange: (time: number) => void;
 }
@@ -19,7 +19,7 @@ export default function TimeSlider({ startTime, endTime, currentTime, onChange }
   currentTimeRef.current = currentTime;
 
   const duration = endTime - startTime;
-  const stepMs = Math.max(duration / 200, 1000); // 200 steps or 1s minimum
+  const stepMs = Math.max(duration / 200, 1000); // 200 步或最少 1 秒
 
   useEffect(() => {
     if (!playing) return;
@@ -39,7 +39,7 @@ export default function TimeSlider({ startTime, endTime, currentTime, onChange }
 
   return (
     <div className="flex items-center gap-3 bg-white px-4 py-2.5 rounded-lg shadow-sm border border-gray-200">
-      {/* Controls */}
+      {/* 控制按钮 */}
       <button
         onClick={() => { setPlaying(false); onChange(startTime); }}
         className="p-1 text-gray-500 hover:text-gray-900 transition-colors"
@@ -62,12 +62,12 @@ export default function TimeSlider({ startTime, endTime, currentTime, onChange }
         <SkipForward className="w-4 h-4" />
       </button>
 
-      {/* Time label: start */}
+      {/* 时间标签：起始 */}
       <span className="text-xs font-mono text-gray-500 w-16 text-right shrink-0">
         {startTime ? format(new Date(startTime), 'HH:mm:ss') : '--:--:--'}
       </span>
 
-      {/* Slider */}
+      {/* 滑动条 */}
       <div className="flex-grow relative">
         <input
           type="range"
@@ -79,7 +79,7 @@ export default function TimeSlider({ startTime, endTime, currentTime, onChange }
         />
       </div>
 
-      {/* Time label: current */}
+      {/* 时间标签：当前 */}
       <span className="text-xs font-mono text-gray-500 w-16 shrink-0">
         {currentTime ? format(new Date(currentTime), 'HH:mm:ss') : '--:--:--'}
       </span>

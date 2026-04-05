@@ -40,7 +40,7 @@ async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<T>
         }
         throw new Error(`API Error: ${res.status} ${res.statusText}${detail}`);
   }
-  // 204 No Content — no body to parse
+  // 204 No Content — 无响应体，无需解析
   if (res.status === 204) {
     return undefined as unknown as T;
   }

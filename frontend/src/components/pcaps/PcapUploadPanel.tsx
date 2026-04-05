@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Upload, FileUp } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { api } from '@/lib/api';
-import { cn } from '@/lib/utils'; // Assuming you added this in previous step, else remove cn
+import { cn } from '@/lib/utils';
 
 export default function PcapUploadPanel({ onUploadSuccess }: { onUploadSuccess: () => void }) {
   const t = useTranslations('pcaps');

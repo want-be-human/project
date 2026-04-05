@@ -62,7 +62,7 @@ class WorkflowEngine:
         """
         stage_cls = _STAGE_REGISTRY.get(stage_name)
         if stage_cls is None:
-            raise ValueError(f"Unknown stage: {stage_name}")
+            raise ValueError(f"未知阶段: {stage_name}")
 
         stage = stage_cls()
         context = StageContext(
@@ -101,7 +101,7 @@ class WorkflowEngine:
             self.db.commit()
 
             logger.info(
-                "Workflow stage '%s' completed for alert %s in %.1f ms",
+                "工作流阶段 '%s' 已完成，告警 %s，耗时 %.1f ms",
                 stage_name,
                 alert.id,
                 elapsed_ms,
@@ -116,7 +116,7 @@ class WorkflowEngine:
             stage_log.status = "failed"
             stage_log.completed_at = datetime_to_iso(utc_now())
             stage_log.latency_ms = round((time.monotonic() - t0) * 1000, 2)
-            stage_log.error = "Stage execution failed"
+            stage_log.error = "阶段执行失败"
 
             execution.status = "failed"
             execution.completed_at = utc_now()
@@ -148,7 +148,7 @@ class WorkflowEngine:
         for stage_name in stage_names:
             stage_cls = _STAGE_REGISTRY.get(stage_name)
             if stage_cls is None:
-                raise ValueError(f"Unknown stage: {stage_name}")
+                raise ValueError(f"未知阶段: {stage_name}")
 
             stage = stage_cls()
             context = StageContext(
@@ -182,7 +182,7 @@ class WorkflowEngine:
                 stage_log.status = "failed"
                 stage_log.completed_at = datetime_to_iso(utc_now())
                 stage_log.latency_ms = round((time.monotonic() - t0) * 1000, 2)
-                stage_log.error = "Stage execution failed"
+                stage_log.error = "阶段执行失败"
                 stage_logs.append(stage_log)
 
                 execution.status = "failed"
@@ -204,7 +204,7 @@ class WorkflowEngine:
         self.db.commit()
 
         logger.info(
-            "Workflow pipeline [%s] completed for alert %s",
+            "工作流流水线 [%s] 已完成，告警 %s",
             ", ".join(stage_names),
             alert.id,
         )
@@ -223,7 +223,7 @@ class WorkflowEngine:
             status="running",
         )
         self.db.add(execution)
-        self.db.flush()  # ensure id is available but defer final commit to caller
+        self.db.flush()  # 确保 id 可用，但将最终提交延迟给调用方
         return execution
 
     @staticmethod
@@ -326,4 +326,4 @@ class WorkflowEngine:
             self.db.flush()
 
         except Exception:
-            logger.debug("Failed to bridge workflow stage to pipeline", exc_info=True)
+            logger.debug("桥接工作流阶段到流水线失败", exc_info=True)

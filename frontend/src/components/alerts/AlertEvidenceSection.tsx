@@ -14,7 +14,7 @@ export default function AlertEvidenceSection({ alert }: AlertEvidenceSectionProp
       <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('evidenceTitle')}</h2>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Top Flows */}
+        {/* 关键流量 */}
         <div>
           <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-3">{t('topFlows')}</h3>
           <div className="bg-gray-50 rounded-lg border border-gray-200 overflow-hidden">
@@ -50,7 +50,7 @@ export default function AlertEvidenceSection({ alert }: AlertEvidenceSectionProp
           </div>
         </div>
 
-        {/* Top Features */}
+        {/* 关键特征 */}
         <div>
           <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-3">{t('topFeatures')}</h3>
           <div className="bg-gray-50 rounded-lg border border-gray-200 overflow-hidden">
@@ -87,7 +87,7 @@ export default function AlertEvidenceSection({ alert }: AlertEvidenceSectionProp
         </div>
       </div>
 
-      {/* Time Window */}
+      {/* 时间窗口 */}
       <div className="mt-6 pt-6 border-t border-gray-100">
         <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-3">{t('timeWindow')}</h3>
         <div className="flex gap-8 text-sm">

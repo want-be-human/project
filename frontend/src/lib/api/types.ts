@@ -1,12 +1,12 @@
 
 export interface PcapFile {
   version?: string;
-  id: string; // uuid
-  created_at: string; // ISO8601
+  id: string; // 唯一标识
+  created_at: string; // ISO8601 时间戳
   filename: string;
   size_bytes: number;
   status: 'uploaded' | 'processing' | 'done' | 'failed';
-  progress?: number; // 0-100
+  progress?: number; // 进度 0-100
   flow_count?: number;
   alert_count?: number;
   /** 处理失败时的错误信息 */

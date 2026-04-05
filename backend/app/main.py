@@ -44,14 +44,14 @@ async def lifespan(app: FastAPI):
     setup_logging()
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     init_db()
-    logger.info("Database initialized")
+    logger.info("数据库已初始化")
 
     # 初始化内部事件总线并注册 WebSocket 消费者
     from app.core.events import get_event_bus
     from app.api.routers.stream import ws_consumer
     get_event_bus()  # ensure singleton is created
     await ws_consumer.register()
-    logger.info("EventBus initialised, WebSocket consumer registered")
+    logger.info("EventBus 已初始化，WebSocket 消费者已注册")
 
     # 初始化 OpenTelemetry 可观测（tracer / meter）
     from app.core.observability import init_observability
@@ -74,7 +74,7 @@ async def lifespan(app: FastAPI):
     await runner.stop()
     logger.info("JobRunner 已停止")
     await ws_consumer.unregister()
-    logger.info("Shutting down")
+    logger.info("正在关闭")
 
 
 app = FastAPI(
