@@ -1,5 +1,5 @@
 {
-  "created_at": "2026-04-04T19:22:58.993527+00:00",
+  "created_at": "2026-04-05T17:11:39.425296+00:00",
   "sklearn_version": "1.8.0",
   "model_params": {
     "n_estimators": 200,
@@ -27,10 +27,10 @@
     "is_udp"
   ],
   "normalization": {
-    "p5": 0.33683915530345293,
-    "p95": 0.5387276590586789
+    "p5": 0.32849709665475324,
+    "p95": 0.5518336373107128
   },
   "suggested_threshold": 0.7,
-  "training_samples": 454766,
+  "training_samples": 355732,
   "training_source": "Monday-WorkingHours.pcap"
 }

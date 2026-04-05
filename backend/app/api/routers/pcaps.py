@@ -136,31 +136,34 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
             with tracker.stage(PipelineStage.DETECT) as stg:
                 stg.skip("mode != flows_and_detect")
 
-        # 步骤 5：将 flows 入库
-        for fd in flow_dicts:
-            features_json = json.dumps(fd.get("features", {}))
-            flow = Flow(
-                id=fd["id"],
-                version=fd.get("version", "1.1"),
-                created_at=fd["created_at"],
-                pcap_id=pcap_id,
-                ts_start=fd["ts_start"],
-                ts_end=fd["ts_end"],
-                src_ip=fd["src_ip"],
-                src_port=fd["src_port"],
-                dst_ip=fd["dst_ip"],
-                dst_port=fd["dst_port"],
-                proto=fd["proto"],
-                packets_fwd=fd["packets_fwd"],
-                packets_bwd=fd["packets_bwd"],
-                bytes_fwd=fd["bytes_fwd"],
-                bytes_bwd=fd["bytes_bwd"],
-                features=features_json,
-                anomaly_score=fd.get("anomaly_score"),
-                label=fd.get("label"),
-            )
-            db.add(flow)
-
+        # 步骤 5：将 flows 入库（Core bulk insert，绕过 ORM 开销）
+        _BULK = 50_000
+        flow_rows = [
+            {
+                "id": fd["id"],
+                "version": fd.get("version", "1.1"),
+                "created_at": fd["created_at"],
+                "pcap_id": pcap_id,
+                "ts_start": fd["ts_start"],
+                "ts_end": fd["ts_end"],
+                "src_ip": fd["src_ip"],
+                "src_port": fd["src_port"],
+                "dst_ip": fd["dst_ip"],
+                "dst_port": fd["dst_port"],
+                "proto": fd["proto"],
+                "packets_fwd": fd["packets_fwd"],
+                "packets_bwd": fd["packets_bwd"],
+                "bytes_fwd": fd["bytes_fwd"],
+                "bytes_bwd": fd["bytes_bwd"],
+                "features": json.dumps(fd.get("features", {})),
+                "anomaly_score": fd.get("anomaly_score"),
+                "label": fd.get("label"),
+            }
+            for fd in flow_dicts
+        ]
+        flow_table = Flow.__table__
+        for i in range(0, len(flow_rows), _BULK):
+            db.execute(flow_table.insert(), flow_rows[i:i + _BULK])
         db.flush()
         pcap.progress = 85
         db.commit()
@@ -179,44 +182,38 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
             else:
                 alert_svc = AlertingService(score_threshold=0.7, window_sec=window_sec)
                 alert_dicts = alert_svc.generate_alerts(flow_dicts, pcap_id)
+            alert_flow_links: list[dict] = []
             for ad in alert_dicts:
                 flow_ids_for_alert = ad.pop("_flow_ids", [])
-                alert_obj = Alert(
-                    id=ad["id"],
-                    version=ad.get("version", "1.1"),
-                    created_at=ad["created_at"],
-                    severity=ad["severity"],
-                    status=ad["status"],
-                    type=ad["type"],
-                    time_window_start=ad["time_window_start"],
-                    time_window_end=ad["time_window_end"],
-                    primary_src_ip=ad["primary_src_ip"],
-                    primary_dst_ip=ad["primary_dst_ip"],
-                    primary_proto=ad["primary_proto"],
-                    primary_dst_port=ad["primary_dst_port"],
-                    evidence=ad["evidence"],
-                    aggregation=ad["aggregation"],
-                    agent=ad["agent"],
-                    twin=ad["twin"],
-                    tags=ad["tags"],
-                    notes=ad.get("notes", ""),
-                )
-                db.add(alert_obj)
-                db.flush()
-                # 插入 alert_flows 关联
+                db.execute(Alert.__table__.insert(), [{
+                    "id": ad["id"],
+                    "version": ad.get("version", "1.1"),
+                    "created_at": ad["created_at"],
+                    "severity": ad["severity"],
+                    "status": ad["status"],
+                    "type": ad["type"],
+                    "time_window_start": ad["time_window_start"],
+                    "time_window_end": ad["time_window_end"],
+                    "primary_src_ip": ad["primary_src_ip"],
+                    "primary_dst_ip": ad["primary_dst_ip"],
+                    "primary_proto": ad["primary_proto"],
+                    "primary_dst_port": ad["primary_dst_port"],
+                    "evidence": ad["evidence"],
+                    "aggregation": ad["aggregation"],
+                    "agent": ad["agent"],
+                    "twin": ad["twin"],
+                    "tags": ad["tags"],
+                    "notes": ad.get("notes", ""),
+                }])
                 for fid in flow_ids_for_alert:
-                    db.execute(
-                        alert_flows.insert().values(
-                            alert_id=ad["id"],
-                            flow_id=fid,
-                            role="top",
-                        )
-                    )
-                # WS: alert.created
+                    alert_flow_links.append({"alert_id": ad["id"], "flow_id": fid, "role": "top"})
                 _publish(ALERT_CREATED, {
                     "alert_id": ad["id"],
                     "severity": ad["severity"],
                 })
+            if alert_flow_links:
+                for i in range(0, len(alert_flow_links), _BULK):
+                    db.execute(alert_flows.insert(), alert_flow_links[i:i + _BULK])
             alert_count = len(alert_dicts)
             db.commit()
             pcap.progress = 95

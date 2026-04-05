@@ -1,0 +1,24 @@
+Looking in indexes: https://mirrors.ustc.edu.cn/pypi/web/simple
+Collecting nfstream
+  Downloading https://mirrors.ustc.edu.cn/pypi/packages/d5/50/2289c0a849aee546a4f466d0f73d9772dc0559ae3b611c8fda422e711c2c/nfstream-6.6.0-cp312-cp312-win_amd64.whl (1.0 MB)
+     ---------------------------------------- 1.0/1.0 MB 6.1 MB/s  0:00:00
+Collecting cffi>=1.15.0 (from nfstream)
+  Using cached https://mirrors.ustc.edu.cn/pypi/packages/f8/ed/13bd4418627013bec4ed6e54283b1959cf6db888048c7cf4b4c3b5b36002/cffi-2.0.0-cp312-cp312-win_amd64.whl (183 kB)
+Collecting psutil>=5.8.0 (from nfstream)
+  Downloading https://mirrors.ustc.edu.cn/pypi/packages/b4/90/e2159492b5426be0c1fef7acba807a03511f97c5f86b3caeda6ad92351a7/psutil-7.2.2-cp37-abi3-win_amd64.whl (137 kB)
+Requirement already satisfied: dpkt>=1.9.7 in D:\vsCode\python\project\.venv\Lib\site-packages (from nfstream) (1.9.8)
+Requirement already satisfied: numpy>=1.19.5 in D:\vsCode\python\project\.venv\Lib\site-packages (from nfstream) (2.4.1)
+Collecting pandas>=1.1.5 (from nfstream)
+  Downloading https://mirrors.ustc.edu.cn/pypi/packages/7b/8b/721a9cff6fa6a91b162eb51019c6243b82b3226c71bb6c8ef4a9bd65cbc6/pandas-3.0.2-cp312-cp312-win_amd64.whl (9.7 MB)
+     ---------------------------------------- 9.7/9.7 MB 5.9 MB/s  0:00:01
+Collecting pycparser (from cffi>=1.15.0->nfstream)
+  Using cached https://mirrors.ustc.edu.cn/pypi/packages/0c/c3/44f3fbbfa403ea2a7c779186dc20772604442dde72947e7d01069cbe98e3/pycparser-3.0-py3-none-any.whl (48 kB)
+Collecting python-dateutil>=2.8.2 (from pandas>=1.1.5->nfstream)
+  Using cached https://mirrors.ustc.edu.cn/pypi/packages/ec/57/56b9bcc3c9c6a792fcbaf139543cee77261f3651ca9da0c93f5c1221264b/python_dateutil-2.9.0.post0-py2.py3-none-any.whl (229 kB)
+Collecting tzdata (from pandas>=1.1.5->nfstream)
+  Downloading https://mirrors.ustc.edu.cn/pypi/packages/b0/70/d460bd685a170790ec89317e9bd33047988e4bce507b831f5db771e142de/tzdata-2026.1-py2.py3-none-any.whl (348 kB)
+Collecting six>=1.5 (from python-dateutil>=2.8.2->pandas>=1.1.5->nfstream)
+  Using cached https://mirrors.ustc.edu.cn/pypi/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl (11 kB)
+Installing collected packages: tzdata, six, pycparser, psutil, python-dateutil, cffi, pandas, nfstream
+
+Successfully installed cffi-2.0.0 nfstream-6.6.0 pandas-3.0.2 psutil-7.2.2 pycparser-3.0 python-dateutil-2.9.0.post0 six-1.17.0 tzdata-2026.1

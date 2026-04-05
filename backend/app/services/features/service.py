@@ -105,19 +105,25 @@ class FeaturesService:
         features["fwd_ratio_bytes"] = sd(bytes_fwd, total_bytes, 0.5)
 
         # ── 包间隔时间统计 ──
-        timestamps = flow.get("_packet_timestamps", []) or []
-        if len(timestamps) > 1:
-            iats = [timestamps[i + 1] - timestamps[i] for i in range(len(timestamps) - 1)]
-            iat_mean_s = sum(iats) / len(iats)
-            features["iat_mean_ms"] = iat_mean_s * 1000
-            if len(iats) > 1:
-                variance = sum((x - iat_mean_s) ** 2 for x in iats) / len(iats)
-                features["iat_std_ms"] = (variance ** 0.5) * 1000
-            else:
-                features["iat_std_ms"] = 0.0
+        # 优先使用 NFStream 预计算值（C 层精确计算），fallback 到 dpkt 的逐包时间戳
+        iat_stats = flow.get("_iat_stats")
+        if iat_stats:
+            features["iat_mean_ms"] = iat_stats.get("mean_ms", 0.0)
+            features["iat_std_ms"] = iat_stats.get("std_ms", 0.0)
         else:
-            features["iat_mean_ms"] = 0.0
-            features["iat_std_ms"] = 0.0
+            timestamps = flow.get("_packet_timestamps", []) or []
+            if len(timestamps) > 1:
+                iats = [timestamps[i + 1] - timestamps[i] for i in range(len(timestamps) - 1)]
+                iat_mean_s = sum(iats) / len(iats)
+                features["iat_mean_ms"] = iat_mean_s * 1000
+                if len(iats) > 1:
+                    variance = sum((x - iat_mean_s) ** 2 for x in iats) / len(iats)
+                    features["iat_std_ms"] = (variance ** 0.5) * 1000
+                else:
+                    features["iat_std_ms"] = 0.0
+            else:
+                features["iat_mean_ms"] = 0.0
+                features["iat_std_ms"] = 0.0
 
         # ── TCP 标志位计数 ──
         syn_count = tcp_flags.get("syn", 0) or 0

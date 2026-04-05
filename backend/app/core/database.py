@@ -3,7 +3,7 @@
 包含 SQLAlchemy 引擎与会话管理。
 """
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
 from app.core.config import settings
@@ -20,6 +20,17 @@ engine = create_engine(
     connect_args=connect_args,
     echo=settings.DEBUG,
 )
+
+# SQLite 性能优化：WAL 模式 + 减少 fsync + 大缓存
+if settings.DATABASE_URL.startswith("sqlite"):
+    @event.listens_for(engine, "connect")
+    def _set_sqlite_pragma(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.execute("PRAGMA cache_size=-64000")  # 64MB
+        cursor.execute("PRAGMA temp_store=MEMORY")
+        cursor.close()
 
 # 会话工厂
 SessionLocal = sessionmaker(

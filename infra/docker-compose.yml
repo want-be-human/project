@@ -11,7 +11,8 @@ services:
       - ../backend/models:/app/models
       - ../backend/alembic:/app/alembic
       - ../backend/alembic.ini:/app/alembic.ini:ro
-      - ../backend/data:/app/data
+      - backend_data:/app/data                    # named volume: 数据存在 Linux VM 内部，I/O 快 10x
+      - ../backend/scripts:/app/scripts
     environment:
       - DATABASE_URL=${DATABASE_URL:-sqlite:///./data/nettwin.db}
       - DATA_DIR=/app/data
@@ -72,4 +73,5 @@ services:
 volumes:
   frontend_node_modules:
   frontend_next:
+  backend_data:                                   # PCAP + SQLite 数据存储（Linux 原生 I/O）
   # postgres_data:

@@ -1,5 +1,5 @@
 {
-  "created_at": "2026-04-05T06:00:27.881130+00:00",
+  "created_at": "2026-04-05T17:21:34.792951+00:00",
   "sklearn_version": "1.8.0",
   "model_type": "CalibratedClassifierCV",
   "base_model_type": "XGBClassifier",
@@ -142,29 +142,30 @@
       "clustering_coefficient"
     ]
   },
-  "threshold": 0.3,
+  "threshold": 0.53,
   "experiment_config": {
     "dataset_mode": "dataset_preset",
     "dataset_preset": "cicids2017_core",
     "split_strategy": "temporal",
     "training_mode": "supervised",
     "threshold_source": "validation_threshold_holdout_f1_optimal",
-    "threshold": 0.3,
-    "training_samples": 1599506,
-    "validation_samples": 533170,
-    "test_samples": 533180,
-    "window_sec": 10,
+    "threshold": 0.53,
+    "training_samples": 773765,
+    "validation_samples": 257920,
+    "test_samples": 257930,
+    "idle_timeout": 120,
+    "active_timeout": 1800,
     "label_match_tolerance_sec": 120,
     "calibration_split": {
       "strategy": "split_validation",
-      "calibration_samples": 266585,
-      "threshold_samples": 266585
+      "calibration_samples": 128960,
+      "threshold_samples": 128960
     },
     "probability_calibration": {
       "enabled": true,
       "method": "isotonic",
-      "samples": 266585,
-      "positive_samples": 30798
+      "samples": 128960,
+      "positive_samples": 18542
     },
     "device": "CUDA GPU"
   },
@@ -175,12 +176,12 @@
         "source": "cicids2017_monday_benign",
         "label_mode": "official_csv",
         "labels_csv": "data\\cicids2017\\labels\\Monday-WorkingHours.pcap_ISCX.csv",
-        "total_flows": 746628,
-        "labeled_flows": 746348,
-        "unmatched_flows": 280,
+        "total_flows": 355732,
+        "labeled_flows": 355104,
+        "unmatched_flows": 628,
         "ambiguous_flows": 0,
         "family_counts": {
-          "normal": 746348
+          "normal": 355104
         },
         "csv_stats": {
           "total_rows": 529918,
@@ -196,13 +197,13 @@
         "source": "cicids2017_tuesday_bruteforce",
         "label_mode": "official_csv",
         "labels_csv": "data\\cicids2017\\labels\\Tuesday-WorkingHours.pcap_ISCX.csv",
-        "total_flows": 670323,
-        "labeled_flows": 666973,
-        "unmatched_flows": 324,
-        "ambiguous_flows": 3026,
+        "total_flows": 308349,
+        "labeled_flows": 306003,
+        "unmatched_flows": 745,
+        "ambiguous_flows": 1601,
         "family_counts": {
-          "normal": 655817,
-          "bruteforce": 11156
+          "normal": 300622,
+          "bruteforce": 5381
         },
         "csv_stats": {
           "total_rows": 445909,
@@ -219,13 +220,13 @@
         "source": "cicids2017_wednesday_dos",
         "label_mode": "official_csv",
         "labels_csv": "data\\cicids2017\\labels\\Wednesday-workingHours.pcap_ISCX.csv",
-        "total_flows": 903918,
-        "labeled_flows": 821489,
-        "unmatched_flows": 218,
-        "ambiguous_flows": 82211,
+        "total_flows": 337293,
+        "labeled_flows": 324861,
+        "unmatched_flows": 542,
+        "ambiguous_flows": 11890,
         "family_counts": {
-          "normal": 684233,
-          "dos": 137256
+          "normal": 305643,
+          "dos": 19218
         },
         "csv_stats": {
           "total_rows": 692703,
@@ -242,13 +243,13 @@
         "source": "cicids2017_friday_portscan",
         "label_mode": "official_csv",
         "labels_csv": "data\\cicids2017\\labels\\Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv",
-        "total_flows": 923532,
-        "labeled_flows": 431046,
-        "unmatched_flows": 492287,
-        "ambiguous_flows": 199,
+        "total_flows": 501096,
+        "labeled_flows": 303647,
+        "unmatched_flows": 197305,
+        "ambiguous_flows": 144,
         "family_counts": {
-          "normal": 270894,
-          "scan": 160152
+          "normal": 144509,
+          "scan": 159138
         },
         "csv_stats": {
           "total_rows": 286467,
@@ -262,24 +263,24 @@
         }
       }
     ],
-    "total_flows": 2665856,
+    "total_flows": 1289615,
     "family_counts": {
-      "normal": 2357292,
-      "bruteforce": 11156,
-      "dos": 137256,
-      "scan": 160152
+      "normal": 1105878,
+      "bruteforce": 5381,
+      "dos": 19218,
+      "scan": 159138
     }
   },
   "evaluation": {
     "roc_auc": 1.0,
-    "pr_auc": 1.0,
-    "f1": 0.9999,
+    "pr_auc": 0.9999,
+    "f1": 1.0,
     "precision": 0.9999,
     "recall": 1.0,
-    "threshold": 0.3,
-    "total_samples": 533180,
-    "positive_samples": 61193,
-    "predicted_positive": 61196
+    "threshold": 0.53,
+    "total_samples": 257930,
+    "positive_samples": 36629,
+    "predicted_positive": 36631
   },
   "per_type_metrics": {
     "bruteforce": {
@@ -288,23 +289,23 @@
       "f1": 1.0,
       "precision": 1.0,
       "recall": 1.0,
-      "threshold": 0.3,
-      "total_samples": 2227,
-      "positive_samples": 2227,
-      "predicted_positive": 2227,
-      "sample_count": 2227
+      "threshold": 0.53,
+      "total_samples": 1050,
+      "positive_samples": 1050,
+      "predicted_positive": 1050,
+      "sample_count": 1050
     },
     "dos": {
       "roc_auc": null,
       "pr_auc": null,
       "f1": 1.0,
       "precision": 1.0,
-      "recall": 0.9999,
-      "threshold": 0.3,
-      "total_samples": 26526,
-      "positive_samples": 26526,
-      "predicted_positive": 26524,
-      "sample_count": 26526
+      "recall": 1.0,
+      "threshold": 0.53,
+      "total_samples": 3839,
+      "positive_samples": 3839,
+      "predicted_positive": 3839,
+      "sample_count": 3839
     },
     "normal": {
       "roc_auc": null,
@@ -312,11 +313,11 @@
       "f1": 0.0,
       "precision": 0.0,
       "recall": 0.0,
-      "threshold": 0.3,
-      "total_samples": 471987,
+      "threshold": 0.53,
+      "total_samples": 221301,
       "positive_samples": 0,
-      "predicted_positive": 5,
-      "sample_count": 471987
+      "predicted_positive": 2,
+      "sample_count": 221301
     },
     "scan": {
       "roc_auc": null,
@@ -324,11 +325,11 @@
       "f1": 1.0,
       "precision": 1.0,
       "recall": 1.0,
-      "threshold": 0.3,
-      "total_samples": 32440,
-      "positive_samples": 32440,
-      "predicted_positive": 32440,
-      "sample_count": 32440
+      "threshold": 0.53,
+      "total_samples": 31740,
+      "positive_samples": 31740,
+      "predicted_positive": 31740,
+      "sample_count": 31740
     }
   }
 }

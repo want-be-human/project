@@ -460,7 +460,8 @@ def _get_scores(model: object, X: np.ndarray) -> np.ndarray:
 def load_training_flows(
     sources: list[DatasetSource],
     *,
-    window_sec: int,
+    idle_timeout: int = 120,
+    active_timeout: int = 1800,
     label_match_tolerance_sec: int,
     writer: object | None = None,
 ) -> tuple[list[dict], dict]:
@@ -479,7 +480,9 @@ def load_training_flows(
         print(f"  loading source: {source.name}")
         print(f"    pcap: {source.pcap}")
         t0 = time.time()
-        raw_flows = parser.parse_to_flows(source.pcap, window_sec=window_sec)
+        raw_flows = parser.parse_to_flows(
+            source.pcap, idle_timeout=idle_timeout, active_timeout=active_timeout,
+        )
         parse_time = time.time() - t0
         print(f"    parsed flows: {len(raw_flows)} (耗时 {parse_time:.1f}s)")
 
@@ -555,7 +558,8 @@ def build_sources_from_args(args: argparse.Namespace) -> tuple[list[DatasetSourc
         config = {
             "mode": "dataset_preset",
             "preset": "cicids2017_core",
-            "window_sec": args.window_sec,
+            "idle_timeout": args.idle_timeout,
+            "active_timeout": args.active_timeout,
             "label_match_tolerance_sec": args.label_match_tolerance_sec,
             "dataset_root": str(dataset_root),
         }
@@ -580,7 +584,8 @@ def build_sources_from_args(args: argparse.Namespace) -> tuple[list[DatasetSourc
 
     config = {
         "mode": "legacy",
-        "window_sec": args.window_sec,
+        "idle_timeout": args.idle_timeout,
+            "active_timeout": args.active_timeout,
         "label_match_tolerance_sec": args.label_match_tolerance_sec,
     }
     return sources, config
@@ -632,7 +637,12 @@ def main() -> None:
         default=None,
     )
     parser.add_argument("--dataset-root", type=Path, default=None)
-    parser.add_argument("--window-sec", type=int, default=60)
+    parser.add_argument("--idle-timeout", type=int, default=120,
+                        help="Flow idle timeout in seconds (NFStream mode)")
+    parser.add_argument("--active-timeout", type=int, default=1800,
+                        help="Flow active timeout in seconds (NFStream mode)")
+    parser.add_argument("--window-sec", type=int, default=60,
+                        help="[Deprecated] Flow window for dpkt fallback mode")
     parser.add_argument("--label-match-tolerance-sec", type=int, default=120)
     parser.add_argument(
         "--model-type",
@@ -691,12 +701,12 @@ def main() -> None:
     sources, dataset_config = build_sources_from_args(args)
 
     if args.dataset_manifest and "window_sec" in dataset_config:
-        args.window_sec = int(dataset_config["window_sec"])
         args.label_match_tolerance_sec = int(dataset_config["label_match_tolerance_sec"])
 
     all_flows, dataset_summary = load_training_flows(
         sources,
-        window_sec=args.window_sec,
+        idle_timeout=args.idle_timeout,
+        active_timeout=args.active_timeout,
         label_match_tolerance_sec=args.label_match_tolerance_sec,
         writer=writer,
     )
@@ -890,7 +900,8 @@ def main() -> None:
         hparam_dict = {
             "model_type": actual_model_type,
             "split_strategy": args.split_strategy,
-            "window_sec": args.window_sec,
+            "idle_timeout": args.idle_timeout,
+            "active_timeout": args.active_timeout,
             "tolerance_sec": args.label_match_tolerance_sec,
             "calibration": calibration_info.get("method", "none"),
             "contamination": args.contamination,
@@ -921,7 +932,8 @@ def main() -> None:
             "training_samples": int(len(train_flows)),
             "validation_samples": int(len(val_flows)),
             "test_samples": int(len(test_flows)),
-            "window_sec": int(args.window_sec),
+            "idle_timeout": int(args.idle_timeout),
+            "active_timeout": int(args.active_timeout),
             "label_match_tolerance_sec": int(args.label_match_tolerance_sec),
             "calibration_split": calibration_split_info,
             "probability_calibration": calibration_info,
@@ -940,7 +952,8 @@ def main() -> None:
             "training_samples": int(len(all_flows)),
             "validation_samples": 0,
             "test_samples": 0,
-            "window_sec": int(args.window_sec),
+            "idle_timeout": int(args.idle_timeout),
+            "active_timeout": int(args.active_timeout),
             "label_match_tolerance_sec": int(args.label_match_tolerance_sec),
             "probability_calibration": calibration_info,
             "device": device_label,

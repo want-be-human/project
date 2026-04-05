@@ -358,9 +358,11 @@ def _match_flow_label(
 
     flow_time = flow.get("ts_start")
     if isinstance(flow_time, datetime):
+        # 统一为 naive UTC 以避免 offset-aware vs offset-naive 比较错误
+        ft = flow_time.replace(tzinfo=None) if flow_time.tzinfo else flow_time
         timed = [
             (
-                abs((flow_time - record.timestamp).total_seconds()),
+                abs((ft - (record.timestamp.replace(tzinfo=None) if record.timestamp.tzinfo else record.timestamp)).total_seconds()),
                 record,
             )
             for record in candidates
