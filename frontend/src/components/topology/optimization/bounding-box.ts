@@ -3,15 +3,15 @@ import type { BoundingBoxInfo, CameraLimits, GridParams } from './types';
 
 // ── 视觉外扩常量 ──
 // 节点球体最大半径：0.5 + risk*0.4，risk=1 → 0.9；簇节点 scale=1.6 → ~1.44
-const NODE_VISUAL_RADIUS = 1.5;
-// 脉冲环 / 选中环外扩（ringGeometry 外径 1.1，scale 最大 1.15）
-const RING_EXTRA = 1.3;
-// 标签：position=[0,1.2,0]，fontSize=0.4，约 2 单位高度（仅影响 Y 轴上方）
-const LABEL_HEIGHT = 2.2;
+const NODE_VISUAL_RADIUS = 1.0;
+// 脉冲环 / 选中环外扩
+const RING_EXTRA = 0.5;
+// 标签高度（仅影响 Y 轴上方）
+const LABEL_HEIGHT = 1.5;
 // 边箭头头部长度（XZ 平面外扩）
-const ARROW_EXTRA = 0.8;
+const ARROW_EXTRA = 0.3;
 // 最终 padding 比例（含 UI 浮层安全边距）
-const PADDING_FACTOR = 0.18; // 18%：为图例、dry-run 浮层、左上角按钮预留空间
+const PADDING_FACTOR = 0.08; // 8%：适度安全边距
 
 /**
  * 从布局坐标计算视觉包围盒。
@@ -79,12 +79,10 @@ export function computeCameraLimits(
   options: {
     fov?: number;
     aspect?: number;
-    viewMode?: 'overview' | 'analysis' | 'explain';
   } = {},
 ): CameraLimits {
   const fovDeg = options.fov ?? 50;
   const aspect = options.aspect ?? (16 / 9);
-  const viewMode = options.viewMode ?? 'overview';
 
   const halfFov = (fovDeg * Math.PI) / 180 / 2;
 
@@ -100,36 +98,16 @@ export function computeCameraLimits(
     return Math.max(dH, dV, 3) * (1 + PADDING_FACTOR);
   };
 
-  // 长条图检测：XZ 平面宽深比 > 3
+  // 长条图检测
   const xzRatio = sizeX > 0 && sizeZ > 0 ? Math.max(sizeX / sizeZ, sizeZ / sizeX) : 1;
   const isElongated = xzRatio > 3;
 
-  let fitPosition: [number, number, number];
   const fitTarget: [number, number, number] = [cx, cy, cz];
 
-  if (viewMode === 'overview') {
-    // top-fit：相机在图中心正上方，俯视 XZ 平面
-    // 水平方向容纳 X，垂直方向容纳 Z（投影到屏幕高度）
-    const dist = distToFit(sizeX / 2, sizeZ / 2);
-    // 长条图额外退后，确保两端可见
-    const finalDist = isElongated ? Math.max(dist, bb.diagonal * 0.9) : dist;
-    fitPosition = [cx, cy + finalDist, cz + 0.01];
-  } else if (viewMode === 'analysis') {
-    // 斜视相机（仰角~37°，camDir=[0,-0.6,-0.8]）的正确 FOV fit：
-    // 将 bounding box 8 角点投影到相机屏幕平面
-    // camRight=[0,0.8,-0.6], camUp=[1,0,0]（纯数学展开，无需 THREE）
-    // maxH = max|0.8*dy - 0.6*dz| = 0.8*(sizeY/2) + 0.6*(sizeZ/2)
-    // maxV = max|dx| = sizeX/2
-    const maxH = 0.8 * (sizeY / 2) + 0.6 * (sizeZ / 2);
-    const maxV = sizeX / 2;
-    const baseDist = distToFit(maxH, maxV);
-    const dist = isElongated ? Math.max(baseDist, bb.diagonal * 0.85) : baseDist;
-    fitPosition = [cx, cy + dist * 0.6, cz + dist * 0.8];
-  } else {
-    // explain（DAG）：正面偏上，保证路径链完整可见
-    const dist = distToFit(sizeX / 2, sizeY / 2);
-    fitPosition = [cx, cy + dist * 0.15, cz + dist];
-  }
+  // 统一侧面视角：相机在 +X 方向偏移，略微抬升
+  const dist = distToFit(sizeY / 2, sizeZ / 2);
+  const finalDist = isElongated ? Math.max(dist, bb.diagonal * 0.85) : dist;
+  const fitPosition: [number, number, number] = [cx + finalDist, cy + finalDist * 0.2, cz];
 
   const d = bb.diagonal;
   return {

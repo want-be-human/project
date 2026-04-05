@@ -26,8 +26,9 @@ export function clusteredSubnetLayout(config: LayoutConfig): LayoutResult {
   const groupKeys = Array.from(groups.keys()).sort();
   const groupCount = groupKeys.length;
 
-  // 集群中心外环半径
-  const outerRadius = 5 + groupCount * 3;
+  // 最小间距法：外环半径刚好让相邻子网组不重叠
+  const groupSpacing = 5.0; // 子网组之间的最小间距
+  const outerRadius = Math.max((groupSpacing * groupCount) / (2 * Math.PI), 5);
 
   groupKeys.forEach((key, gi) => {
     const members = groups.get(key)!;
@@ -38,7 +39,9 @@ export function clusteredSubnetLayout(config: LayoutConfig): LayoutResult {
     const cz = Math.sin(groupAngle) * outerRadius;
 
     // 组成员内环
-    const innerRadius = 1 + members.length * 0.6;
+    // 最小间距法：内环半径刚好让组内节点不重叠
+    const memberSpacing = 2.0;
+    const innerRadius = Math.max((memberSpacing * members.length) / (2 * Math.PI), 1.2);
     members.forEach((node, ni) => {
       const nodeAngle = (ni / members.length) * Math.PI * 2;
       positions[node.id] = [

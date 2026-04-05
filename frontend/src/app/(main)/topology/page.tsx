@@ -7,7 +7,7 @@ import { api } from '@/lib/api';
 import { GraphResponse, GraphNode, GraphEdge, DryRunResult } from '@/lib/api/types';
 import { RefreshCw } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import TopologyToolbar, { type TopologyViewMode, VIEW_MODE_LAYOUT, VIEW_MODE_LABELS } from '@/components/topology/TopologyToolbar';
+import TopologyToolbar from '@/components/topology/TopologyToolbar';
 import TimeSlider from '@/components/topology/TimeSlider';
 import SideInspector from '@/components/topology/SideInspector';
 import TopologyLegend from '@/components/topology/TopologyLegend';
@@ -19,7 +19,7 @@ import { useOptimization } from '@/components/topology/optimization/context';
 
 // 桥接组件：在 OptimizationProvider 内部消费 context，向 TopologyToolbar 传递优化层 props
 function OptimizedToolbar(props: React.ComponentProps<typeof TopologyToolbar>) {
-  const { state, setViewLevel, expandAll, collapseAll, setEdgeFilter } = useOptimization();
+  const { state, setViewLevel, expandAll, collapseAll } = useOptimization();
   return (
     <TopologyToolbar
       {...props}
@@ -27,8 +27,6 @@ function OptimizedToolbar(props: React.ComponentProps<typeof TopologyToolbar>) {
       onViewLevelChange={setViewLevel}
       onExpandAll={expandAll}
       onCollapseAll={collapseAll}
-      edgeFilter={state.edgeFilter}
-      onEdgeFilterChange={setEdgeFilter}
     />
   );
 }
@@ -144,29 +142,24 @@ function TopologyInner() {
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<GraphEdge | null>(null);
 
-  // ── 主视图模式（驱动布局 + 标签策略） ──
-  const [topoViewMode, setTopoViewMode] = useState<TopologyViewMode>('overview');
-  // 高级覆盖：允许手动切换到非默认布局（undefined = 跟随视图模式）
-  const [layoutOverride, setLayoutOverride] = useState<LayoutMode | undefined>(undefined);
-
-  // 派生：实际布局 = 覆盖 ?? 视图模式默认
-  const layoutMode = layoutOverride ?? VIEW_MODE_LAYOUT[topoViewMode];
-  // 派生：标签/箭头策略由视图模式决定
-  const { showLabels, showArrows: showArrowsBase, riskHeatEnabled } = VIEW_MODE_LABELS[topoViewMode];
-  // DAG 模式下强制启用箭头
-  const effectiveShowArrows = layoutMode === 'dag' ? true : showArrowsBase;
+  // 布局模式（用户直接切换）
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>('circle');
+  // 标签/箭头策略
+  const showLabels = true;
+  const showArrows = layoutMode === 'dag';
+  const riskHeatEnabled = false;
 
   const [cameraPreset, setCameraPreset] = useState<CameraPreset>(null);
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
 
-  // 切换视图模式时自动 fit 相机
-  const prevTopoViewMode = useRef(topoViewMode);
+  // 切换布局模式时自动 fit 相机
+  const prevLayoutMode = useRef(layoutMode);
   useEffect(() => {
-    if (prevTopoViewMode.current !== topoViewMode) {
-      prevTopoViewMode.current = topoViewMode;
+    if (prevLayoutMode.current !== layoutMode) {
+      prevLayoutMode.current = layoutMode;
       setCameraPreset('fit');
     }
-  }, [topoViewMode]);
+  }, [layoutMode]);
 
   // searchParams 变化时同步时间过滤器
   useEffect(() => {
@@ -398,13 +391,12 @@ function TopologyInner() {
       currentTime={currentTime}
       timeWindowStart={sliderStartTime}
       timeWindowEnd={sliderEndTime}
-      topologyViewMode={topoViewMode}
     >
     <div className="h-[calc(100vh-64px)] flex flex-col">
       {/* 工具栏（通过桥接组件注入优化层 props） */}
       <OptimizedToolbar
-        viewMode={topoViewMode}
-        onViewModeChange={(m) => { setTopoViewMode(m); setLayoutOverride(undefined); }}
+        layoutMode={layoutMode}
+        onLayoutModeChange={setLayoutMode}
         highlightAlertId={highlightAlertId}
         onRefresh={fetchGraph}
         loading={loading}
@@ -412,8 +404,6 @@ function TopologyInner() {
         endTime={isoToLocalInput(filterEnd)}
         onStartTimeChange={(v) => setFilterStart(localInputToIso(v))}
         onEndTimeChange={(v) => setFilterEnd(localInputToIso(v))}
-        layoutMode={layoutMode}
-        onLayoutModeChange={setLayoutOverride}
         onCameraPreset={setCameraPreset}
         dryRunActive={!!dryRunResult}
       />
@@ -442,9 +432,8 @@ function TopologyInner() {
                 affectedEdgeIds={isDiff ? affectedEdgeIds : undefined}
                 altPathNodeIds={isDiff ? altPathNodeIds : undefined}
                 layoutMode={layoutMode}
-                topologyViewMode={topoViewMode}
                 showLabels={showLabels}
-                showArrows={effectiveShowArrows}
+                showArrows={showArrows}
                 riskHeatEnabled={riskHeatEnabled}
                 cameraPreset={cameraPreset}
                 onCameraPresetDone={() => setCameraPreset(null)}

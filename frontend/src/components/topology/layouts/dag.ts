@@ -1,5 +1,5 @@
 import type { LayoutConfig, LayoutResult } from './types';
-import { forceLayout } from './force';
+import { circleLayout } from './circle';
 
 /**
  * 使用 Kahn 拓扑排序实现的 DAG（有向无环图）布局。
@@ -49,7 +49,7 @@ export function dagLayout(config: LayoutConfig): LayoutResult {
 
   // 检测到环，回退到 force 布局
   if (order.length < nodes.length) {
-    return forceLayout(config);
+    return circleLayout(config);
   }
 
   // 按层分组节点

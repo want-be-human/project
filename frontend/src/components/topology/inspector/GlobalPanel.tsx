@@ -87,7 +87,6 @@ export default function GlobalPanel({
   // 布局模式描述映射
   const layoutDescMap: Record<string, string> = {
     circle: t('inspector_layoutCircleDesc'),
-    force: t('inspector_layoutForceDesc'),
     dag: t('inspector_layoutDagDesc'),
     'clustered-subnet': t('inspector_layoutClusterDesc'),
   };
@@ -95,7 +94,6 @@ export default function GlobalPanel({
   // 布局模式名称映射
   const layoutNameMap: Record<string, string> = {
     circle: t('layoutCircle'),
-    force: t('layoutForce'),
     dag: t('layoutDag'),
     'clustered-subnet': t('layoutCluster'),
   };

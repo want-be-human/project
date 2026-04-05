@@ -55,20 +55,6 @@ export function computeEdgeVisibility(
   // 时间活跃性
   if (config.activeOnly && !isEdgeActive(edge, currentTime)) return 'hidden';
 
-  const edgeRisk = edge.risk ?? 0;
-
-  // 风险阈值：低于一半直接隐藏，低于阈值弱化
-  if (config.minRisk > 0) {
-    if (edgeRisk < config.minRisk * 0.5) return 'hidden';
-    if (edgeRisk < config.minRisk) return 'dimmed';
-  }
-
-  // 权重阈值
-  if (config.minWeight > 0) {
-    if (edge.weight < config.minWeight * 0.5) return 'hidden';
-    if (edge.weight < config.minWeight) return 'dimmed';
-  }
-
   // 时间窗自适应：窗口越宽，短暂活跃的边越暗
   // 防止时间窗扩大时标签和边瞬间不可读
   if (timeWindowWidth > 0) {

@@ -85,10 +85,6 @@ export interface GridParams {
 // === 边过滤配置 ===
 
 export interface EdgeFilterConfig {
-  /** 0-1，低于此值的边被 dim/hide */
-  minRisk: number;
-  /** 低于此值的边被 dim/hide */
-  minWeight: number;
   /** 仅显示当前时间活跃的边 */
   activeOnly: boolean;
   /** 隐藏簇内部边 */
@@ -146,8 +142,6 @@ export interface OptimizationContextValue {
 
 /** 默认边过滤配置 */
 export const DEFAULT_EDGE_FILTER: EdgeFilterConfig = {
-  minRisk: 0,
-  minWeight: 0,
   activeOnly: false,
   hideIntraCluster: false,
 };

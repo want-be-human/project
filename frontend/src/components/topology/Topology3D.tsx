@@ -37,7 +37,6 @@ export interface Topology3DProps {
   affectedEdgeIds?: Set<string>;
   altPathNodeIds?: Set<string>;
   layoutMode?: LayoutMode;
-  topologyViewMode?: 'overview' | 'analysis' | 'explain';
   showLabels?: boolean;
   showArrows?: boolean;
   riskHeatEnabled?: boolean;
@@ -466,7 +465,6 @@ function Scene({
   affectedEdgeIds,
   altPathNodeIds,
   layoutMode = 'circle',
-  topologyViewMode = 'overview',
   showLabels = true,
   showArrows = false,
   riskHeatEnabled = false,
@@ -497,8 +495,8 @@ function Scene({
   // 基于布局坐标计算包围盒、相机限制、网格参数
   const boundingBox = useMemo(() => computeBoundingBox(positions), [positions]);
   const cameraLimits = useMemo(
-    () => computeCameraLimits(boundingBox, { viewMode: topologyViewMode }),
-    [boundingBox, topologyViewMode],
+    () => computeCameraLimits(boundingBox),
+    [boundingBox],
   );
   const gridParams = useMemo(() => computeGridParams(boundingBox), [boundingBox]);
 
@@ -731,7 +729,7 @@ export default function Topology3D(props: Topology3DProps) {
     <CanvasErrorBoundary>
       <div ref={containerRef} style={{ width: '100%', height: '100%' }}>
         <Canvas
-          camera={{ position: [0, 8, 12], fov: 50 }}
+          camera={{ position: [10, 2, 0], fov: 50 }}
           style={{ background: '#f8fafc' }}
           onPointerMissed={() => {
             props.onSelectNode?.(null);

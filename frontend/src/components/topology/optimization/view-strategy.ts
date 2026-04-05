@@ -14,30 +14,15 @@ export function computeDefaultViewLevel(nodeCount: number): ViewLevel {
 
 /**
  * 根据图规模计算默认边过滤配置。
- * 大图使用更激进的过滤以保证可读性。
  */
 export function computeDefaultEdgeFilter(
   nodeCount: number,
   _edgeCount: number,
 ): EdgeFilterConfig {
-  // 大图（>150）：激进过滤，只显示高风险高权重边
-  if (nodeCount > 150) {
-    return {
-      minRisk: 0.3,
-      minWeight: 3,
-      activeOnly: false,
-      hideIntraCluster: true,
-    };
-  }
-  // 中图（31-150）：仅隐藏簇内边
+  // 中/大图（>30）：隐藏簇内边
   if (nodeCount > 30) {
-    return {
-      minRisk: 0,
-      minWeight: 0,
-      activeOnly: false,
-      hideIntraCluster: true,
-    };
+    return { activeOnly: false, hideIntraCluster: true };
   }
-  // 小图（≤30）：host 级别，不过滤
+  // 小图（≤30）：不过滤
   return { ...DEFAULT_EDGE_FILTER };
 }

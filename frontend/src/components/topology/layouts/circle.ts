@@ -10,9 +10,12 @@ export function circleLayout(config: LayoutConfig): LayoutResult {
   const n = nodes.length;
   if (n === 0) return positions;
 
+  // 最小间距法：半径刚好让相邻节点不重叠
+  const minSpacing = 2.0; // 节点视觉尺寸约 2 单位
+  const radius = Math.max((minSpacing * n) / (2 * Math.PI), 3);
+
   nodes.forEach((node, i) => {
     const angle = (i / n) * Math.PI * 2;
-    const radius = 4 + n * 0.5;
     positions[node.id] = [
       Math.cos(angle) * radius,
       (node.risk - 0.5) * 3, // Y 轴基于风险值

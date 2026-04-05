@@ -2,7 +2,6 @@ export type { LayoutMode, LayoutResult, LayoutConfig } from './types';
 
 import type { LayoutMode, LayoutConfig, LayoutResult } from './types';
 import { circleLayout } from './circle';
-import { forceLayout } from './force';
 import { dagLayout } from './dag';
 import { clusteredSubnetLayout } from './clustered-subnet';
 
@@ -16,8 +15,6 @@ export function computeLayout(
 ): LayoutResult {
   try {
     switch (mode) {
-      case 'force':
-        return forceLayout(config);
       case 'dag':
         return dagLayout(config);
       case 'clustered-subnet':
