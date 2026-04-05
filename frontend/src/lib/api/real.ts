@@ -53,12 +53,38 @@ async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<T>
 }
 
 export const realApi = {
-    uploadPcap: async (file: File): Promise<PcapFile> => {
-        const formData = new FormData();
-        formData.append('file', file);
-        return fetchJson<PcapFile>('/api/v1/pcaps/upload', {
-            method: 'POST',
-            body: formData,
+    uploadPcap: (file: File, onProgress?: (pct: number) => void): Promise<PcapFile> => {
+        return new Promise<PcapFile>((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            const formData = new FormData();
+            formData.append('file', file);
+
+            if (onProgress) {
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable) {
+                        onProgress(Math.round((e.loaded / e.total) * 100));
+                    }
+                });
+            }
+
+            xhr.addEventListener('load', () => {
+                try {
+                    const envelope: Envelope<PcapFile> = JSON.parse(xhr.responseText);
+                    if (xhr.status >= 200 && xhr.status < 300 && envelope.ok && envelope.data) {
+                        resolve(envelope.data);
+                    } else {
+                        reject(new Error(envelope.error?.message || `Upload failed: ${xhr.status}`));
+                    }
+                } catch {
+                    reject(new Error(`Upload failed: ${xhr.status} ${xhr.statusText}`));
+                }
+            });
+
+            xhr.addEventListener('error', () => reject(new Error('Network error during upload')));
+            xhr.addEventListener('abort', () => reject(new Error('Upload aborted')));
+
+            xhr.open('POST', `${BASE_URL}/api/v1/pcaps/upload`);
+            xhr.send(formData);
         });
     },
     listPcaps: async (params?: {limit?: number, offset?: number}): Promise<PcapFile[]> => {
@@ -280,15 +306,41 @@ export const realApi = {
         return fetchJson<BatchDetail>(`/api/v1/batches/${batchId}`);
     },
 
-    /** 上传批次文件（多文件） */
-    uploadBatchFiles: async (batchId: string, files: File[]): Promise<BatchFileRecord[]> => {
-        const formData = new FormData();
-        for (const file of files) {
-            formData.append('files', file);
-        }
-        return fetchJson<BatchFileRecord[]>(`/api/v1/batches/${batchId}/files`, {
-            method: 'POST',
-            body: formData,
+    /** 上传批次文件（多文件，支持进度回调） */
+    uploadBatchFiles: (batchId: string, files: File[], onProgress?: (pct: number) => void): Promise<BatchFileRecord[]> => {
+        return new Promise<BatchFileRecord[]>((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            const formData = new FormData();
+            for (const file of files) {
+                formData.append('files', file);
+            }
+
+            if (onProgress) {
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable) {
+                        onProgress(Math.round((e.loaded / e.total) * 100));
+                    }
+                });
+            }
+
+            xhr.addEventListener('load', () => {
+                try {
+                    const envelope: Envelope<BatchFileRecord[]> = JSON.parse(xhr.responseText);
+                    if (xhr.status >= 200 && xhr.status < 300 && envelope.ok && envelope.data) {
+                        resolve(envelope.data);
+                    } else {
+                        reject(new Error(envelope.error?.message || `Upload failed: ${xhr.status}`));
+                    }
+                } catch {
+                    reject(new Error(`Upload failed: ${xhr.status} ${xhr.statusText}`));
+                }
+            });
+
+            xhr.addEventListener('error', () => reject(new Error('Network error during upload')));
+            xhr.addEventListener('abort', () => reject(new Error('Upload aborted')));
+
+            xhr.open('POST', `${BASE_URL}/api/v1/batches/${batchId}/files`);
+            xhr.send(formData);
         });
     },
 

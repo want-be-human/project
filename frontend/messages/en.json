@@ -118,6 +118,7 @@
     "dragAndDrop": "or drag and drop",
     "fileTypes": "PCAP/PCAPNG files (Max 100MB)",
     "uploading": "Uploading...",
+    "serverProcessing": "File sent, server processing...",
     "uploadFailed": "Upload failed",
     "processFailed": "Failed to start processing",
     "filename": "Filename",

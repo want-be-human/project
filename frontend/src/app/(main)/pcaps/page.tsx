@@ -29,6 +29,7 @@ export default function PcapsPage() {
   //  Section 1: 上传区状态
   // ═══════════════════════════════════════════
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   // ═══════════════════════════════════════════
@@ -332,13 +333,14 @@ export default function PcapsPage() {
 
   const handleSubmitUpload = async (files: File[], name: string, source: string, tags: string[]) => {
     setIsUploading(true);
+    setUploadProgress(0);
     setUploadError(null);
     try {
       // 1. 创建批次
       const batch = await api.createBatch({ name: name || undefined, source: source || undefined, tags: tags.length > 0 ? tags : undefined });
 
-      // 2. 上传文件到批次
-      await api.uploadBatchFiles(batch.id, files);
+      // 2. 上传文件到批次（带进度回调）
+      await api.uploadBatchFiles(batch.id, files, (pct) => setUploadProgress(pct));
 
       // 3. 自动启动处理
       await api.startBatch(batch.id);
@@ -475,6 +477,7 @@ export default function PcapsPage() {
       {/* ── 区域 1：统一上传区 ── */}
       <UnifiedUploadPanel
         isUploading={isUploading}
+        uploadProgress={uploadProgress}
         uploadError={uploadError}
         onSubmit={handleSubmitUpload}
         onUploadComplete={() => {

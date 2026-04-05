@@ -287,6 +287,7 @@ function FlowingDashLine({
       dashed
       dashSize={0.3}
       gapSize={0.15}
+      frustumCulled={false}
     />
   );
 }
@@ -364,6 +365,7 @@ function EdgeLine({
           dashed
           dashSize={0.2}
           gapSize={0.2}
+          frustumCulled={false}
         />
       ) : affected ? (
         /* 受波及边：橙色流动虚线 */
@@ -376,6 +378,7 @@ function EdgeLine({
           lineWidth={lineWidth}
           transparent
           opacity={opacity}
+          frustumCulled={false}
         />
       )}
       {/* 箭头头部 */}
@@ -442,6 +445,7 @@ function AltPathLines({
               dashed
               dashSize={0.25}
               gapSize={0.15}
+              frustumCulled={false}
             />
           );
         });

@@ -118,6 +118,7 @@
     "dragAndDrop": "或拖拽至此处",
     "fileTypes": "PCAP/PCAPNG 文件（最大 100MB）",
     "uploading": "上传中...",
+    "serverProcessing": "文件已发送，服务端正在处理...",
     "uploadFailed": "上传失败",
     "processFailed": "启动处理失败",
     "filename": "文件名",

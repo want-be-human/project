@@ -15,6 +15,8 @@ import { Upload, FileUp, X, Loader2 } from 'lucide-react';
 interface UnifiedUploadPanelProps {
   /** 是否正在上传/创建中 */
   isUploading: boolean;
+  /** 上传进度 0-100 */
+  uploadProgress?: number;
   /** 上传错误信息 */
   uploadError: string | null;
   /** 统一提交回调，files 始终由面板传给父组件 */
@@ -25,6 +27,7 @@ interface UnifiedUploadPanelProps {
 
 export default function UnifiedUploadPanel({
   isUploading,
+  uploadProgress = 0,
   uploadError,
   onSubmit,
   onUploadComplete,
@@ -219,6 +222,31 @@ export default function UnifiedUploadPanel({
               </>
             )}
           </button>
+        </div>
+      )}
+
+      {/* 上传进度条 */}
+      {isUploading && (
+        <div className="mt-4 space-y-1">
+          {uploadProgress < 100 ? (
+            <>
+              <div className="flex items-center justify-between text-sm text-indigo-600">
+                <span>{t('uploading')}</span>
+                <span className="tabular-nums font-medium">{uploadProgress}%</span>
+              </div>
+              <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-indigo-500 rounded-full transition-all duration-300"
+                  style={{ width: `${uploadProgress}%` }}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center gap-2 text-sm text-indigo-600">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>{t('serverProcessing')}</span>
+            </div>
+          )}
         </div>
       )}
 

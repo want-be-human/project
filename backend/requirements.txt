@@ -15,6 +15,7 @@ numpy>=1.26.0
 websockets>=12.0
 tensorboardX>=2.6
 xgboost>=2.0.0
+streaming-form-data>=2.0.0
 
 # OpenTelemetry 可观测性（开发用 console exporter，生产用 otlp）
 opentelemetry-api>=1.24.0

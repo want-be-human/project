@@ -56,10 +56,20 @@ export function forceLayout(config: LayoutConfig): LayoutResult {
     // 同步执行 300 次 tick
     for (let i = 0; i < 300; i++) sim.tick();
 
+    // 计算坐标范围，对过度发散的布局做归一化
+    let maxSpan = 0;
+    for (const n of simNodes) {
+      maxSpan = Math.max(maxSpan, Math.abs(n.x), Math.abs(n.z));
+    }
+
+    // 目标最大跨度：根据节点数自适应（少量节点紧凑，多节点适当展开）
+    const targetSpan = Math.max(8, Math.min(nodes.length * 2, 40));
+    const scale = maxSpan > targetSpan ? targetSpan / maxSpan : 1;
+
     const positions: LayoutResult = {};
     for (const n of simNodes) {
-      // 保留基于风险的 Y 轴偏移
-      positions[n.id] = [n.x, (n.risk - 0.5) * 3, n.z];
+      // 保留基于风险的 Y 轴偏移，XZ 平面做缩放
+      positions[n.id] = [n.x * scale, (n.risk - 0.5) * 3, n.z * scale];
     }
     return positions;
   } catch {

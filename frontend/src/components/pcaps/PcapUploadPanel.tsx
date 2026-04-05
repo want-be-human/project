@@ -10,18 +10,21 @@ export default function PcapUploadPanel({ onUploadSuccess }: { onUploadSuccess: 
   const t = useTranslations('pcaps');
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   const handleFile = async (file: File) => {
     setIsUploading(true);
+    setProgress(0);
     setError(null);
     try {
-      await api.uploadPcap(file);
+      await api.uploadPcap(file, (pct) => setProgress(pct));
       onUploadSuccess();
     } catch (e: any) {
       setError(e.message || t('uploadFailed'));
     } finally {
       setIsUploading(false);
+      setProgress(0);
     }
   };
 
@@ -31,7 +34,7 @@ export default function PcapUploadPanel({ onUploadSuccess }: { onUploadSuccess: 
         <Upload className="w-5 h-5 text-blue-600" />
         {t('uploadTitle')}
       </h2>
-      <div 
+      <div
         className={cn(
           "relative border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer",
           isDragging ? "border-blue-500 bg-blue-50" : "border-gray-300 hover:border-gray-400",
@@ -54,9 +57,9 @@ export default function PcapUploadPanel({ onUploadSuccess }: { onUploadSuccess: 
             <span className="font-semibold text-blue-600">{t('clickToUpload')}</span> {t('dragAndDrop')}
           </div>
           <p className="text-xs text-gray-500">{t('fileTypes')}</p>
-          <input 
-            type="file" 
-            className="hidden" 
+          <input
+            type="file"
+            className="hidden"
             id="file-upload"
             accept=".pcap,.pcapng,.cap"
             onChange={(e) => {
@@ -64,9 +67,9 @@ export default function PcapUploadPanel({ onUploadSuccess }: { onUploadSuccess: 
               if (file) handleFile(file);
             }}
           />
-          <label 
-            htmlFor="file-upload" 
-            className="absolute inset-0 cursor-pointer" 
+          <label
+            htmlFor="file-upload"
+            className="absolute inset-0 cursor-pointer"
           />
         </div>
       </div>
@@ -76,8 +79,17 @@ export default function PcapUploadPanel({ onUploadSuccess }: { onUploadSuccess: 
         </div>
       )}
       {isUploading && (
-        <div className="mt-3 text-sm text-blue-600 text-center animate-pulse">
-          {t('uploading')}
+        <div className="mt-3 space-y-1">
+          <div className="flex items-center justify-between text-sm text-blue-600">
+            <span>{t('uploading')}</span>
+            <span className="tabular-nums">{progress}%</span>
+          </div>
+          <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-blue-500 rounded-full transition-all duration-300"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
         </div>
       )}
     </div>

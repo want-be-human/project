@@ -4,15 +4,18 @@ POST /pcaps/upload、GET /pcaps、GET /pcaps/{id}/status、POST /pcaps/{id}/proc
 """
 
 import asyncio
+import hashlib
 import json
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Depends, UploadFile, File, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Request, UploadFile, File, Query
 from sqlalchemy.orm import Session
+from streaming_form_data import StreamingFormDataParser
+from streaming_form_data.targets import FileTarget, ValueTarget
 
 from app.api.deps import get_db, SessionLocal
 from app.core.config import settings
-from app.core.errors import ConflictError, NotFoundError
+from app.core.errors import ConflictError, NotFoundError, UnsupportedMediaError
 from app.core.logging import get_logger
 from app.core.loop import get_main_loop
 from app.models.flow import Flow
@@ -270,6 +273,42 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
 
 # --------------- 接口 ---------------
 
+class _HashingFileTarget(FileTarget):
+    """FileTarget that computes SHA256 on the fly and captures the first 4 bytes."""
+
+    def __init__(self, filepath: str, **kwargs):
+        super().__init__(filepath, **kwargs)
+        self._hasher = hashlib.sha256()
+        self._size = 0
+        self._magic = b""
+
+    def on_data_received(self, chunk: bytes):
+        if self._size == 0 and chunk:
+            self._magic = chunk[:4]
+        self._hasher.update(chunk)
+        self._size += len(chunk)
+        super().on_data_received(chunk)
+
+    @property
+    def sha256(self) -> str:
+        return f"sha256:{self._hasher.hexdigest()}"
+
+    @property
+    def size(self) -> int:
+        return self._size
+
+    @property
+    def magic(self) -> bytes:
+        return self._magic
+
+
+_VALID_PCAP_MAGICS = {
+    b"\xa1\xb2\xc3\xd4", b"\xd4\xc3\xb2\xa1",
+    b"\xa1\xb2\x3c\x4d", b"\x4d\x3c\xb2\xa1",
+    b"\x0a\x0d\x0d\x0a",
+}
+
+
 @router.post(
     "/upload",
     response_model=ApiResponse[PcapFileSchema],
@@ -277,13 +316,73 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
     description="Upload a PCAP file for analysis. Returns file metadata. (DOC C C6.2.1)",
 )
 async def upload_pcap(
-    file: UploadFile = File(..., description="PCAP file to upload"),
+    request: Request,
     db: Session = Depends(get_db),
 ) -> ApiResponse[PcapFileSchema]:
-    """上传 PCAP 文件。"""
+    """
+    流式上传 PCAP 文件。
+
+    使用 streaming-form-data 直接将上传数据写入磁盘，
+    无需将整个文件加载到内存。内存占用固定 ~64KB。
+    同步计算 SHA256 和文件大小。
+    """
+    from app.core.utils import generate_uuid, sanitize_filename, datetime_to_iso
+
+    content_type = request.headers.get("content-type", "")
+    if "multipart/form-data" not in content_type:
+        raise UnsupportedMediaError(
+            message="Content-Type must be multipart/form-data",
+            details={"content_type": content_type},
+        )
+
+    pcap_id = generate_uuid()
+    storage_path = settings.PCAP_DIR / f"{pcap_id}.pcap"
+    settings.PCAP_DIR.mkdir(parents=True, exist_ok=True)
+
+    # 设置流式解析器：文件数据直接写入磁盘
+    file_target = _HashingFileTarget(str(storage_path))
+    filename_target = ValueTarget()
+
+    parser = StreamingFormDataParser(headers={"Content-Type": content_type})
+    parser.register("file", file_target)
+    parser.register("filename", filename_target)
+
+    # 流式接收 — 每个 chunk 到达即写入磁盘，内存固定
+    async for chunk in request.stream():
+        parser.data_received(chunk)
+
+    # 获取文件名（从 multipart Content-Disposition 中提取）
+    raw_filename = file_target.multipart_filename or "unknown.pcap"
+    safe_filename = sanitize_filename(raw_filename)
+
+    # 魔数校验
+    if file_target.size < 4 or file_target.magic not in _VALID_PCAP_MAGICS:
+        storage_path.unlink(missing_ok=True)
+        raise UnsupportedMediaError(
+            message="File does not appear to be a valid PCAP file (invalid magic number)",
+            details={"filename": raw_filename},
+        )
+
+    logger.info("流式上传完成: %s (%d bytes, %s)", pcap_id, file_target.size, safe_filename)
+
+    # 创建数据库记录
+    pcap_record = PcapFile(
+        id=pcap_id,
+        filename=safe_filename,
+        storage_path=str(storage_path),
+        sha256=file_target.sha256,
+        size_bytes=file_target.size,
+        status="uploaded",
+        progress=0,
+        flow_count=0,
+        alert_count=0,
+    )
+    db.add(pcap_record)
+    db.commit()
+    db.refresh(pcap_record)
+
     service = IngestionService(db)
-    pcap = service.save_pcap(file.file, file.filename or "unknown.pcap")
-    return ApiResponse.success(pcap)
+    return ApiResponse.success(service._to_schema(pcap_record))
 
 
 @router.get(

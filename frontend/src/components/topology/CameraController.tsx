@@ -35,10 +35,12 @@ export default function CameraController({
   onFocusDone,
   cameraLimits,
 }: CameraControllerProps) {
-  const { camera } = useThree();
+  const { camera, controls } = useThree();
   const targetPos = useRef<THREE.Vector3 | null>(null);
   const targetLookAt = useRef<THREE.Vector3>(new THREE.Vector3());
   const animating = useRef(false);
+  // 首次 fit 时直接跳转，避免从默认位置 [0,8,12] 缓慢 LERP
+  const firstFit = useRef(true);
 
   // 根据包围盒计算”全图适配”相机位置
   useEffect(() => {
@@ -85,8 +87,25 @@ export default function CameraController({
       }
       targetLookAt.current.copy(center);
     }
+
+    // 首次 fit：直接跳转到目标位置，避免从 [0,8,12] 缓慢 LERP
+    if (firstFit.current && preset === 'fit' && targetPos.current) {
+      firstFit.current = false;
+      camera.position.copy(targetPos.current);
+      camera.lookAt(targetLookAt.current);
+      camera.updateProjectionMatrix();
+      // 同步 OrbitControls 的 target
+      if (controls && 'target' in controls) {
+        (controls.target as THREE.Vector3).copy(targetLookAt.current);
+        (controls as any).update();
+      }
+      targetPos.current = null;
+      onDone();
+      return;
+    }
+
     animating.current = true;
-  }, [preset, positions, onDone, cameraLimits]);
+  }, [preset, positions, onDone, cameraLimits, camera, controls]);
 
   // 聚焦到指定节点
   useEffect(() => {
@@ -109,6 +128,12 @@ export default function CameraController({
     const t = Math.min(1, LERP_SPEED * delta);
     camera.position.lerp(targetPos.current, t);
     camera.lookAt(targetLookAt.current);
+
+    // 同步 OrbitControls 的 target，避免 OrbitControls 覆盖相机朝向
+    if (controls && 'target' in controls) {
+      (controls.target as THREE.Vector3).copy(targetLookAt.current);
+      (controls as any).update();
+    }
 
     // 检查是否收敛到目标位置
     if (camera.position.distanceTo(targetPos.current) < 0.05) {
