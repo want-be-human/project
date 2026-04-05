@@ -1,6 +1,6 @@
 'use client';
 
-import { Play, FileText, CheckCircle, AlertCircle, Loader2, Trash2 } from 'lucide-react';
+import { FileText, CheckCircle, AlertCircle, Loader2, Trash2 } from 'lucide-react';
 import { PcapFile } from '@/lib/api/types';
 import { useTranslations } from 'next-intl';
 import { formatBytes } from '@/lib/utils';
@@ -8,15 +8,13 @@ import { format } from 'date-fns';
 
 interface PcapListTableProps {
   pcaps: PcapFile[];
-  onProcess: (id: string) => void;
-  processingId: string | null;
   onSelect?: (pcap: PcapFile) => void;
   selectedId?: string | null;
   onDelete?: (id: string) => void;
   deletingId?: string | null;
 }
 
-export default function PcapListTable({ pcaps, onProcess, processingId, onSelect, selectedId, onDelete, deletingId }: PcapListTableProps) {
+export default function PcapListTable({ pcaps, onSelect, selectedId, onDelete, deletingId }: PcapListTableProps) {
   const t = useTranslations('pcaps');
 
   const getStatusIcon = (status: string) => {
@@ -60,7 +58,6 @@ export default function PcapListTable({ pcaps, onProcess, processingId, onSelect
                 <td className="px-6 py-3">
                   <div className="flex items-center gap-2">
                     {getStatusIcon(pcap.status)}
-                    {/* failed 状态使用 i18n 翻译文案，其他状态保持原样 */}
                     {pcap.status === 'failed' ? (
                       <span className="text-red-600 font-medium">{t('statusFailed')}</span>
                     ) : (
@@ -70,7 +67,6 @@ export default function PcapListTable({ pcaps, onProcess, processingId, onSelect
                       <span className="text-xs text-blue-600">({pcap.progress}%)</span>
                     )}
                   </div>
-                  {/* 失败时展示错误信息 */}
                   {pcap.status === 'failed' && pcap.error_message && (
                     <p className="mt-1 text-xs text-red-500" title={pcap.error_message}>
                       {t('errorTooltip')}：{pcap.error_message}
@@ -81,18 +77,6 @@ export default function PcapListTable({ pcaps, onProcess, processingId, onSelect
                 <td className="px-6 py-3 text-gray-600">{pcap.alert_count || '-'}</td>
                 <td className="px-6 py-3 text-right">
                   <div className="inline-flex items-center gap-2">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onProcess(pcap.id); }}
-                      disabled={pcap.status === 'processing' || processingId === pcap.id}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 rounded hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      {processingId === pcap.id ? (
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                      ) : (
-                        <Play className="w-3 h-3" />
-                      )}
-                      {t('analyze')}
-                    </button>
                     {onDelete && (
                       <button
                         onClick={(e) => { e.stopPropagation(); onDelete(pcap.id); }}

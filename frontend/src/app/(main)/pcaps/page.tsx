@@ -50,7 +50,6 @@ export default function PcapsPage() {
   // ═══════════════════════════════════════════
   const [pcaps, setPcaps] = useState<PcapFile[]>([]);
   const [loading, setLoading] = useState(true);
-  const [processingId, setProcessingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [selectedPcap, setSelectedPcap] = useState<PcapFile | null>(null);
@@ -285,23 +284,8 @@ export default function PcapsPage() {
   }, [pcaps]);
 
   // ═══════════════════════════════════════════
-  //  操作处理 — PCAP（保留原有）
+  //  操作处理 — PCAP
   // ═══════════════════════════════════════════
-
-  const handleProcess = async (id: string) => {
-    setProcessingId(id);
-    try {
-      await api.processPcap(id, { mode: 'flows_and_detect' });
-      setPcaps(prev => prev.map(p =>
-        p.id === id ? { ...p, status: 'processing' as const, progress: 10 } : p
-      ));
-    } catch (e) {
-      console.error(e);
-      showToast('error', t('processFailed'));
-    } finally {
-      setProcessingId(null);
-    }
-  };
 
   const handleSelectPcap = (pcap: PcapFile) => {
     setSelectedPcap(prev => prev?.id === pcap.id ? null : pcap);
@@ -520,8 +504,6 @@ export default function PcapsPage() {
         ) : (
           <PcapListTable
             pcaps={pcaps}
-            onProcess={handleProcess}
-            processingId={processingId}
             onSelect={handleSelectPcap}
             selectedId={selectedPcap?.id}
             onDelete={handleDelete}

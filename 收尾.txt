@@ -3,10 +3,13 @@
 然后对每个模块进行详细的技术描述，包括使用的算法、数据结构、模型，训练方法等.从头到尾说明所有技术以及技术细节，包括各功能的优化，对于模型和打分的参数，说明为什么要设定这个参数，参数的意义是什么，应该如何调整。
 
 
+我会附上截图说明
+你能不能生成图表
+
 结合实际实现逻辑，根据大数据给出需要讲解的东西
 需不需不要讲各种技术升级前后的对比（速度、准确性、各种指标等），以及讲解各种技术之间的区别，
 比如初始隔离森林简单机器学习算法到三层模型、
-dkpt到nfstream、
+dkpt到nfstream C 层解析、
 文件上传后端用 streaming-form-data 替代 UploadFile，实现真正的单次磁盘写入，消除 Starlette 临时文件，数据直接从网络写到最终路径，单次磁盘写入，写入磁盘的同时计算 SHA256 + 捕获魔数，改为64KB chunk 流式写入+哈希
 NFStream 读 Docker volume（慢 5-10x）→ 内存计算（快）→ SQLite 逐条 INSERT 50 万行（极慢）。改为+SQLite PRAGMA（WAL + synchronous=NORMAL + 64MB cache）、	stage_persist_result → Core bulk insert + 单次 commit、flows/alerts 入库 → Core bulk insert、data/ 改为 named volume（backend_data
 数据落盘路径对比：优化前: 浏览器 → 后端 → 写入 Windows 磁盘 → Docker bind mount 跨 OS 读取（慢 10x）；优化后: 浏览器 → 后端(Docker) → 直接写入 Linux named volume（原生速度）
@@ -18,6 +21,9 @@ tensboard图表中没有变化
 
 系统效率还可以从哪些方面进行优化
 
+总线
 有监督学习和无监督学习的对比分析，说明为什么选择某种方法，以及它们在不同场景下的适用性。
 ai研判，规则模型，语料匹配？
 模型分析逻辑顺序，拆分流，节点，边？聚合？聚合后分析？
+
+现在8G解析只要八分钟，之前要一个多小时还无法结束，同时造成后端阻塞

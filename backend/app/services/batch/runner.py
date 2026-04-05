@@ -30,8 +30,9 @@ from app.core.events.models import (
 )
 from app.core.logging import get_logger
 from app.core.loop import get_main_loop
-from app.core.utils import utc_now, datetime_to_iso
+from app.core.utils import utc_now, datetime_to_iso, generate_uuid
 from app.models.batch import Batch, BatchFile, Job
+from app.models.pipeline import PipelineRunModel
 from app.services.batch.stages import (
     STAGE_ORDER,
     STAGE_TO_FILE_STATUS,
@@ -302,6 +303,9 @@ class JobRunner:
             batch_file.latency_ms = job.latency_ms
             db.commit()
 
+            # 同步写入 pipeline_runs（供 Pipeline API / Dashboard / 场景回归使用）
+            self._sync_pipeline_run(db, job)
+
             _publish_event(BATCH_JOB_COMPLETED, {
                 "batch_id": job.batch_id,
                 "job_id": job.id,
@@ -405,6 +409,9 @@ class JobRunner:
             batch_file.latency_ms = (now - batch_file.started_at).total_seconds() * 1000
         db.commit()
 
+        # 失败时也同步 pipeline_runs（场景回归需要看到失败阶段）
+        self._sync_pipeline_run(db, job)
+
         _publish_event(BATCH_JOB_FAILED, {
             "batch_id": job.batch_id,
             "job_id": job.id,
@@ -422,6 +429,69 @@ class JobRunner:
 
         # 更新批次聚合统计
         self._update_batch_stats(db, job.batch_id)
+
+    # 批次阶段名 → pipeline 阶段名映射
+    _STAGE_MAP = {
+        "validate": "parse", "store": "parse", "parse": "parse",
+        "featurize": "feature_extract",
+        "detect": "detect",
+        "aggregate": "aggregate", "persist_result": "aggregate",
+    }
+
+    def _sync_pipeline_run(self, db: Session, job: Job) -> None:
+        """将 Job.stages_log 同步写入 pipeline_runs 表。
+
+        转换批次阶段格式为 pipeline 阶段格式（合并子阶段、统一字段名），
+        供 Pipeline API、Dashboard、场景回归第 8 阶段使用。
+        """
+        if not job.pcap_id:
+            return
+
+        import json
+
+        raw_stages: list[dict] = job.stages_log if isinstance(job.stages_log, list) else []
+        merged: dict[str, dict] = {}
+        for entry in raw_stages:
+            batch_name = entry.get("stage") or ""
+            pipe_name = self._STAGE_MAP.get(batch_name, batch_name)
+
+            if pipe_name not in merged:
+                merged[pipe_name] = {
+                    "stage_name": pipe_name,
+                    "status": entry.get("status", "completed"),
+                    "latency_ms": entry.get("latency_ms"),
+                    "completed_at": entry.get("completed_at"),
+                    "key_metrics": {},
+                    "output_summary": {},
+                }
+            else:
+                rec = merged[pipe_name]
+                if entry.get("latency_ms") and rec["latency_ms"] is not None:
+                    rec["latency_ms"] += entry["latency_ms"]
+                elif entry.get("latency_ms"):
+                    rec["latency_ms"] = entry["latency_ms"]
+                if entry.get("completed_at"):
+                    rec["completed_at"] = entry["completed_at"]
+                if entry.get("status") == "failed":
+                    rec["status"] = "failed"
+
+        pipeline_stages = list(merged.values())
+        status = "failed" if any(s["status"] == "failed" for s in pipeline_stages) else "completed"
+
+        try:
+            run = PipelineRunModel(
+                id=generate_uuid(),
+                pcap_id=job.pcap_id,
+                status=status,
+                completed_at=job.completed_at,
+                total_latency_ms=job.latency_ms,
+                stages_log=json.dumps(pipeline_stages, ensure_ascii=False),
+            )
+            db.add(run)
+            db.commit()
+        except Exception as exc:
+            logger.warning("同步 pipeline_run 失败（非关键）: %s", exc)
+            db.rollback()
 
     def _mark_cancelled(
         self, db: Session, job: Job, batch_file: BatchFile,
