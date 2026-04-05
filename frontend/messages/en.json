@@ -817,5 +817,15 @@
     "cancelSuccess": "Batch cancelled",
     "retrySuccess": "Retry started",
     "error": "Operation failed"
+  },
+  "pagination": {
+    "page": "Page {current} of {total}",
+    "totalRecords": "{count} records",
+    "pageSize": "Per page",
+    "records": "records",
+    "first": "First",
+    "previous": "Previous",
+    "next": "Next",
+    "last": "Last"
   }
 }

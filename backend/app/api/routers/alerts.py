@@ -8,14 +8,14 @@ import asyncio
 import json
 
 from fastapi import APIRouter, Depends, Query, Path
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
 from app.core.errors import NotFoundError
 from app.core.utils import datetime_to_iso, iso_to_datetime
 from app.models.alert import Alert
-from app.schemas.common import ApiResponse
+from app.schemas.common import ApiResponse, PaginatedData
 from app.schemas.alert import (
     AlertSchema,
     AlertUpdateRequest,
@@ -129,7 +129,7 @@ def _alert_to_schema(alert: Alert) -> AlertSchema:
 
 @router.get(
     "",
-    response_model=ApiResponse[list[AlertSchema]],
+    response_model=ApiResponse[PaginatedData[AlertSchema]],
     summary="List Alerts",
     description="List alerts with filtering and pagination. (DOC C C6.4)",
 )
@@ -142,24 +142,35 @@ async def list_alerts(
     limit: int = Query(default=50, ge=1, le=1000, description="Max results"),
     offset: int = Query(default=0, ge=0, description="Skip count"),
     db: Session = Depends(get_db),
-) -> ApiResponse[list[AlertSchema]]:
+) -> ApiResponse[PaginatedData[AlertSchema]]:
     """按可选筛选条件列出告警记录。"""
-    stmt = select(Alert)
-
+    conditions = []
     if status:
-        stmt = stmt.where(Alert.status == status)
+        conditions.append(Alert.status == status)
     if severity:
-        stmt = stmt.where(Alert.severity == severity)
+        conditions.append(Alert.severity == severity)
     if type:
-        stmt = stmt.where(Alert.type == type)
+        conditions.append(Alert.type == type)
     if start:
-        stmt = stmt.where(Alert.time_window_start >= iso_to_datetime(start))
+        conditions.append(Alert.time_window_start >= iso_to_datetime(start))
     if end:
-        stmt = stmt.where(Alert.time_window_end <= iso_to_datetime(end))
+        conditions.append(Alert.time_window_end <= iso_to_datetime(end))
 
-    stmt = stmt.order_by(Alert.created_at.desc()).offset(offset).limit(limit)
-    alerts = db.execute(stmt).scalars().all()
-    return ApiResponse.success([_alert_to_schema(a) for a in alerts])
+    count_stmt = select(func.count()).select_from(Alert)
+    data_stmt = select(Alert)
+    for cond in conditions:
+        count_stmt = count_stmt.where(cond)
+        data_stmt = data_stmt.where(cond)
+
+    total = db.execute(count_stmt).scalar() or 0
+    data_stmt = data_stmt.order_by(Alert.created_at.desc()).offset(offset).limit(limit)
+    alerts = db.execute(data_stmt).scalars().all()
+    return ApiResponse.success(PaginatedData(
+        items=[_alert_to_schema(a) for a in alerts],
+        total=total,
+        limit=limit,
+        offset=offset,
+    ))
 
 
 @router.get(

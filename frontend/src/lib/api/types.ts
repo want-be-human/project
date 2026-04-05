@@ -1,4 +1,35 @@
 
+// ==================== 分页通用类型 ====================
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface AlertListParams {
+  status?: string;
+  severity?: string;
+  type?: string;
+  start?: string;
+  end?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface FlowListParams {
+  pcap_id?: string;
+  src_ip?: string;
+  dst_ip?: string;
+  proto?: string;
+  min_score?: number;
+  start?: string;
+  end?: string;
+  limit?: number;
+  offset?: number;
+}
+
 export interface PcapFile {
   version?: string;
   id: string; // 唯一标识

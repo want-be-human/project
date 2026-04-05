@@ -7,14 +7,14 @@ import json
 from typing import cast
 
 from fastapi import APIRouter, Depends, Query, Path
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
 from app.core.errors import NotFoundError
 from app.core.utils import datetime_to_iso, iso_to_datetime
 from app.models.flow import Flow
-from app.schemas.common import ApiResponse
+from app.schemas.common import ApiResponse, PaginatedData
 from app.schemas.flow import FlowRecordSchema
 
 router = APIRouter(prefix="/flows", tags=["flows"])
@@ -53,7 +53,7 @@ def _flow_to_schema(flow: Flow) -> FlowRecordSchema:
 
 @router.get(
     "",
-    response_model=ApiResponse[list[FlowRecordSchema]],
+    response_model=ApiResponse[PaginatedData[FlowRecordSchema]],
     summary="List Flows",
     description="List flows with filtering and pagination. (DOC C C6.3)",
 )
@@ -68,28 +68,39 @@ async def list_flows(
     limit: int = Query(default=100, ge=1, le=1000, description="Max results"),
     offset: int = Query(default=0, ge=0, description="Skip count"),
     db: Session = Depends(get_db),
-) -> ApiResponse[list[FlowRecordSchema]]:
+) -> ApiResponse[PaginatedData[FlowRecordSchema]]:
     """按可选筛选条件列出流记录。"""
-    stmt = select(Flow)
-
+    conditions = []
     if pcap_id:
-        stmt = stmt.where(Flow.pcap_id == pcap_id)
+        conditions.append(Flow.pcap_id == pcap_id)
     if src_ip:
-        stmt = stmt.where(Flow.src_ip == src_ip)
+        conditions.append(Flow.src_ip == src_ip)
     if dst_ip:
-        stmt = stmt.where(Flow.dst_ip == dst_ip)
+        conditions.append(Flow.dst_ip == dst_ip)
     if proto:
-        stmt = stmt.where(Flow.proto == proto.upper())
+        conditions.append(Flow.proto == proto.upper())
     if min_score is not None:
-        stmt = stmt.where(Flow.anomaly_score >= min_score)
+        conditions.append(Flow.anomaly_score >= min_score)
     if start:
-        stmt = stmt.where(Flow.ts_start >= iso_to_datetime(start))
+        conditions.append(Flow.ts_start >= iso_to_datetime(start))
     if end:
-        stmt = stmt.where(Flow.ts_end <= iso_to_datetime(end))
+        conditions.append(Flow.ts_end <= iso_to_datetime(end))
 
-    stmt = stmt.order_by(Flow.ts_start.desc()).offset(offset).limit(limit)
-    flows = db.execute(stmt).scalars().all()
-    return ApiResponse.success([_flow_to_schema(f) for f in flows])
+    count_stmt = select(func.count()).select_from(Flow)
+    data_stmt = select(Flow)
+    for cond in conditions:
+        count_stmt = count_stmt.where(cond)
+        data_stmt = data_stmt.where(cond)
+
+    total = db.execute(count_stmt).scalar() or 0
+    data_stmt = data_stmt.order_by(Flow.ts_start.desc()).offset(offset).limit(limit)
+    flows = db.execute(data_stmt).scalars().all()
+    return ApiResponse.success(PaginatedData(
+        items=[_flow_to_schema(f) for f in flows],
+        total=total,
+        limit=limit,
+        offset=offset,
+    ))
 
 
 @router.get(

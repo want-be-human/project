@@ -44,6 +44,15 @@ class ApiResponse(BaseModel, Generic[T]):
         )
 
 
+class PaginatedData(BaseModel, Generic[T]):
+    """分页列表包装，包含总数信息。"""
+
+    items: list[T]
+    total: int = Field(..., ge=0, description="满足条件的总记录数（分页前）")
+    limit: int = Field(..., ge=1, description="请求的页大小")
+    offset: int = Field(..., ge=0, description="请求的偏移量")
+
+
 class PaginationParams(BaseModel):
     """通用分页参数。"""
 

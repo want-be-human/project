@@ -7,6 +7,7 @@ import {
   CreateBatchRequest, BatchStartResponse, BatchRetryResponse,
   AnalyticsOverview, ScoreResult, DashboardTrends, DashboardDistributions,
   TopologySnapshot, ActivityEvent, TopAssets,
+  PaginatedResponse, AlertListParams, FlowListParams,
 } from './types';
 
 // 服务端（Server Component）优先使用内部网络地址，客户端使用公开地址
@@ -75,17 +76,23 @@ export const realApi = {
         });
     },
 
-    listFlows: async (params: any): Promise<FlowRecord[]> => {
-        const query = new URLSearchParams(params).toString();
-        return fetchJson<FlowRecord[]>(`/api/v1/flows?${query}`);
+    listFlows: async (params: FlowListParams = {}): Promise<PaginatedResponse<FlowRecord>> => {
+        const cleaned = Object.fromEntries(
+            Object.entries(params).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])
+        );
+        const query = new URLSearchParams(cleaned).toString();
+        return fetchJson<PaginatedResponse<FlowRecord>>(`/api/v1/flows?${query}`);
     },
     getFlow: async (id: string): Promise<FlowRecord> => {
         return fetchJson<FlowRecord>(`/api/v1/flows/${id}`);
     },
 
-    listAlerts: async (params: any): Promise<Alert[]> => {
-        const query = new URLSearchParams(params).toString();
-        return fetchJson<Alert[]>(`/api/v1/alerts?${query}`);
+    listAlerts: async (params: AlertListParams = {}): Promise<PaginatedResponse<Alert>> => {
+        const cleaned = Object.fromEntries(
+            Object.entries(params).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])
+        );
+        const query = new URLSearchParams(cleaned).toString();
+        return fetchJson<PaginatedResponse<Alert>>(`/api/v1/alerts?${query}`);
     },
     getAlert: async (id: string): Promise<Alert> => {
         return fetchJson<Alert>(`/api/v1/alerts/${id}`);
