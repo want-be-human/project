@@ -22,8 +22,7 @@ htmlcov/
 
 # ── Database & runtime data ───────────────────────────────────────────────────
 backend/data/nettwin.db
-backend/data/pcaps/
-data/pcaps/
+backend/data/
 *.db
 *.db-shm
 *.db-wal

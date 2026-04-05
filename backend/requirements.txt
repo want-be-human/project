@@ -10,9 +10,11 @@ pydantic-settings>=2.1.0
 python-multipart>=0.0.6
 aiofiles>=23.2.1
 dpkt>=1.9.8
-scikit-learn==1.5.1
+scikit-learn==1.8.0
 numpy>=1.26.0
 websockets>=12.0
+tensorboardX>=2.6
+xgboost>=2.0.0
 
 # OpenTelemetry 可观测性（开发用 console exporter，生产用 otlp）
 opentelemetry-api>=1.24.0

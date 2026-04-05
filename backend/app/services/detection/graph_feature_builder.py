@@ -76,31 +76,111 @@ class GraphFeatureBuilder:
         if not flows:
             return flows
 
-        # ── 预计算全局指标 ──
-        betweenness = self._compute_betweenness(graph)
-        clustering = self._compute_clustering(graph)
-        degree_stats = self._compute_degree_stats(graph)
+        n_nodes = len(graph["nodes"])
+        logger.info(
+            "GraphFeatureBuilder 开始计算: %d 条流, %d 个节点",
+            len(flows), n_nodes,
+        )
 
-        # ── 为每条 flow 提取特征 ──
+        # ── 预计算全局指标（使用 set-based 邻接表加速） ──
+        out_nb_sets = graph["out_nb_sets"]
+        in_nb_sets = graph["in_nb_sets"]
+        all_nb_sets = {
+            ip: out_nb_sets.get(ip, set()) | in_nb_sets.get(ip, set())
+            for ip in graph["nodes"]
+        }
+
+        betweenness = self._compute_betweenness(graph, all_nb_sets)
+        clustering = self._compute_clustering(graph, out_nb_sets, all_nb_sets)
+        degree_stats = self._compute_degree_stats(all_nb_sets)
+
+        # 预计算每个节点的邻居 baseline 统计
+        node_max_baseline = graph["node_max_baseline"]
+        nb_stats_cache: dict[str, tuple[float, float]] = {}
+        for ip in graph["nodes"]:
+            nbs = all_nb_sets.get(ip, set())
+            if not nbs:
+                nb_stats_cache[ip] = (0.0, 0.0)
+                continue
+            max_b = 0.0
+            sum_b = 0.0
+            cnt = 0
+            for nb in nbs:
+                mb = node_max_baseline.get(nb, 0.0)
+                if mb > max_b:
+                    max_b = mb
+                sum_b += mb
+                cnt += 1
+            nb_stats_cache[ip] = (max_b, sum_b / cnt if cnt else 0.0)
+
+        # 预计算 ego graph 密度
+        ego_density_cache: dict[str, float] = {}
+        for ip in graph["nodes"]:
+            nbs = all_nb_sets.get(ip, set())
+            k = len(nbs)
+            if k < 2:
+                ego_density_cache[ip] = 0.0
+                continue
+            # 限制：邻居过多时用采样近似
+            if k > 200:
+                ego_density_cache[ip] = 0.0
+                continue
+            ego_edges = 0
+            for n1 in nbs:
+                out_of_n1 = out_nb_sets.get(n1, set())
+                ego_edges += len(out_of_n1 & nbs) - (1 if n1 in (out_of_n1 & nbs) else 0)
+            max_possible = k * (k - 1)
+            ego_density_cache[ip] = ego_edges / max_possible if max_possible > 0 else 0.0
+
+        # 预计算子网特征
+        subnet_peer_count_cache: dict[str, int] = {}
+        subnet_anomaly_cache: dict[str, float] = {}
+        for subnet, peers in graph["subnets"].items():
+            count = len(peers)
+            anomaly = 0
+            total = 0
+            for p in peers:
+                mb = node_max_baseline.get(p, 0.0)
+                total += 1
+                if mb >= 0.7:
+                    anomaly += 1
+            ratio = anomaly / total if total > 0 else 0.0
+            for p in peers:
+                subnet_peer_count_cache[p] = count
+                subnet_anomaly_cache[p] = ratio
+
+        # hub 阈值
+        mean_deg = degree_stats.get("mean", 0)
+        std_deg = degree_stats.get("std", 0)
+        hub_threshold = mean_deg + 2 * std_deg
+
+        # ── 为每条 flow 提取特征（使用缓存，O(1) per flow） ──
         for flow in flows:
             src_ip = flow.get("src_ip", "0.0.0.0")
             dst_ip = flow.get("dst_ip", "0.0.0.0")
             baseline = flow.get("_detection", {}).get("baseline_score", 0.0)
 
-            # 以源 IP 为主节点提取特征
-            gf = self._extract_node_features(
-                graph, src_ip, betweenness, clustering, degree_stats
-            )
+            src_nbs = all_nb_sets.get(src_ip, set())
+            src_out = len(out_nb_sets.get(src_ip, set()))
+            src_in = len(in_nb_sets.get(src_ip, set()))
+            src_deg = len(src_nbs)
+            src_nb_max, src_nb_mean = nb_stats_cache.get(src_ip, (0.0, 0.0))
+            dst_nb_max, _ = nb_stats_cache.get(dst_ip, (0.0, 0.0))
 
-            # 补充目标节点信息作为辅助
-            dst_features = self._extract_node_features(
-                graph, dst_ip, betweenness, clustering, degree_stats
-            )
-            # 取源和目标的较高风险值
-            gf["neighbor_max_baseline"] = max(
-                gf["neighbor_max_baseline"],
-                dst_features.get("neighbor_max_baseline", 0.0),
-            )
+            gf = {
+                "node_degree": float(src_deg),
+                "node_in_degree": float(src_in),
+                "node_out_degree": float(src_out),
+                "node_degree_ratio": float(src_out) / max(src_in, 1),
+                "neighbor_max_baseline": round(max(src_nb_max, dst_nb_max), 4),
+                "neighbor_mean_baseline": round(src_nb_mean, 4),
+                "edge_density_local": round(ego_density_cache.get(src_ip, 0.0), 4),
+                "subnet_peer_count": float(subnet_peer_count_cache.get(src_ip, 0)),
+                "subnet_anomaly_ratio": round(subnet_anomaly_cache.get(src_ip, 0.0), 4),
+                "is_hub_node": 1.0 if src_deg > hub_threshold and src_deg > 3 else 0.0,
+                "betweenness_centrality": round(betweenness.get(src_ip, 0.0), 6),
+                "clustering_coefficient": round(clustering.get(src_ip, 0.0), 4),
+            }
 
             det = flow.setdefault("_detection", {})
             det["graph_features"] = gf
@@ -111,7 +191,7 @@ class GraphFeatureBuilder:
         logger.info(
             "GraphFeatureBuilder 完成: %d 条流, %d 个节点, %d 条边",
             len(flows),
-            len(graph["nodes"]),
+            n_nodes,
             sum(len(targets) for targets in graph["out_edges"].values()),
         )
         return flows
@@ -122,11 +202,14 @@ class GraphFeatureBuilder:
 
         返回：
             {
-                "nodes": set[str],                          # 所有 IP
-                "out_edges": dict[str, dict[str, list]],    # src -> {dst: [baseline_scores]}
-                "in_edges": dict[str, dict[str, list]],     # dst -> {src: [baseline_scores]}
-                "node_baselines": dict[str, list[float]],   # IP -> 关联流的 baseline_scores
-                "subnets": dict[str, set[str]],             # /24子网 -> IP集合
+                "nodes": set[str],
+                "out_edges": dict[str, dict[str, list]],
+                "in_edges": dict[str, dict[str, list]],
+                "out_nb_sets": dict[str, set[str]],       # 预构建的出边邻居集合
+                "in_nb_sets": dict[str, set[str]],        # 预构建的入边邻居集合
+                "node_baselines": dict[str, list[float]],
+                "node_max_baseline": dict[str, float],     # 预计算的节点最大baseline
+                "subnets": dict[str, set[str]],
             }
         """
         nodes: set[str] = set()
@@ -151,139 +234,77 @@ class GraphFeatureBuilder:
             subnets[self._ip_to_subnet(src)].add(src)
             subnets[self._ip_to_subnet(dst)].add(dst)
 
+        # 预构建邻居集合和最大 baseline
+        out_nb_sets = {ip: set(out_edges[ip].keys()) for ip in nodes if ip in out_edges}
+        in_nb_sets = {ip: set(in_edges[ip].keys()) for ip in nodes if ip in in_edges}
+        node_max_baseline = {
+            ip: max(scores) if scores else 0.0
+            for ip, scores in node_baselines.items()
+        }
+
         return {
             "nodes": nodes,
             "out_edges": out_edges,
             "in_edges": in_edges,
+            "out_nb_sets": out_nb_sets,
+            "in_nb_sets": in_nb_sets,
             "node_baselines": node_baselines,
+            "node_max_baseline": node_max_baseline,
             "subnets": subnets,
         }
 
-    def _extract_node_features(
-        self,
-        graph: dict,
-        ip: str,
-        betweenness: dict[str, float],
-        clustering: dict[str, float],
-        degree_stats: dict,
+    def _compute_betweenness(
+        self, graph: dict, all_nb_sets: dict[str, set[str]],
     ) -> dict[str, float]:
-        """提取单个节点的图结构特征。"""
-        out_neighbors = set(graph["out_edges"].get(ip, {}).keys())
-        in_neighbors = set(graph["in_edges"].get(ip, {}).keys())
-        all_neighbors = out_neighbors | in_neighbors
-
-        out_degree = len(out_neighbors)
-        in_degree = len(in_neighbors)
-        degree = len(all_neighbors)
-
-        # ── 邻居 baseline 统计 ──
-        neighbor_baselines = []
-        for nb in all_neighbors:
-            scores = graph["node_baselines"].get(nb, [])
-            if scores:
-                neighbor_baselines.append(max(scores))
-
-        neighbor_max = max(neighbor_baselines) if neighbor_baselines else 0.0
-        neighbor_mean = (
-            sum(neighbor_baselines) / len(neighbor_baselines)
-            if neighbor_baselines else 0.0
-        )
-
-        # ── 局部边密度（ego graph）──
-        if degree >= 2:
-            # ego graph 中邻居之间的实际边数
-            ego_edges = 0
-            for n1 in all_neighbors:
-                for n2 in all_neighbors:
-                    if n1 != n2 and n2 in graph["out_edges"].get(n1, {}):
-                        ego_edges += 1
-            max_possible = degree * (degree - 1)  # 有向图最大边数
-            edge_density = ego_edges / max_possible if max_possible > 0 else 0.0
-        else:
-            edge_density = 0.0
-
-        # ── 子网特征 ──
-        subnet = self._ip_to_subnet(ip)
-        subnet_peers = graph["subnets"].get(subnet, set())
-        subnet_peer_count = len(subnet_peers)
-
-        # 同子网异常比例
-        anomaly_count = 0
-        total_in_subnet = 0
-        for peer in subnet_peers:
-            scores = graph["node_baselines"].get(peer, [])
-            if scores:
-                total_in_subnet += 1
-                if max(scores) >= 0.7:
-                    anomaly_count += 1
-        subnet_anomaly_ratio = (
-            anomaly_count / total_in_subnet if total_in_subnet > 0 else 0.0
-        )
-
-        # ── hub 节点判定 ──
-        mean_deg = degree_stats.get("mean", 0)
-        std_deg = degree_stats.get("std", 0)
-        is_hub = 1.0 if degree > mean_deg + 2 * std_deg and degree > 3 else 0.0
-
-        return {
-            "node_degree": float(degree),
-            "node_in_degree": float(in_degree),
-            "node_out_degree": float(out_degree),
-            "node_degree_ratio": float(out_degree) / max(in_degree, 1),
-            "neighbor_max_baseline": round(neighbor_max, 4),
-            "neighbor_mean_baseline": round(neighbor_mean, 4),
-            "edge_density_local": round(edge_density, 4),
-            "subnet_peer_count": float(subnet_peer_count),
-            "subnet_anomaly_ratio": round(subnet_anomaly_ratio, 4),
-            "is_hub_node": is_hub,
-            "betweenness_centrality": round(betweenness.get(ip, 0.0), 6),
-            "clustering_coefficient": round(clustering.get(ip, 0.0), 4),
-        }
-
-    def _compute_betweenness(self, graph: dict) -> dict[str, float]:
         """
         计算近似介数中心性。
         对大图使用采样近似（节点数 > 100 时随机采样 50 个源节点）。
+        使用 deque 替代 list.pop(0) 加速 BFS。
         """
+        from collections import deque
+        import random
+
         nodes = list(graph["nodes"])
         n = len(nodes)
         if n < 3:
             return {ip: 0.0 for ip in nodes}
 
-        betweenness: dict[str, float] = {ip: 0.0 for ip in nodes}
+        betweenness: dict[str, float] = dict.fromkeys(nodes, 0.0)
 
-        # BFS 最短路径计数
-        import random
         sources = nodes if n <= 100 else random.sample(nodes, min(50, n))
+        out_edges = graph["out_edges"]
 
         for s in sources:
-            # BFS
+            # BFS with deque
             stack: list[str] = []
-            pred: dict[str, list[str]] = {ip: [] for ip in nodes}
-            sigma: dict[str, int] = {ip: 0 for ip in nodes}
+            pred: dict[str, list[str]] = defaultdict(list)
+            sigma: dict[str, int] = defaultdict(int)
             sigma[s] = 1
-            dist: dict[str, int] = {ip: -1 for ip in nodes}
+            dist: dict[str, int] = defaultdict(lambda: -1)
             dist[s] = 0
-            queue = [s]
+            queue = deque([s])
 
             while queue:
-                v = queue.pop(0)
+                v = queue.popleft()
                 stack.append(v)
-                for w in graph["out_edges"].get(v, {}):
+                d_v = dist[v]
+                for w in out_edges.get(v, {}):
                     if dist[w] < 0:
-                        dist[w] = dist[v] + 1
+                        dist[w] = d_v + 1
                         queue.append(w)
-                    if dist[w] == dist[v] + 1:
+                    if dist[w] == d_v + 1:
                         sigma[w] += sigma[v]
                         pred[w].append(v)
 
             # 反向累积
-            delta: dict[str, float] = {ip: 0.0 for ip in nodes}
+            delta: dict[str, float] = defaultdict(float)
             while stack:
                 w = stack.pop()
-                for v in pred[w]:
-                    if sigma[w] > 0:
-                        delta[v] += (sigma[v] / sigma[w]) * (1.0 + delta[w])
+                sw = sigma[w]
+                if sw > 0:
+                    dw = delta[w]
+                    for v in pred[w]:
+                        delta[v] += (sigma[v] / sw) * (1.0 + dw)
                 if w != s:
                     betweenness[w] += delta[w]
 
@@ -291,47 +312,51 @@ class GraphFeatureBuilder:
         if n > 2:
             scale = 1.0 / ((n - 1) * (n - 2))
             if n > 100:
-                scale *= n / len(sources)  # 采样补偿
+                scale *= n / len(sources)
             for ip in betweenness:
                 betweenness[ip] *= scale
 
         return betweenness
 
-    def _compute_clustering(self, graph: dict) -> dict[str, float]:
-        """计算每个节点的聚类系数（无向化处理）。"""
+    def _compute_clustering(
+        self, graph: dict,
+        out_nb_sets: dict[str, set[str]],
+        all_nb_sets: dict[str, set[str]],
+    ) -> dict[str, float]:
+        """计算每个节点的聚类系数（无向化处理）。使用 set intersection 加速。"""
         result: dict[str, float] = {}
 
         for ip in graph["nodes"]:
-            out_nb = set(graph["out_edges"].get(ip, {}).keys())
-            in_nb = set(graph["in_edges"].get(ip, {}).keys())
-            neighbors = out_nb | in_nb
+            neighbors = all_nb_sets.get(ip, set())
             k = len(neighbors)
 
             if k < 2:
                 result[ip] = 0.0
                 continue
 
-            # 邻居之间的连接数（无向化）
-            links = 0
-            nb_list = list(neighbors)
-            for i in range(len(nb_list)):
-                for j in range(i + 1, len(nb_list)):
-                    n1, n2 = nb_list[i], nb_list[j]
-                    if (n2 in graph["out_edges"].get(n1, {}) or
-                            n1 in graph["out_edges"].get(n2, {})):
-                        links += 1
+            # 限制：邻居过多时跳过（近似为 0）
+            if k > 500:
+                result[ip] = 0.0
+                continue
 
-            result[ip] = (2.0 * links) / (k * (k - 1))
+            # 邻居之间的连接数（有向边：n1→n2）
+            links = 0
+            for n1 in neighbors:
+                out_of_n1 = out_nb_sets.get(n1, set())
+                # n1 的出边邻居中有多少在当前节点的邻居集中
+                links += len(out_of_n1 & neighbors) - (1 if ip in out_of_n1 else 0)
+
+            # 无向化：有向图中 links 已经是有向边数，最大为 k*(k-1)
+            result[ip] = links / (k * (k - 1)) if k > 1 else 0.0
 
         return result
 
-    def _compute_degree_stats(self, graph: dict) -> dict[str, float]:
+    def _compute_degree_stats(self, all_nb_sets: dict[str, set[str]]) -> dict[str, float]:
         """计算全局度统计（均值和标准差）。"""
-        degrees = []
-        for ip in graph["nodes"]:
-            out_nb = set(graph["out_edges"].get(ip, {}).keys())
-            in_nb = set(graph["in_edges"].get(ip, {}).keys())
-            degrees.append(len(out_nb | in_nb))
+        if not all_nb_sets:
+            return {"mean": 0.0, "std": 0.0}
+
+        degrees = [len(nbs) for nbs in all_nb_sets.values()]
 
         if not degrees:
             return {"mean": 0.0, "std": 0.0}

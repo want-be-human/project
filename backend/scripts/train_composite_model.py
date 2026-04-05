@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Leak-free composite model training.
+Leak-free composite model training with TensorBoard logging and GPU support.
 
 Supported modes:
 - legacy two-PCAP mode: one normal PCAP + one attack PCAP
@@ -13,7 +13,7 @@ The training flow is:
 2. Split into train / validation / test.
 3. Fit IsolationForest on train only and score every split without refitting.
 4. Add rule and graph features without leaking test information.
-5. Train the supervised ranker on train.
+5. Train the supervised ranker on train (GPU accelerated when available).
 6. Fit a probability calibrator on a calibration holdout from validation.
 7. Tune the decision threshold on a separate threshold holdout.
 8. Evaluate once on test and persist the calibrated model.
@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
@@ -56,7 +57,48 @@ REPORT_PATH = MODEL_DIR / "evaluation_report.json"
 DEFAULT_NORMAL_PCAP = BACKEND_DIR / "data" / "pcaps" / "training_normal.pcap"
 DEFAULT_ATTACK_PCAP = BACKEND_DIR / "data" / "pcaps" / "training_attack.pcap"
 DEFAULT_CICIDS2017_ROOT = BACKEND_DIR / "data" / "datasets" / "cicids2017"
+DEFAULT_TB_DIR = BACKEND_DIR / "runs"
 
+
+# ---------------------------------------------------------------------------
+# GPU detection
+# ---------------------------------------------------------------------------
+
+def _detect_gpu() -> bool:
+    """Check if XGBoost CUDA GPU is available."""
+    try:
+        import xgboost as xgb
+        m = xgb.XGBClassifier(device="cuda", n_estimators=1, verbosity=0)
+        m.fit([[0], [1]], [0, 1])
+        return True
+    except Exception:
+        return False
+
+
+# ---------------------------------------------------------------------------
+# XGBoost TensorBoard callback
+# ---------------------------------------------------------------------------
+
+def _make_tb_callback(writer):
+    """Build an XGBoost TrainingCallback that logs to TensorBoard."""
+    from xgboost.callback import TrainingCallback  # type: ignore[attr-defined]
+
+    class _TBCallback(TrainingCallback):
+        def after_iteration(self, model, epoch, evals_log):  # noqa: ARG002
+            for data_name, metrics in evals_log.items():
+                for metric_name, values in metrics.items():
+                    val = values[-1] if values else 0
+                    writer.add_scalar(
+                        f"xgb_iter/{data_name}_{metric_name}", val, epoch,
+                    )
+            return False
+
+    return _TBCallback()
+
+
+# ---------------------------------------------------------------------------
+# Data splitting
+# ---------------------------------------------------------------------------
 
 def three_way_split(
     flows: list[dict],
@@ -175,12 +217,19 @@ def resolve_calibration_method(
     return "sigmoid"
 
 
+# ---------------------------------------------------------------------------
+# Model training
+# ---------------------------------------------------------------------------
+
 def train_supervised(
     X_train: np.ndarray,
     y_train: np.ndarray,
     X_val: np.ndarray,
     y_val: np.ndarray,
     model_type: str = "lightgbm",
+    *,
+    use_gpu: bool = False,
+    writer: object | None = None,
 ) -> object:
     if model_type == "lightgbm":
         try:
@@ -205,9 +254,13 @@ def train_supervised(
 
     if model_type == "xgboost":
         try:
-            from xgboost import XGBClassifier
+            import xgboost as xgb
 
-            model = XGBClassifier(
+            device = "cuda" if use_gpu else "cpu"
+            print(f"  XGBoost device: {device}")
+            cbs = [_make_tb_callback(writer)] if writer is not None else None
+
+            model = xgb.XGBClassifier(
                 n_estimators=200,
                 max_depth=6,
                 learning_rate=0.05,
@@ -215,16 +268,52 @@ def train_supervised(
                 colsample_bytree=0.8,
                 random_state=42,
                 eval_metric="logloss",
-                verbosity=0,
+                device=device,
+                verbosity=1,
+                callbacks=cbs,
             )
-            model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
+            model.fit(
+                X_train, y_train,
+                eval_set=[(X_train, y_train), (X_val, y_val)],
+                verbose=10,
+            )
             return model
         except ImportError:
             print("  xgboost is not installed, falling back to sklearn GradientBoosting")
             model_type = "sklearn_gb"
 
+    # sklearn GradientBoosting fallback — try XGBoost GPU first if requested
+    if use_gpu:
+        print("  GPU requested — promoting sklearn_gb to xgboost with CUDA")
+        try:
+            import xgboost as xgb
+
+            cbs = [_make_tb_callback(writer)] if writer is not None else None
+
+            model = xgb.XGBClassifier(
+                n_estimators=200,
+                max_depth=6,
+                learning_rate=0.05,
+                subsample=0.8,
+                colsample_bytree=0.8,
+                random_state=42,
+                eval_metric="logloss",
+                device="cuda",
+                verbosity=1,
+                callbacks=cbs,
+            )
+            model.fit(
+                X_train, y_train,
+                eval_set=[(X_train, y_train), (X_val, y_val)],
+                verbose=10,
+            )
+            return model
+        except Exception as e:
+            print(f"  XGBoost GPU failed ({e}), falling back to sklearn CPU")
+
     from sklearn.ensemble import GradientBoostingClassifier
 
+    print("  sklearn GradientBoostingClassifier (CPU)")
     model = GradientBoostingClassifier(
         n_estimators=200,
         max_depth=6,
@@ -233,6 +322,17 @@ def train_supervised(
         random_state=42,
     )
     model.fit(X_train, y_train)
+
+    # Log staged training loss to TensorBoard
+    if writer is not None:
+        try:
+            for i, y_pred in enumerate(model.staged_predict_proba(X_val)):
+                from sklearn.metrics import log_loss
+                loss = log_loss(y_val, y_pred, labels=[0, 1])
+                writer.add_scalar("sklearn_staged/val_logloss", loss, i)
+        except Exception:
+            pass
+
     return model
 
 
@@ -288,7 +388,12 @@ def train_semi_supervised(
     return final_model
 
 
-def calibrate_threshold(y_true: np.ndarray, y_scores: np.ndarray) -> float:
+def calibrate_threshold(
+    y_true: np.ndarray,
+    y_scores: np.ndarray,
+    *,
+    writer: object | None = None,
+) -> float:
     from sklearn.metrics import f1_score
 
     best_threshold = 0.5
@@ -297,6 +402,8 @@ def calibrate_threshold(y_true: np.ndarray, y_scores: np.ndarray) -> float:
     for threshold in np.arange(0.3, 0.95, 0.01):
         y_pred = (y_scores >= threshold).astype(int)
         f1 = f1_score(y_true, y_pred, zero_division=0)
+        if writer is not None:
+            writer.add_scalar("threshold_tuning/f1", f1, int(threshold * 100))
         if f1 > best_f1:
             best_f1 = float(f1)
             best_threshold = float(threshold)
@@ -322,12 +429,12 @@ def fit_probability_calibrator(
         }
 
     from sklearn.calibration import CalibratedClassifierCV
+    from sklearn.frozen import FrozenEstimator
 
     resolved_method = resolve_calibration_method(y_calib, calibration_method)
     calibrated_model = CalibratedClassifierCV(
-        estimator=base_model,
+        estimator=FrozenEstimator(base_model),
         method=resolved_method,
-        cv="prefit",
     )
     calibrated_model.fit(X_calib, y_calib)
     info = {
@@ -346,11 +453,16 @@ def _get_scores(model: object, X: np.ndarray) -> np.ndarray:
     return model.predict(X).astype(float)
 
 
+# ---------------------------------------------------------------------------
+# Data loading
+# ---------------------------------------------------------------------------
+
 def load_training_flows(
     sources: list[DatasetSource],
     *,
     window_sec: int,
     label_match_tolerance_sec: int,
+    writer: object | None = None,
 ) -> tuple[list[dict], dict]:
     parser = ParsingService()
     features = FeaturesService()
@@ -358,7 +470,7 @@ def load_training_flows(
     all_flows: list[dict] = []
     source_stats: list[dict] = []
 
-    for source in sources:
+    for idx, source in enumerate(sources):
         if not source.pcap.exists():
             raise FileNotFoundError(f"PCAP does not exist: {source.pcap}")
         if source.labels_csv is not None and not source.labels_csv.exists():
@@ -366,8 +478,14 @@ def load_training_flows(
 
         print(f"  loading source: {source.name}")
         print(f"    pcap: {source.pcap}")
+        t0 = time.time()
         raw_flows = parser.parse_to_flows(source.pcap, window_sec=window_sec)
-        print(f"    parsed flows: {len(raw_flows)}")
+        parse_time = time.time() - t0
+        print(f"    parsed flows: {len(raw_flows)} (耗时 {parse_time:.1f}s)")
+
+        if writer is not None:
+            writer.add_scalar(f"source/{source.name}/parse_sec", parse_time, 0)
+            writer.add_scalar(f"source/{source.name}/raw_flows", len(raw_flows), 0)
 
         if source.labels_csv is not None:
             labeled_flows, stats = label_flows_with_official_csv(
@@ -402,6 +520,12 @@ def load_training_flows(
             f"(families={stats.get('family_counts', {})}, unmatched={stats.get('unmatched_flows', 0)})"
         )
 
+        if writer is not None:
+            writer.add_scalar(f"source/{source.name}/labeled_flows", stats["labeled_flows"], 0)
+            writer.add_scalar(f"source/{source.name}/unmatched_flows", stats.get("unmatched_flows", 0), 0)
+            for fam, cnt in stats.get("family_counts", {}).items():
+                writer.add_scalar(f"source/{source.name}/family_{fam}", cnt, 0)
+
     summary = {
         "source_count": len(sources),
         "sources": source_stats,
@@ -410,6 +534,12 @@ def load_training_flows(
             Counter(flow.get("_attack_type", "normal") for flow in all_flows)
         ),
     }
+
+    if writer is not None:
+        writer.add_scalar("dataset/total_flows", summary["total_flows"], 0)
+        for fam, cnt in summary["family_counts"].items():
+            writer.add_scalar(f"dataset/family_{fam}", cnt, 0)
+
     return all_flows, summary
 
 
@@ -487,6 +617,10 @@ def build_feature_groups(feature_names: list[str]) -> dict[str, list[str]]:
     }
 
 
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train the composite detection model")
     parser.add_argument("--pcap-normal", type=Path, default=DEFAULT_NORMAL_PCAP)
@@ -521,7 +655,37 @@ def main() -> None:
         choices=["auto", "sigmoid", "isotonic", "none"],
         default="auto",
     )
+    parser.add_argument("--tensorboard-dir", type=Path, default=DEFAULT_TB_DIR)
+    parser.add_argument(
+        "--device",
+        choices=["auto", "gpu", "cpu"],
+        default="auto",
+        help="Training device: auto detects GPU, gpu forces CUDA, cpu forces CPU",
+    )
     args = parser.parse_args()
+
+    # ── TensorBoard 初始化 ──
+    from tensorboardX import SummaryWriter
+
+    run_name = f"composite_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    log_dir = args.tensorboard_dir / run_name
+    writer = SummaryWriter(str(log_dir))
+    print(f"TensorBoard 日志: {log_dir}")
+    print(f"  启动查看: tensorboard --logdir {args.tensorboard_dir}")
+
+    t_total_start = time.time()
+
+    # ── GPU 检测 ──
+    if args.device == "auto":
+        use_gpu = _detect_gpu()
+    elif args.device == "gpu":
+        use_gpu = True
+    else:
+        use_gpu = False
+    device_label = "CUDA GPU" if use_gpu else "CPU"
+    print(f"训练设备: {device_label}")
+    writer.add_text("config/device", device_label, 0)
+    writer.add_text("config/model_type", args.model_type, 0)
 
     print("[1/8] Loading labeled training sources...")
     sources, dataset_config = build_sources_from_args(args)
@@ -534,10 +698,12 @@ def main() -> None:
         sources,
         window_sec=args.window_sec,
         label_match_tolerance_sec=args.label_match_tolerance_sec,
+        writer=writer,
     )
 
     if len(all_flows) < 5:
         print("Error: not enough labeled flows to train the composite model.")
+        writer.close()
         sys.exit(1)
 
     print(f"[2/8] Feature extraction completed during source loading: {len(all_flows)} flows")
@@ -556,6 +722,9 @@ def main() -> None:
     positives = int(y_all.sum())
     negatives = int((y_all == 0).sum())
     has_supervised_labels = positives >= 3 and negatives >= 3
+
+    writer.add_scalar("dataset/positives", positives, 0)
+    writer.add_scalar("dataset/negatives", negatives, 0)
 
     if has_supervised_labels:
         print(f"[3/8] Splitting data ({args.split_strategy})...")
@@ -579,7 +748,15 @@ def main() -> None:
             f"  test={len(test_flows)} (normal={int((y_test == 0).sum())}, attack={int((y_test == 1).sum())})"
         )
 
+        writer.add_scalar("split/train_total", len(train_flows), 0)
+        writer.add_scalar("split/train_attack", int(y_train.sum()), 0)
+        writer.add_scalar("split/val_total", len(val_flows), 0)
+        writer.add_scalar("split/val_attack", int(y_val.sum()), 0)
+        writer.add_scalar("split/test_total", len(test_flows), 0)
+        writer.add_scalar("split/test_attack", int(y_test.sum()), 0)
+
         print("[4/8] Fitting the baseline detector on train only...")
+        t0 = time.time()
         baseline = BaselineDetector(
             mode="runtime",
             model_params={"contamination": args.contamination},
@@ -587,20 +764,25 @@ def main() -> None:
         train_flows = baseline.score(train_flows)
         val_flows = baseline.score_with_fitted(val_flows)
         test_flows = baseline.score_with_fitted(test_flows)
+        writer.add_scalar("timing/baseline_sec", time.time() - t0, 0)
 
         print("[5/8] Building rule features...")
+        t0 = time.time()
         enricher = RuleEnricher()
         train_flows = enricher.enrich(train_flows)
         val_flows = enricher.enrich(val_flows)
         test_flows = enricher.enrich(test_flows)
+        writer.add_scalar("timing/rule_sec", time.time() - t0, 0)
 
         print("[6/8] Building graph features without leaking validation/test structure...")
+        t0 = time.time()
         graph_builder = GraphFeatureBuilder()
         train_flows = graph_builder.build_and_extract(train_flows)
         train_graph = graph_builder.last_graph
         assert train_graph is not None, "Training graph was not built."
         val_flows = graph_builder.extract_with_graph(val_flows, train_graph)
         test_flows = graph_builder.extract_with_graph(test_flows, train_graph)
+        writer.add_scalar("timing/graph_sec", time.time() - t0, 0)
 
         print("[7/8] Training the supervised ranker and calibrating probabilities...")
         pipeline = FeaturePipeline()
@@ -612,6 +794,9 @@ def main() -> None:
         X_val = np.array(val_matrix)
         X_test = np.array(test_matrix)
 
+        writer.add_scalar("features/count", len(feature_names), 0)
+
+        t0 = time.time()
         if args.mode == "semi-supervised":
             n_labeled = max(int(len(y_train) * 0.3), 5)
             X_labeled = X_train[:n_labeled]
@@ -619,7 +804,18 @@ def main() -> None:
             X_unlabeled = X_train[n_labeled:]
             base_model = train_semi_supervised(X_labeled, y_labeled, X_unlabeled)
         else:
-            base_model = train_supervised(X_train, y_train, X_val, y_val, args.model_type)
+            base_model = train_supervised(
+                X_train, y_train, X_val, y_val, args.model_type,
+                use_gpu=use_gpu,
+                writer=writer,
+            )
+        train_time = time.time() - t0
+        writer.add_scalar("timing/supervised_train_sec", train_time, 0)
+        print(f"  模型训练耗时: {train_time:.1f}s")
+
+        # Log actual model type used
+        actual_model_type = type(base_model).__name__
+        writer.add_text("config/actual_model_type", actual_model_type, 0)
 
         X_calib, X_threshold, y_calib, y_threshold, calibration_split_info = split_validation_for_calibration(
             X_val,
@@ -633,12 +829,14 @@ def main() -> None:
         )
 
         threshold_scores = _get_scores(model, X_threshold)
-        threshold = calibrate_threshold(y_threshold, threshold_scores)
+        threshold = calibrate_threshold(y_threshold, threshold_scores, writer=writer)
         print(
             "  calibration="
             f"{calibration_info.get('method', 'none')} "
             f"threshold={threshold}"
         )
+        writer.add_scalar("calibration/threshold", threshold, 0)
+        writer.add_text("calibration/method", calibration_info.get("method", "none"), 0)
 
         print("[8/8] Final evaluation on the test split...")
         test_scores = _get_scores(model, X_test)
@@ -659,6 +857,52 @@ def main() -> None:
             attack_type_test,
             threshold,
         )
+
+        # ── TensorBoard: evaluation metrics ──
+        for k, v in eval_metrics.items():
+            if isinstance(v, (int, float)) and v is not None:
+                writer.add_scalar(f"eval/{k}", v, 0)
+
+        # Baseline-only metrics for comparison
+        if comparison is not None:
+            for k, v in comparison.get("baseline", {}).items():
+                if isinstance(v, (int, float)) and v is not None:
+                    writer.add_scalar(f"baseline_only/{k}", v, 0)
+            for k, v in comparison.get("delta", {}).items():
+                if isinstance(v, (int, float)) and v is not None:
+                    writer.add_scalar(f"delta/{k}", v, 0)
+
+        # Per-type metrics
+        for atk_type, metrics in per_type_metrics.items():
+            for k, v in metrics.items():
+                if isinstance(v, (int, float)) and v is not None:
+                    writer.add_scalar(f"per_type/{atk_type}/{k}", v, 0)
+
+        # Score distributions
+        writer.add_histogram("scores/test_all", test_scores, 0)
+        if y_test.sum() > 0:
+            writer.add_histogram("scores/test_positive", test_scores[y_test == 1], 0)
+        if (y_test == 0).sum() > 0:
+            writer.add_histogram("scores/test_negative", test_scores[y_test == 0], 0)
+        writer.add_histogram("scores/baseline_test", baseline_test_scores, 0)
+
+        # Hyperparameters
+        hparam_dict = {
+            "model_type": actual_model_type,
+            "split_strategy": args.split_strategy,
+            "window_sec": args.window_sec,
+            "tolerance_sec": args.label_match_tolerance_sec,
+            "calibration": calibration_info.get("method", "none"),
+            "contamination": args.contamination,
+            "device": device_label,
+        }
+        metric_dict = {
+            "hparam/roc_auc": eval_metrics.get("roc_auc", 0) or 0,
+            "hparam/pr_auc": eval_metrics.get("pr_auc", 0) or 0,
+            "hparam/f1": eval_metrics.get("f1", 0) or 0,
+            "hparam/threshold": threshold,
+        }
+        writer.add_hparams(hparam_dict, metric_dict)
 
         print(f"  ROC-AUC:   {eval_metrics.get('roc_auc')}")
         print(f"  PR-AUC:    {eval_metrics.get('pr_auc')}")
@@ -681,6 +925,7 @@ def main() -> None:
             "label_match_tolerance_sec": int(args.label_match_tolerance_sec),
             "calibration_split": calibration_split_info,
             "probability_calibration": calibration_info,
+            "device": device_label,
         }
     else:
         print("[3/8] Not enough positive/negative labels for supervised training; skipping ranker fit.")
@@ -698,7 +943,11 @@ def main() -> None:
             "window_sec": int(args.window_sec),
             "label_match_tolerance_sec": int(args.label_match_tolerance_sec),
             "probability_calibration": calibration_info,
+            "device": device_label,
         }
+
+    total_time = time.time() - t_total_start
+    writer.add_scalar("timing/total_sec", total_time, 0)
 
     print("Saving model artifacts...")
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
@@ -706,6 +955,23 @@ def main() -> None:
     if model is not None:
         import joblib
         import sklearn
+
+        # Strip unpicklable TensorBoard callbacks before saving
+        def _strip_callbacks(m):
+            """Remove callback references that can't be pickled."""
+            if hasattr(m, "callbacks"):
+                m.callbacks = None
+            # CalibratedClassifierCV wraps estimators in calibrated_classifiers_
+            for attr in ("estimator", "estimator_"):
+                inner = getattr(m, attr, None)
+                if inner is not None:
+                    _strip_callbacks(inner)
+            for cc in getattr(m, "calibrated_classifiers_", []):
+                _strip_callbacks(getattr(cc, "estimator", None) or cc)
+
+        _strip_callbacks(model)
+        if base_model is not None:
+            _strip_callbacks(base_model)
 
         joblib.dump(model, RANKER_MODEL_PATH)
         feature_groups = build_feature_groups(feature_names)
@@ -752,8 +1018,13 @@ def main() -> None:
         encoding="utf-8",
     )
     print(f"  report: {REPORT_PATH}")
+
+    writer.close()
+
     print()
     print("Training completed.")
+    print(f"  总耗时: {total_time:.1f}s")
+    print(f"  TensorBoard: tensorboard --logdir {args.tensorboard_dir}")
 
 
 if __name__ == "__main__":
