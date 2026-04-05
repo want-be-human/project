@@ -117,21 +117,28 @@ class DashboardService:
         now_naive = now.replace(tzinfo=None)
         threshold_24h = now_naive - timedelta(hours=24)
 
-        # ---- PCAP 指标 ----
-        pcap_total = self.db.query(func.count(PcapFile.id)).scalar() or 0
-        pcap_processing = (
-            self.db.query(func.count(PcapFile.id))
-            .filter(PcapFile.status == "processing")
-            .scalar()
-            or 0
-        )
-        pcap_24h_count = (
-            self.db.query(func.count(PcapFile.id))
-            .filter(PcapFile.created_at >= threshold_24h)
-            .scalar()
-            or 0
-        )
-        # 最后完成时间
+        # ---- 合并计数查询（1 次 SQL 替代 8 次）----
+        from sqlalchemy import text
+        counts = self.db.execute(text("""
+            SELECT
+                (SELECT COUNT(*) FROM pcap_files) AS pcap_total,
+                (SELECT COUNT(*) FROM pcap_files WHERE status = 'processing') AS pcap_processing,
+                (SELECT COUNT(*) FROM pcap_files WHERE created_at >= :t) AS pcap_24h,
+                (SELECT COUNT(*) FROM flows) AS flow_total,
+                (SELECT COUNT(*) FROM flows WHERE created_at >= :t) AS flow_24h,
+                (SELECT COUNT(*) FROM alerts) AS alert_total,
+                (SELECT COUNT(*) FROM alerts WHERE status IN ('open', 'investigating')) AS alert_open
+        """), {"t": threshold_24h}).first()
+
+        pcap_total = counts[0] or 0
+        pcap_processing = counts[1] or 0
+        pcap_24h_count = counts[2] or 0
+        flow_total = counts[3] or 0
+        flow_24h_count = counts[4] or 0
+        alert_total = counts[5] or 0
+        alert_open_count = counts[6] or 0
+
+        # 最后完成时间（保留单独查询，需要 ORDER BY）
         pcap_last_done_row = (
             self.db.query(PcapFile.created_at)
             .filter(PcapFile.status == "done")
@@ -140,24 +147,6 @@ class DashboardService:
         )
         pcap_last_done_at = (
             datetime_to_iso(pcap_last_done_row[0]) if pcap_last_done_row else None
-        )
-
-        # ---- Flow 指标 ----
-        flow_total = self.db.query(func.count(Flow.id)).scalar() or 0
-        flow_24h_count = (
-            self.db.query(func.count(Flow.id))
-            .filter(Flow.created_at >= threshold_24h)
-            .scalar()
-            or 0
-        )
-
-        # ---- Alert 指标 ----
-        alert_total = self.db.query(func.count(Alert.id)).scalar() or 0
-        alert_open_count = (
-            self.db.query(func.count(Alert.id))
-            .filter(Alert.status.in_(list(_OPEN_STATUSES)))
-            .scalar()
-            or 0
         )
 
         # 按严重程度分组

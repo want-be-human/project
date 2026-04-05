@@ -110,74 +110,32 @@ class AlertingService:
     @staticmethod
     def _infer_flow_type_detailed(flow: dict) -> tuple[str, list[str], dict]:
         """
-        增强版单流类型推断，返回 (type, reason_codes, details)。
-        不替代 _determine_type，后者在组级别做最终判定。
+        单流类型推断——优先复用 RuleEnricher 已计算的结果，避免重复评估。
+        返回 (type, reason_codes, details)。
         """
+        # 优先从 _detection（RuleEnricher 写入）或 features（持久化后回写）读取
+        det = flow.get("_detection", {})
         features = flow.get("features", {})
+
+        rule_type = det.get("rule_type") or features.get("rule_type")
+        reason_codes = det.get("rule_reasons") or features.get("rule_reasons")
+
+        if rule_type and reason_codes:
+            details = {"source": "rule_enricher", "reason_count": len(reason_codes)}
+            return rule_type, list(reason_codes), details
+
+        # Fallback：简化判定（兼容未经过检测管线的旧流）
         dst_port = flow.get("dst_port", 0)
-
-        syn_count = features.get("syn_count", 0)
-        total_packets = features.get("total_packets", 0)
-        total_bytes = features.get("total_bytes", 0)
+        syn_count = features.get("syn_count", 0) or 0
+        total_packets = features.get("total_packets", 0) or 0
         syn_ratio = syn_count / max(total_packets, 1)
-        rst_ratio = features.get("rst_ratio", 0.0)
-        handshake = features.get("handshake_completeness", 1.0)
-        is_short = features.get("is_short_flow", 0)
-        pps = features.get("packets_per_second", 0)
-        bps = features.get("bytes_per_second", 0)
-        bytes_asymmetry = features.get("bytes_asymmetry", 0)
 
-        # ── scan 判定：评分制，≥2 分命中 ──
-        scan_reasons: list[str] = []
-        scan_score = 0
-        if syn_ratio > 0.5:
-            scan_score += 2
-            scan_reasons.append("SCAN_SYN_RATIO")
-        if handshake < 0.5:
-            scan_score += 1
-            scan_reasons.append("SCAN_INCOMPLETE_HANDSHAKE")
-        if rst_ratio > 0.3:
-            scan_score += 1
-            scan_reasons.append("SCAN_HIGH_RST")
-        if is_short:
-            scan_score += 1
-            scan_reasons.append("SCAN_SHORT_FLOW")
-
-        if scan_score >= 2:
-            details = {"syn_ratio": round(syn_ratio, 4), "rst_ratio": round(rst_ratio, 4),
-                       "handshake_completeness": round(handshake, 4), "scan_score": scan_score}
-            return "scan", scan_reasons, details
-
-        # ── bruteforce 判定：认证端口语义 ──
+        if syn_ratio > 0.5 and features.get("handshake_completeness", 1.0) < 0.5:
+            return "scan", ["SCAN_SYN_RATIO", "SCAN_INCOMPLETE_HANDSHAKE"], {}
         if dst_port in _AUTH_PORTS:
-            brute_reasons = ["BRUTE_AUTH_PORT"]
-            if is_short:
-                brute_reasons.append("BRUTE_SHORT_FLOW")
-            if rst_ratio > 0.3:
-                brute_reasons.append("BRUTE_HIGH_RST")
-            if handshake < 0.7:
-                brute_reasons.append("BRUTE_LOW_HANDSHAKE")
-            details = {"dst_port": dst_port, "rst_ratio": round(rst_ratio, 4),
-                       "handshake_completeness": round(handshake, 4)}
-            return "bruteforce", brute_reasons, details
-
-        # ── dos 判定：流量/速率多维度 ──
-        dos_reasons: list[str] = []
-        if total_bytes > 200000:
-            dos_reasons.append("DOS_HIGH_VOLUME")
-        if pps > 1000:
-            dos_reasons.append("DOS_HIGH_PPS")
-        if bps > 500000:
-            dos_reasons.append("DOS_HIGH_BPS")
-        if bytes_asymmetry > 0.8:
-            dos_reasons.append("DOS_ASYMMETRIC")
-
-        if dos_reasons:
-            details = {"total_bytes": total_bytes, "packets_per_second": pps,
-                       "bytes_per_second": bps, "bytes_asymmetry": round(bytes_asymmetry, 4)}
-            return "dos", dos_reasons, details
-
-        # ── 默认 anomaly ──
+            return "bruteforce", ["BRUTE_AUTH_PORT"], {}
+        if (features.get("total_bytes", 0) or 0) > 200000:
+            return "dos", ["DOS_HIGH_VOLUME"], {}
         return "anomaly", ["ANOMALY_DEFAULT"], {}
 
     def _aggregate_flows(self, flows: list[dict]) -> dict[str, list[dict]]:

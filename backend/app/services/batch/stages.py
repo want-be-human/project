@@ -189,9 +189,9 @@ def stage_detect(
 
     复用 CompositeDetectionService.score_flows()。
     """
-    from app.services.detection.composite import CompositeDetectionService
+    from app.services.detection.composite import get_composite_detector
 
-    det_svc = CompositeDetectionService()
+    det_svc = get_composite_detector()
     flow_dicts = det_svc.score_flows(flow_dicts)
 
     scored = [f for f in flow_dicts if f.get("anomaly_score") is not None]

@@ -52,39 +52,66 @@ async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<T>
   return envelope.data;
 }
 
+/**
+ * 尝试用浏览器原生 CompressionStream 压缩文件（gzip）。
+ * 压缩后体积通常减少 2-3 倍，显著加速网络传输。
+ * 不支持 CompressionStream 的浏览器会 fallback 到原始上传。
+ */
+async function tryCompressFile(file: File): Promise<{ blob: Blob; compressed: boolean }> {
+    if (typeof CompressionStream === 'undefined') {
+        return { blob: file, compressed: false };
+    }
+    try {
+        const stream = file.stream().pipeThrough(new CompressionStream('gzip'));
+        const blob = await new Response(stream).blob();
+        return { blob, compressed: true };
+    } catch {
+        return { blob: file, compressed: false };
+    }
+}
+
 export const realApi = {
     uploadPcap: (file: File, onProgress?: (pct: number) => void): Promise<PcapFile> => {
-        return new Promise<PcapFile>((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            const formData = new FormData();
-            formData.append('file', file);
+        return new Promise<PcapFile>(async (resolve, reject) => {
+            try {
+                const { blob, compressed } = await tryCompressFile(file);
 
-            if (onProgress) {
-                xhr.upload.addEventListener('progress', (e) => {
-                    if (e.lengthComputable) {
-                        onProgress(Math.round((e.loaded / e.total) * 100));
+                const xhr = new XMLHttpRequest();
+                const formData = new FormData();
+                formData.append('file', blob, file.name);
+
+                if (onProgress) {
+                    xhr.upload.addEventListener('progress', (e) => {
+                        if (e.lengthComputable) {
+                            onProgress(Math.round((e.loaded / e.total) * 100));
+                        }
+                    });
+                }
+
+                xhr.addEventListener('load', () => {
+                    try {
+                        const envelope: Envelope<PcapFile> = JSON.parse(xhr.responseText);
+                        if (xhr.status >= 200 && xhr.status < 300 && envelope.ok && envelope.data) {
+                            resolve(envelope.data);
+                        } else {
+                            reject(new Error(envelope.error?.message || `Upload failed: ${xhr.status}`));
+                        }
+                    } catch {
+                        reject(new Error(`Upload failed: ${xhr.status} ${xhr.statusText}`));
                     }
                 });
-            }
 
-            xhr.addEventListener('load', () => {
-                try {
-                    const envelope: Envelope<PcapFile> = JSON.parse(xhr.responseText);
-                    if (xhr.status >= 200 && xhr.status < 300 && envelope.ok && envelope.data) {
-                        resolve(envelope.data);
-                    } else {
-                        reject(new Error(envelope.error?.message || `Upload failed: ${xhr.status}`));
-                    }
-                } catch {
-                    reject(new Error(`Upload failed: ${xhr.status} ${xhr.statusText}`));
+                xhr.addEventListener('error', () => reject(new Error('Network error during upload')));
+                xhr.addEventListener('abort', () => reject(new Error('Upload aborted')));
+
+                xhr.open('POST', `${BASE_URL}/api/v1/pcaps/upload`);
+                if (compressed) {
+                    xhr.setRequestHeader('X-Content-Encoding', 'gzip');
                 }
-            });
-
-            xhr.addEventListener('error', () => reject(new Error('Network error during upload')));
-            xhr.addEventListener('abort', () => reject(new Error('Upload aborted')));
-
-            xhr.open('POST', `${BASE_URL}/api/v1/pcaps/upload`);
-            xhr.send(formData);
+                xhr.send(formData);
+            } catch (err) {
+                reject(err);
+            }
         });
     },
     listPcaps: async (params?: {limit?: number, offset?: number}): Promise<PcapFile[]> => {

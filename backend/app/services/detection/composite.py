@@ -21,6 +21,17 @@ from app.services.detection.supervised_ranker import SupervisedRanker
 
 logger = get_logger(__name__)
 
+# ── 模块级单例（避免每次处理 PCAP 重新加载模型）──
+_singleton: "CompositeDetectionService | None" = None
+
+
+def get_composite_detector() -> "CompositeDetectionService":
+    """获取 CompositeDetectionService 单例（懒加载，首次调用时加载模型）。"""
+    global _singleton
+    if _singleton is None:
+        _singleton = CompositeDetectionService(mode="persisted")
+    return _singleton
+
 
 class CompositeDetectionService:
     """

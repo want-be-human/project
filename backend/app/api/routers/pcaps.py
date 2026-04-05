@@ -25,7 +25,7 @@ from app.schemas.pcap import PcapFileSchema, PcapProcessRequest, PcapProcessResp
 from app.services.ingestion.service import IngestionService
 from app.services.parsing.service import ParsingService
 from app.services.features.service import FeaturesService
-from app.services.detection.composite import CompositeDetectionService
+from app.services.detection.composite import get_composite_detector
 from app.services.alerting.service import AlertingService
 from app.models.alert import Alert, alert_flows
 from app.services.pipeline import PipelineTracker, PipelineStage
@@ -117,7 +117,7 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
         if mode == "flows_and_detect":
             if tracker:
                 with tracker.stage(PipelineStage.DETECT) as stg:
-                    det_svc = CompositeDetectionService()
+                    det_svc = get_composite_detector()
                     stg.record_input({"flow_count": len(flow_dicts)})
                     flow_dicts = det_svc.score_flows(flow_dicts)
                     scored = [f for f in flow_dicts if f.get("anomaly_score") is not None]
@@ -127,7 +127,7 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
                     })
                     stg.record_output({"scored_flow_count": len(scored)})
             else:
-                det_svc = CompositeDetectionService()
+                det_svc = get_composite_detector()
                 flow_dicts = det_svc.score_flows(flow_dicts)
             pcap.progress = 70
             db.commit()
@@ -344,9 +344,22 @@ async def upload_pcap(
     parser.register("file", file_target)
     parser.register("filename", filename_target)
 
-    # 流式接收 — 每个 chunk 到达即写入磁盘，内存固定
-    async for chunk in request.stream():
-        parser.data_received(chunk)
+    # 流式接收 — 支持 gzip 压缩传输（浏览器端 CompressionStream）
+    is_gzip = request.headers.get("x-content-encoding") == "gzip"
+    if is_gzip:
+        import zlib
+        decompressor = zlib.decompressobj(zlib.MAX_WBITS | 16)  # gzip 格式
+        async for chunk in request.stream():
+            raw = decompressor.decompress(chunk)
+            if raw:
+                parser.data_received(raw)
+        # 刷新剩余数据
+        remaining = decompressor.flush()
+        if remaining:
+            parser.data_received(remaining)
+    else:
+        async for chunk in request.stream():
+            parser.data_received(chunk)
 
     # 获取文件名（从 multipart Content-Disposition 中提取）
     raw_filename = file_target.multipart_filename or "unknown.pcap"
