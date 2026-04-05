@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.logging import get_logger
-from app.core.utils import generate_uuid, sanitize_filename, utc_now
+from app.core.utils import generate_uuid, sanitize_filename, utc_now, compute_file_hash
 from app.models.batch import BatchFile, Job
 from app.models.flow import Flow
 from app.models.alert import Alert, alert_flows
@@ -64,23 +64,24 @@ def stage_validate(
 
     检查暂存文件是否存在、魔数是否合法。
     返回 {"sha256": str, "size_bytes": int}。
+    不再全量读取文件到内存。
     """
     if not staging_path.exists():
         raise FileNotFoundError(f"暂存文件不存在: {staging_path}")
 
-    content = staging_path.read_bytes()
-    size_bytes = len(content)
+    size_bytes = staging_path.stat().st_size
 
     if size_bytes < 4:
         raise ValueError("文件过小，不是有效的 PCAP 文件")
 
-    # 魔数校验
-    magic = content[:4]
+    # 魔数校验：只读前 4 字节
+    with open(staging_path, "rb") as f:
+        magic = f.read(4)
     if magic not in _VALID_PCAP_MAGICS:
         raise ValueError(f"无效的 PCAP 魔数: {magic.hex()}")
 
-    # 计算 sha256（如果上传时未计算）
-    sha256 = _compute_sha256(content)
+    # 流式计算 sha256（如果上传时未计算）
+    sha256 = batch_file.sha256 or compute_file_hash(staging_path)
 
     # 更新 batch_file 元数据
     batch_file.sha256 = sha256
@@ -99,14 +100,16 @@ def stage_store(
     将暂存文件移动到 PCAP 存储目录，创建 PcapFile 记录。
 
     返回 {"pcap_id": str, "storage_path": str}。
+    使用 shutil.move 避免全量读取（同盘 rename 零拷贝，跨盘自动 copy+delete）。
     """
+    import shutil
+
     pcap_id = generate_uuid()
     safe_filename = sanitize_filename(batch_file.original_filename)
     storage_path = settings.PCAP_DIR / f"{pcap_id}.pcap"
 
-    # 复制到正式存储位置
-    content = staging_path.read_bytes()
-    storage_path.write_bytes(content)
+    # 移动到正式存储位置（零拷贝或流式拷贝）
+    shutil.move(str(staging_path), str(storage_path))
 
     # 创建 PcapFile 记录（与现有 IngestionService.save_pcap 逻辑一致）
     pcap_record = PcapFile(
@@ -128,11 +131,7 @@ def stage_store(
     job.pcap_id = pcap_id
     db.flush()
 
-    # 删除暂存文件
-    try:
-        staging_path.unlink()
-    except OSError:
-        logger.warning(f"无法删除暂存文件: {staging_path}")
+    # shutil.move 已处理暂存文件，无需手动删除
 
     logger.info(f"文件已落盘: {pcap_id} ({batch_file.size_bytes} bytes)")
     return {"pcap_id": pcap_id, "storage_path": str(storage_path)}

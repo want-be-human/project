@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs grep:*)",
+      "Bash(xargs cat:*)",
+      "Bash(npx tsc:*)",
+      "Bash(python -m pytest backend/app/tests/unit/test_plan_compiler.py backend/app/tests/unit/test_compile_dry_run_e2e.py -v)",
+      "Bash(python -m pytest backend/app/tests/unit/test_alerting.py backend/app/tests/unit/test_threat_enrichment.py -v)",
+      "Bash(claude mcp:*)",
+      "Bash(python -m pytest app/tests/unit/test_detection.py::TestScoreFlows::test_two_samples_fallback -v --tb=long)",
+      "Bash(find /d/vsCode/python/project -type f \\\\\\(-name *.types.ts -o -name *.d.ts -o -name *dry*run* \\\\\\) ! -path */node_modules/*)",
+      "Bash(grep -r \"graph_after\\\\|graph_delta\" /d/vsCode/python/project --include=*.py --include=*.ts --include=*.tsx)",
+      "Bash(grep -r \"impactedNodeIds\\\\|impactedEdgeIds\" /d/vsCode/python/project/frontend/src --include=*.ts --include=*.tsx)",
+      "mcp__thinking__sequentialthinking",
+      "Bash(sqlite3 d:/vsCode/python/project/backend/data/nettwin.db \"SELECT id, time_window_start, time_window_end FROM alerts WHERE id = ''e1cc38c1-ab4a-4419-8d13-9bebba04edad'';\")",
+      "Bash(sqlite3 d:/vsCode/python/project/backend/data/nettwin.db \"SELECT id, src_ip, dst_ip, ts_start, ts_end FROM flows WHERE id = ''60a5491e-2268-4ce6-bf28-fd3269abf61f'';\")",
+      "Bash(sqlite3 d:/vsCode/python/project/backend/data/nettwin.db \"SELECT id, time_window_start, time_window_end FROM alerts WHERE id = ''316a4548-c3d8-495c-937a-a07bf3f6674a'';\")",
+      "Bash(python -c \"import sqlite3, json; conn = sqlite3.connect\\(''backend/data/nettwin.db''\\); row = conn.execute\\(\"\"SELECT payload FROM dry_runs WHERE id = ''777f7df1-8003-490b-a825-81ae5ad73f80''\"\"\\).fetchone\\(\\); data = json.loads\\(row[0]\\); ga = data.get\\(''graph_after''\\); gb = data.get\\(''graph_before''\\); print\\(''S2 graph_before:'', ''present'' if gb else ''MISSING''\\); print\\(''S2 graph_after:'', ''present'' if ga else ''MISSING''\\); print\\(''S2 after nodes:'', len\\(ga[''nodes'']\\) if ga else 0, ''edges:'', len\\(ga[''edges'']\\) if ga else 0\\); print\\(''S2 dry_run_start:'', data.get\\(''dry_run_start'', ''MISSING''\\)\\); print\\(''S2 removed_node_ids:'', data[''impact''].get\\(''removed_node_ids''\\)\\); print\\(''S2 affected_node_ids:'', data[''impact''].get\\(''affected_node_ids''\\)\\); conn.close\\(\\)\")",
+      "Bash(python -c \"import sqlite3, json; conn = sqlite3.connect\\(''backend/data/nettwin.db''\\); row = conn.execute\\(\"\"SELECT payload FROM dry_runs WHERE id = ''8bf49448-a606-47f9-9a0d-eda937695838''\"\"\\).fetchone\\(\\); data = json.loads\\(row[0]\\); ga = data.get\\(''graph_after''\\); gb = data.get\\(''graph_before''\\); print\\(''S1 graph_before:'', ''present'' if gb else ''MISSING''\\); print\\(''S1 graph_after:'', ''present'' if ga else ''MISSING''\\); print\\(''S1 after nodes:'', len\\(ga[''nodes'']\\) if ga else 0, ''edges:'', len\\(ga[''edges'']\\) if ga else 0\\); print\\(''S1 dry_run_start:'', data.get\\(''dry_run_start'', ''MISSING''\\)\\); print\\(''S1 removed_node_ids:'', data[''impact''].get\\(''removed_node_ids''\\)\\); print\\(''S1 affected_node_ids:'', data[''impact''].get\\(''affected_node_ids''\\)\\); conn.close\\(\\)\")",
+      "Bash(python3 -c:*)",
+      "Bash(xargs wc:*)",
+      "Bash(find /d/vsCode/python/project/backend -name alembic.ini -o -name env.py -path */migrations/*)",
+      "Bash(find /d/vsCode/python/project/backend -name *.py -path */migrations/*)",
+      "Bash(python -m pytest app/tests/unit/test_scorers.py -v)"
+    ]
+  }
+}

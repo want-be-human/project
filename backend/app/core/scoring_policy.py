@@ -107,10 +107,15 @@ COMPOSITE_DETECTION_THRESHOLDS: dict[str, float] = {
 STRONG_RULE_TYPES: frozenset[str] = frozenset({"scan", "bruteforce", "dos"})
 
 # Guard 1: 规则分数下限保护
+# 当 rule_score >= threshold 且 rule_type 为强类型时,
+# final_score 不得低于 rule_score × factor。
+# 仅在 rule_score 较高时触发，避免低置信度规则产生误报
 GUARD_RULE_FLOOR_THRESHOLD: float = 0.7    # rule_score >= 此值时触发下限保护
-GUARD_RULE_FLOOR_FACTOR: float = 0.6       # floor = rule_score × 此系数
+GUARD_RULE_FLOOR_FACTOR: float = 0.95      # floor = rule_score × 此系数
 
 # Guard 2: 多源一致性保护
+# 当 baseline 和 rule/graph 同时高时, final_score 不得低于 consensus_floor。
+# 要求双源都达到较高水平才触发，减少单源误报传导
 GUARD_CONSENSUS_BASELINE: float = 0.8      # baseline_score >= 此值时检查一致性
 GUARD_CONSENSUS_SECONDARY: float = 0.5     # rule/graph 中较高者 >= 此值时触发
-GUARD_CONSENSUS_FLOOR: float = 0.5         # 一致性触发时的 final_score 下限
+GUARD_CONSENSUS_FLOOR: float = 0.7         # 一致性触发时的 final_score 下限

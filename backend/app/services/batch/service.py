@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.errors import ConflictError, NotFoundError, ValidationError
 from app.core.logging import get_logger
-from app.core.utils import generate_uuid, utc_now, datetime_to_iso, is_valid_pcap_filename
+from app.core.utils import generate_uuid, utc_now, datetime_to_iso, is_valid_pcap_filename, stream_save_and_hash
 from app.models.batch import Batch, BatchFile, Job
 from app.models.pcap import PcapFile
 from app.schemas.batch import (
@@ -151,28 +151,38 @@ class BatchService:
                 results.append(self._file_to_schema(bf))
                 continue
 
-            # 2. 读取内容
+            # 2. 先分配 ID，流式写入暂存区并同步计算 SHA256（内存固定 ~64KB）
+            self.db.add(bf)
+            self.db.flush()  # 获取 bf.id
+
+            staging_path = staging_dir / f"{bf.id}.pcap"
             try:
-                content = file_obj.read()
+                size_bytes, sha256, magic = stream_save_and_hash(file_obj, staging_path)
             except Exception as exc:
                 bf.status = "rejected"
                 bf.reject_reason = f"文件读取失败: {str(exc)[:200]}"
-                self.db.add(bf)
+                staging_path.unlink(missing_ok=True)
                 self.db.flush()
                 results.append(self._file_to_schema(bf))
                 continue
 
-            bf.size_bytes = len(content)
-
-            # 3. 计算 sha256
-            sha256 = f"sha256:{hashlib.sha256(content).hexdigest()}"
+            bf.size_bytes = size_bytes
             bf.sha256 = sha256
+
+            # 3. PCAP 魔数校验
+            if len(magic) < 4 or magic[:4] not in _VALID_PCAP_MAGICS:
+                bf.status = "rejected"
+                bf.reject_reason = "无效的 PCAP 文件（魔数校验失败）"
+                staging_path.unlink(missing_ok=True)
+                self.db.flush()
+                results.append(self._file_to_schema(bf))
+                continue
 
             # 4. 批次内去重
             if sha256 in existing_hashes:
                 bf.status = "duplicate"
                 bf.reject_reason = "批次内重复文件"
-                self.db.add(bf)
+                staging_path.unlink(missing_ok=True)
                 self.db.flush()
                 results.append(self._file_to_schema(bf))
                 continue
@@ -184,26 +194,10 @@ class BatchService:
             if global_dup:
                 bf.status = "duplicate"
                 bf.reject_reason = f"与已有文件重复 (pcap_id={global_dup.id})"
-                self.db.add(bf)
+                staging_path.unlink(missing_ok=True)
                 self.db.flush()
                 results.append(self._file_to_schema(bf))
                 continue
-
-            # 6. PCAP 魔数校验
-            if len(content) < 4 or content[:4] not in _VALID_PCAP_MAGICS:
-                bf.status = "rejected"
-                bf.reject_reason = "无效的 PCAP 文件（魔数校验失败）"
-                self.db.add(bf)
-                self.db.flush()
-                results.append(self._file_to_schema(bf))
-                continue
-
-            # 7. 通过校验，写入暂存区
-            self.db.add(bf)
-            self.db.flush()  # 获取 bf.id
-
-            staging_path = staging_dir / f"{bf.id}.pcap"
-            staging_path.write_bytes(content)
 
             existing_hashes.add(sha256)
             results.append(self._file_to_schema(bf))

@@ -12,7 +12,7 @@ from app.core.errors import ConflictError, NotFoundError, UnsupportedMediaError
 from app.core.logging import get_logger
 from app.core.utils import (
     generate_uuid,
-    compute_file_hash,
+    stream_save_and_hash,
     is_valid_pcap_filename,
     sanitize_filename,
     datetime_to_iso,
@@ -60,22 +60,18 @@ class IngestionService:
         safe_filename = sanitize_filename(filename)
         storage_path = settings.PCAP_DIR / f"{pcap_id}.pcap"
 
-        # 写入磁盘
-        content = file.read()
-        size_bytes = len(content)
+        # 流式写入磁盘，同步计算 SHA256（内存固定 ~64KB）
+        size_bytes, file_hash, magic = stream_save_and_hash(file, storage_path)
 
         # 基础 PCAP 魔数校验
-        if not self._is_valid_pcap_magic(content):
+        if not self._is_valid_pcap_magic(magic):
+            storage_path.unlink(missing_ok=True)
             raise UnsupportedMediaError(
                 message="File does not appear to be a valid PCAP file (invalid magic number)",
                 details={"filename": filename},
             )
 
-        storage_path.write_bytes(content)
         logger.info(f"已保存 PCAP 文件: {pcap_id} ({size_bytes} 字节)")
-
-        # 计算哈希（可选但有帮助）
-        file_hash = compute_file_hash(storage_path)
 
         # 创建数据库记录
         pcap_record = PcapFile(
@@ -213,17 +209,17 @@ class IngestionService:
             error_message=pcap.error_message,
         )
 
-    def _is_valid_pcap_magic(self, content: bytes) -> bool:
+    @staticmethod
+    def _is_valid_pcap_magic(magic: bytes) -> bool:
         """
-        检查内容是否以有效的 PCAP 魔数开头。
+        检查前 4 字节是否为有效的 PCAP 魔数。
 
         PCAP: 0xa1b2c3d4 或 0xd4c3b2a1（小端/大端）
         PCAPNG: 0x0a0d0d0a
         """
-        if len(content) < 4:
+        if len(magic) < 4:
             return False
 
-        magic = content[:4]
         valid_magics = [
             b"\xa1\xb2\xc3\xd4",  # PCAP 大端序
             b"\xd4\xc3\xb2\xa1",  # PCAP 小端序
@@ -231,7 +227,7 @@ class IngestionService:
             b"\x4d\x3c\xb2\xa1",  # PCAP-NG 小端序（修改版）
             b"\x0a\x0d\x0d\x0a",  # PCAP-NG 段头块
         ]
-        return magic in valid_magics
+        return magic[:4] in valid_magics
 
 
     def _find_orphan_alerts(self, flow_ids: list[str]) -> list[str]:

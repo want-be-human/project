@@ -6,6 +6,9 @@ import uuid
 import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import BinaryIO
+
+_STREAM_CHUNK_SIZE = 65536  # 64 KB
 
 
 def generate_uuid() -> str:
@@ -44,12 +47,44 @@ def iso_to_datetime(iso_str: str) -> datetime:
 
 
 def compute_file_hash(file_path: Path, algorithm: str = "sha256") -> str:
-    """计算文件哈希值。"""
+    """计算文件哈希值（流式，内存占用固定 64KB）。"""
     hash_func = hashlib.new(algorithm)
     with open(file_path, "rb") as f:
-        for chunk in iter(lambda: f.read(8192), b""):
+        for chunk in iter(lambda: f.read(_STREAM_CHUNK_SIZE), b""):
             hash_func.update(chunk)
     return f"{algorithm}:{hash_func.hexdigest()}"
+
+
+def stream_save_and_hash(
+    src: BinaryIO,
+    dst_path: Path,
+    algorithm: str = "sha256",
+) -> tuple[int, str, bytes]:
+    """
+    流式写入文件并同步计算哈希。内存占用固定 ~64KB。
+
+    参数：
+        src: 源文件对象（如 UploadFile.file）
+        dst_path: 目标写入路径
+        algorithm: 哈希算法
+
+    返回：
+        (size_bytes, "sha256:<hex>", magic_bytes_4)
+    """
+    hash_func = hashlib.new(algorithm)
+    size = 0
+    magic = b""
+    with open(dst_path, "wb") as out:
+        while True:
+            chunk = src.read(_STREAM_CHUNK_SIZE)
+            if not chunk:
+                break
+            if size == 0:
+                magic = chunk[:4]
+            out.write(chunk)
+            hash_func.update(chunk)
+            size += len(chunk)
+    return size, f"{algorithm}:{hash_func.hexdigest()}", magic
 
 
 def is_valid_pcap_filename(filename: str) -> bool:
