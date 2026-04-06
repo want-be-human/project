@@ -14,6 +14,7 @@ tensorboardX>=2.6
 xgboost>=2.0.0
 nfstream>=6.5.0
 streaming-form-data>=2.0.0
+psycopg2-binary>=2.9.9
 
 # OpenTelemetry 可观测性（开发用 console exporter，生产用 otlp）
 opentelemetry-api>=1.24.0

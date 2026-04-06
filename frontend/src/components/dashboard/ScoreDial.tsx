@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import type { PostureComponent } from '@/lib/api/types';
 import CountUp from './CountUp';
 
@@ -14,16 +13,45 @@ interface ScoreDialProps {
   breakdown: PostureComponent[];
   /** 自然语言解释摘要 */
   explain?: string | null;
-  /** SVG 尺寸 (px)，默认 200 */
+  /** SVG 尺寸 (px)，默认 280 */
   size?: number;
   /** 颜色策略：'posture' 绿色系，'safety' 蓝色系 */
   colorStrategy: 'posture' | 'safety';
-  /** tooltip 出现方向：左圆盘用 'left'，右圆盘用 'right' */
-  tooltipSide: 'left' | 'right';
   /** 评分算法版本号 */
   scoreVersion?: string;
   /** 归一化风险指数 */
   riskIndex?: number | null;
+}
+
+// ==================== 几何常量 ====================
+
+const CX = 170;
+const CY = 170;
+const R = 145;
+const START_ANGLE = 140;
+const END_ANGLE = 400;
+const ARC_RANGE = END_ANGLE - START_ANGLE; // 260°
+
+// ==================== 几何工具函数 ====================
+
+function scoreToAngle(v: number): number {
+  return START_ANGLE + (v / 100) * ARC_RANGE;
+}
+
+function polarXY(angle: number, radius: number): { x: number; y: number } {
+  const rad = ((angle - 90) * Math.PI) / 180;
+  // 四舍五入到 2 位小数，避免 SSR/CSR 浮点精度差异导致 hydration mismatch
+  return {
+    x: Math.round((CX + radius * Math.cos(rad)) * 100) / 100,
+    y: Math.round((CY + radius * Math.sin(rad)) * 100) / 100,
+  };
+}
+
+function arcPath(a1: number, a2: number, radius: number): string {
+  const p1 = polarXY(a1, radius);
+  const p2 = polarXY(a2, radius);
+  const largeArc = a2 - a1 > 180 ? 1 : 0;
+  return `M ${p1.x} ${p1.y} A ${radius} ${radius} 0 ${largeArc} 1 ${p2.x} ${p2.y}`;
 }
 
 // ==================== 颜色策略 ====================
@@ -35,261 +63,239 @@ function postureTextColor(score: number): string {
   return 'text-red-400';
 }
 
-/** 态势评分环形颜色 */
-function postureRingColor(score: number): string {
-  if (score >= 80) return '#4ade80';
-  if (score >= 50) return '#facc15';
-  return '#f87171';
-}
-
-/** 行动安全文字颜色（蓝色系区分） */
+/** 行动安全文字颜色 */
 function safetyTextColor(score: number): string {
   if (score >= 80) return 'text-blue-400';
   if (score >= 50) return 'text-yellow-400';
   return 'text-red-400';
 }
 
-/** 行动安全环形颜色 */
-function safetyRingColor(score: number): string {
-  if (score >= 80) return '#60a5fa';
-  if (score >= 50) return '#fbbf24';
-  return '#f87171';
-}
-
-/** 根据策略获取颜色函数 */
 function getTextColor(strategy: 'posture' | 'safety', score: number): string {
   return strategy === 'posture' ? postureTextColor(score) : safetyTextColor(score);
 }
 
-function getRingColor(strategy: 'posture' | 'safety', score: number): string {
-  return strategy === 'posture' ? postureRingColor(score) : safetyRingColor(score);
+/** 获取指针颜色（根据当前分值所在色区） */
+function getNeedleColor(strategy: 'posture' | 'safety', score: number): string {
+  if (score < 50) return '#f87171';
+  if (score < 80) return '#facc15';
+  return strategy === 'posture' ? '#4ade80' : '#60a5fa';
 }
 
-// ==================== 组件名称映射 ====================
+// ==================== 色区配置 ====================
 
-/** 态势评分组件中文名 */
-const POSTURE_CN: Record<string, string> = {
-  severity_pressure: '严重性压力',
-  open_pressure: '开放告警压力',
-  trend_pressure: '趋势压力',
-  blast_radius: '爆炸半径',
-  execution_risk: '执行风险',
-};
-
-/** 行动安全组件中文名 */
-const ACTION_SAFETY_CN: Record<string, string> = {
-  service_disruption_risk: '服务中断风险',
-  reachability_drop: '可达性损失',
-  impacted_ratio: '影响范围比例',
-  confidence_penalty: '置信度惩罚',
-  irreversibility_penalty: '不可逆惩罚',
-  rollback_complexity: '回退复杂度',
-};
-
-/** 根据策略选择对应名称映射 */
-function getCnNames(strategy: 'posture' | 'safety'): Record<string, string> {
-  return strategy === 'posture' ? POSTURE_CN : ACTION_SAFETY_CN;
+interface Zone {
+  from: number;
+  to: number;
+  color: string;
 }
 
-// ==================== 辅助函数 ====================
+const POSTURE_ZONES: Zone[] = [
+  { from: 0, to: 50, color: '#f87171' },
+  { from: 50, to: 80, color: '#facc15' },
+  { from: 80, to: 100, color: '#4ade80' },
+];
 
-/** 趋势方向箭头符号 */
-function trendArrow(dir: PostureComponent['trend_direction']): string {
-  if (dir === 'worsening') return ' ↑';
-  if (dir === 'improving') return ' ↓';
-  if (dir === 'stable') return ' →';
-  return '';
+const SAFETY_ZONES: Zone[] = [
+  { from: 0, to: 50, color: '#f87171' },
+  { from: 50, to: 80, color: '#fbbf24' },
+  { from: 80, to: 100, color: '#60a5fa' },
+];
+
+function getZones(strategy: 'posture' | 'safety'): Zone[] {
+  return strategy === 'posture' ? POSTURE_ZONES : SAFETY_ZONES;
 }
 
-/** 贡献条颜色：高贡献红色、中等黄色、低贡献青色 */
-function barColor(contribution: number): string {
-  if (contribution >= 0.15) return 'bg-red-500';
-  if (contribution >= 0.08) return 'bg-yellow-500';
-  return 'bg-cyan-500';
-}
+// ==================== SVG Defs 组件 ====================
 
-// ==================== Breakdown Tooltip ====================
-
-/** 评分分解详情浮层 */
-function BreakdownTooltip({
-  components,
-  cnNames,
-  explainSummary,
-  riskIndex,
-  scoreVersion,
-  side,
-}: {
-  components: PostureComponent[];
-  cnNames: Record<string, string>;
-  explainSummary?: string | null;
-  riskIndex?: number | null;
-  scoreVersion?: string;
-  side: 'left' | 'right';
-}) {
-  /* tooltip 定位：左圆盘→弹出到左方，右圆盘→弹出到右方 */
-  const positionClass = side === 'left'
-    ? 'right-full mr-4 top-1/2 -translate-y-1/2'
-    : 'left-full ml-4 top-1/2 -translate-y-1/2';
-
+function DialDefs({ prefix }: { prefix: string }) {
   return (
-    <div
-      className={`absolute z-[9999] w-80 bg-gray-900/95 border border-gray-600/60 rounded-xl p-4 shadow-2xl backdrop-blur-md ${positionClass}`}
-    >
-      {/* 解释摘要 */}
-      {explainSummary && (
-        <p className="text-xs text-gray-300 mb-3 leading-relaxed">
-          {explainSummary}
-        </p>
-      )}
+    <defs>
+      {/* 金属边框渐变 */}
+      <linearGradient id={`${prefix}-metalRing`} x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#ffffff" stopOpacity="0.8" />
+        <stop offset="20%" stopColor="#888888" stopOpacity="0.5" />
+        <stop offset="50%" stopColor="#333333" stopOpacity="0.8" />
+        <stop offset="80%" stopColor="#666666" stopOpacity="0.5" />
+        <stop offset="100%" stopColor="#aaaaaa" stopOpacity="0.8" />
+      </linearGradient>
 
-      {/* 组件分解列表 */}
-      <div className="space-y-2">
-        {components.map((comp) => {
-          const pct = Math.round(comp.contribution * 100);
-          const cnName = cnNames[comp.name] || comp.name;
-          return (
-            <div key={comp.name} className={`${!comp.available ? 'opacity-40' : ''}`}>
-              <div className="flex items-center justify-between text-xs mb-0.5">
-                <span className="text-gray-300">
-                  {cnName}
-                  <span className="text-gray-500">{trendArrow(comp.trend_direction)}</span>
-                </span>
-                <span className="text-gray-400 tabular-nums">
-                  {comp.available ? `${(comp.normalized_value * 100).toFixed(0)}%` : '--'}
-                  <span className="text-gray-600 ml-1">
-                    (w:{(comp.effective_weight * 100).toFixed(0)}%)
-                  </span>
-                </span>
-              </div>
-              {/* 贡献条 */}
-              <div className="h-1.5 bg-gray-700/60 rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all duration-500 ${barColor(comp.contribution)}`}
-                  style={{ width: `${Math.min(100, pct * 3)}%` }}
-                />
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      {/* 表盘面径向渐变 */}
+      <radialGradient id={`${prefix}-dialInner`} cx="50%" cy="50%" r="50%">
+        <stop offset="60%" stopColor="#000000" />
+        <stop offset="95%" stopColor="#0a0a0a" />
+        <stop offset="100%" stopColor="#1a1a1a" />
+      </radialGradient>
 
-      {/* 底部：风险指数 + 版本号 */}
-      <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-700/50 text-xs text-gray-500">
-        <span>
-          Risk Index: <span className="text-gray-300 tabular-nums">
-            {riskIndex != null ? riskIndex.toFixed(4) : '--'}
-          </span>
-        </span>
-        <span>{scoreVersion || '--'}</span>
-      </div>
-    </div>
+      {/* 中心帽渐变 */}
+      <radialGradient id={`${prefix}-centerCap`} cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stopColor="#111" />
+        <stop offset="80%" stopColor="#000" />
+        <stop offset="100%" stopColor="#222" />
+      </radialGradient>
+
+      {/* 红色辉光滤镜 */}
+      <filter id={`${prefix}-glowRed`} x="-20%" y="-20%" width="140%" height="140%">
+        <feGaussianBlur stdDeviation="4" result="blur" />
+        <feComposite in="SourceGraphic" in2="blur" operator="over" />
+      </filter>
+
+      {/* 投影滤镜 */}
+      <filter id={`${prefix}-dropShadow`} x="-10%" y="-10%" width="120%" height="120%">
+        <feDropShadow dx="0" dy="4" stdDeviation="6" floodColor="#000" floodOpacity="0.8" />
+      </filter>
+    </defs>
   );
 }
 
 // ==================== ScoreDial 主组件 ====================
 
-/**
- * 可复用圆盘仪表组件
- * 用于 Dashboard 首屏显示态势评分和行动安全度
- */
 export default function ScoreDial({
   score,
   label,
-  breakdown,
-  explain,
-  size = 200,
+  size = 280,
   colorStrategy,
-  tooltipSide,
-  scoreVersion,
-  riskIndex,
 }: ScoreDialProps) {
-  const [showBreakdown, setShowBreakdown] = useState(false);
-
-  /* 判断是否有有效数据 */
   const hasData = score >= 0;
   const displayScore = hasData ? Math.min(100, Math.max(0, score)) : 0;
-
-  /* SVG 圆环参数：radius 按 size 比例计算（保持 68/160 的比例） */
-  const radius = Math.round(size * 0.425);
-  const circumference = 2 * Math.PI * radius;
-  const offset = hasData
-    ? circumference - (displayScore / 100) * circumference
-    : circumference;
-
-  /* 高风险状态：评分 < 50 且有数据时启用呼吸发光 */
   const isHighRisk = hasData && displayScore < 50;
+  const prefix = colorStrategy;
+  const zones = getZones(colorStrategy);
 
-  /* 名称映射 */
-  const cnNames = getCnNames(colorStrategy);
+  // ---- 刻度生成 ----
+  const ticks: React.ReactNode[] = [];
+  for (let val = 0; val <= 100; val += 5) {
+    const isMajor = val % 10 === 0;
+    const angle = scoreToAngle(val);
+    const isRed = val <= 50;
+
+    const p1 = polarXY(angle, R - 2);
+    const p2 = polarXY(angle, R - (isMajor ? 14 : 7));
+
+    ticks.push(
+      <line
+        key={`tick-${val}`}
+        x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y}
+        stroke={isRed ? '#ff2a2a' : '#ffffff'}
+        strokeWidth={isMajor ? 2.5 : 1.5}
+        opacity={isRed ? 1 : isMajor ? 0.9 : 0.4}
+        filter={isRed && isMajor ? `url(#${prefix}-glowRed)` : 'none'}
+      />,
+    );
+
+    // 大刻度数字
+    if (isMajor) {
+      const pText = polarXY(angle, R - 32);
+      ticks.push(
+        <text
+          key={`text-${val}`}
+          x={pText.x} y={pText.y}
+          fill={isRed ? '#ff2a2a' : '#ffffff'}
+          fontSize="13"
+          fontWeight="500"
+          fontFamily="sans-serif"
+          textAnchor="middle"
+          dominantBaseline="middle"
+          filter={isRed ? `url(#${prefix}-glowRed)` : 'none'}
+          opacity={0.9}
+        >
+          {val}
+        </text>,
+      );
+    }
+  }
+
+  // ---- 色区弧线 ----
+  const zoneArcs = zones.map((zone) => (
+    <path
+      key={`zone-${zone.from}`}
+      d={arcPath(scoreToAngle(zone.from), scoreToAngle(zone.to), R - 2)}
+      fill="none"
+      stroke={zone.color}
+      strokeWidth="4"
+      opacity={0.7}
+      filter={zone.from === 0 ? `url(#${prefix}-glowRed)` : 'none'}
+    />
+  ));
+
+  // ---- 指针 ----
+  const needleAngle = hasData ? scoreToAngle(displayScore) : scoreToAngle(0);
+  const needleColor = hasData ? getNeedleColor(colorStrategy, displayScore) : '#333';
+  const pTip = polarXY(needleAngle, R - 15);
+  const pBase1 = polarXY(needleAngle - 2.5, R - 55);
+  const pBase2 = polarXY(needleAngle + 2.5, R - 55);
 
   return (
-    <div
-      className="flex flex-col items-center gap-2 relative"
-      onMouseEnter={() => setShowBreakdown(true)}
-      onMouseLeave={() => setShowBreakdown(false)}
-    >
-      {/* 标签 */}
-      <span className="text-xs text-gray-400 tracking-wide">{label}</span>
-
-      {/* 圆环 SVG */}
-      <div className="relative" style={{ width: size, height: size }}>
+    <div className="flex flex-col items-center gap-1">
+      {/* 汽车仪表盘 SVG */}
+      <div
+        className="relative filter drop-shadow-2xl"
+        style={{ width: size, height: size }}
+      >
         <svg
-          className={`w-full h-full -rotate-90${isHighRisk ? ' animate-breathe-glow-ring' : ''}`}
-          viewBox={`0 0 ${size} ${size}`}
+          width="100%"
+          height="100%"
+          viewBox="0 0 340 340"
           aria-label={`${label}: ${hasData ? Math.round(displayScore) : '--'}`}
           role="img"
         >
-          {/* 背景环 */}
+          <DialDefs prefix={prefix} />
+
+          {/* 1. 外圈金属边框 */}
           <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={radius}
-            fill="none"
-            stroke="#374151"
-            strokeWidth="10"
+            cx={CX} cy={CY} r={R + 12}
+            fill="#050505"
+            stroke={`url(#${prefix}-metalRing)`}
+            strokeWidth="2"
+            opacity="0.85"
+            filter={`url(#${prefix}-dropShadow)`}
           />
-          {/* 进度环 */}
-          {hasData && (
-            <circle
-              cx={size / 2}
-              cy={size / 2}
-              r={radius}
-              fill="none"
-              stroke={getRingColor(colorStrategy, displayScore)}
-              strokeWidth="10"
-              strokeLinecap="round"
-              strokeDasharray={circumference}
-              strokeDashoffset={offset}
-              className="transition-all duration-1000 ease-out"
-            />
-          )}
+          {/* 2. 内环 */}
+          <circle cx={CX} cy={CY} r={R + 10} fill="none" stroke="#000" strokeWidth="4" />
+
+          {/* 3. 表盘面 */}
+          <circle cx={CX} cy={CY} r={R} fill={`url(#${prefix}-dialInner)`} />
+
+          {/* 4. 底部轨道弧 */}
+          <path
+            d={arcPath(START_ANGLE, END_ANGLE, R - 2)}
+            fill="none"
+            stroke="#333"
+            strokeWidth="2"
+          />
+
+          {/* 5. 色区弧线 */}
+          {zoneArcs}
+
+          {/* 6. 刻度线 + 数字 */}
+          {ticks}
+
+          {/* 7. 指针 */}
+          <polygon
+            points={`${pTip.x},${pTip.y} ${pBase1.x},${pBase1.y} ${pBase2.x},${pBase2.y}`}
+            fill={needleColor}
+            filter={isHighRisk ? `url(#${prefix}-glowRed)` : 'none'}
+            className={isHighRisk ? 'animate-breathe-glow-needle' : ''}
+          />
+
+          {/* 8. 中心帽 */}
+          <circle cx={CX} cy={CY} r="12" fill={`url(#${prefix}-centerCap)`} />
         </svg>
 
-        {/* 中心数字 */}
-        <div className="absolute inset-0 flex items-center justify-center">
+        {/* 中央 HTML 覆盖层 */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+          <span className="text-xs text-gray-400 tracking-wider mb-1">{label}</span>
           {hasData ? (
             <span
-              className={`text-4xl font-bold ${getTextColor(colorStrategy, displayScore)}${isHighRisk ? ' animate-breathe-glow' : ''}`}
+              className={`text-5xl font-light tracking-wider ${getTextColor(colorStrategy, displayScore)}${isHighRisk ? ' animate-breathe-glow' : ''}`}
+              style={{ textShadow: '0 0 10px rgba(255,255,255,0.2)' }}
             >
               <CountUp end={Math.round(displayScore)} />
             </span>
           ) : (
-            <span className="text-4xl font-bold text-gray-500">--</span>
+            <span className="text-5xl font-light text-gray-500">--</span>
           )}
         </div>
       </div>
-
-      {/* 分解提示框（hover 时显示，需有分解数据） */}
-      {showBreakdown && hasData && breakdown.length > 0 && (
-        <BreakdownTooltip
-          components={breakdown}
-          cnNames={cnNames}
-          explainSummary={explain}
-          riskIndex={riskIndex}
-          scoreVersion={scoreVersion}
-          side={tooltipSide}
-        />
-      )}
     </div>
   );
 }

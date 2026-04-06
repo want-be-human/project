@@ -96,6 +96,20 @@ body {
   background-size: 40px 40px;
 }
 
+/* 高风险指针发光动画 */
+@keyframes breathe-glow-needle {
+  0%, 100% {
+    filter: drop-shadow(0 0 3px rgba(248, 113, 113, 0.4));
+  }
+  50% {
+    filter: drop-shadow(0 0 10px rgba(248, 113, 113, 0.8));
+  }
+}
+
+.animate-breathe-glow-needle {
+  animation: breathe-glow-needle 3s ease-in-out infinite;
+}
+
 /* 子任务 1.2：减少动画偏好全局适配 — 停止所有非必要动画，改为静态效果 */
 @media (prefers-reduced-motion: reduce) {
   .animate-breathe-glow {
@@ -109,6 +123,10 @@ body {
   .animate-breathe-glow-ring {
     animation: none;
     filter: drop-shadow(0 0 3px rgba(248, 113, 113, 0.3));
+  }
+  .animate-breathe-glow-needle {
+    animation: none;
+    filter: drop-shadow(0 0 3px rgba(248, 113, 113, 0.4));
   }
   .animate-pulse {
     animation: none;

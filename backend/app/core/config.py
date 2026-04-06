@@ -20,8 +20,8 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.1"
     DEBUG: bool = False
 
-    # 数据库：基于 backend/ 推导绝对路径
-    DATABASE_URL: str = f"sqlite:///{(BASE_DIR / 'data' / 'nettwin.db').as_posix()}"
+    # 数据库：PostgreSQL（本地开发通过 Docker 暴露 5432 端口）
+    DATABASE_URL: str = "postgresql://nettwin:nettwin_secret@localhost:5432/nettwin"
 
     # 数据存储：基于 backend/ 推导绝对路径
     DATA_DIR: Path = BASE_DIR / "data"

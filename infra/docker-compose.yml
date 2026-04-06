@@ -11,19 +11,39 @@ services:
       - ../backend/models:/app/models
       - ../backend/alembic:/app/alembic
       - ../backend/alembic.ini:/app/alembic.ini:ro
-      - backend_data:/app/data                    # named volume: 数据存在 Linux VM 内部，I/O 快 10x
+      - backend_data:/app/data
       - ../backend/scripts:/app/scripts
     environment:
-      - DATABASE_URL=${DATABASE_URL:-sqlite:///./data/nettwin.db}
+      - DATABASE_URL=postgresql://nettwin:nettwin_secret@db:5432/nettwin
       - DATA_DIR=/app/data
       - DEBUG=true
       - WATCHFILES_FORCE_POLLING=true
+    depends_on:
+      db:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
+    restart: unless-stopped
+
+  db:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=nettwin
+      - POSTGRES_PASSWORD=nettwin_secret
+      - POSTGRES_DB=nettwin
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nettwin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
 
   frontend:
@@ -52,26 +72,8 @@ services:
       - frontend_next:/app/.next
     restart: unless-stopped
 
-  # 可选的 PostgreSQL 数据库 - 生产环境取消注释即可启用
-  # db:
-  #   image: postgres:15-alpine
-  #   ports:
-  #     - "5432:5432"
-  #   environment:
-  #     - POSTGRES_USER=nettwin
-  #     - POSTGRES_PASSWORD=nettwin_secret
-  #     - POSTGRES_DB=nettwin
-  #   volumes:
-  #     - postgres_data:/var/lib/postgresql/data
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "pg_isready -U nettwin"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 5
-  #   restart: unless-stopped
-
 volumes:
   frontend_node_modules:
   frontend_next:
-  backend_data:                                   # PCAP + SQLite 数据存储（Linux 原生 I/O）
-  # postgres_data:
+  backend_data:
+  postgres_data:

@@ -65,3 +65,4 @@ backend/.hypothesis/
 frontend/src/__tests__/
 frontend/coverage/
 frontend/src/components/dashboard/__tests__
+dashboard_add

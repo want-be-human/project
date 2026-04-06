@@ -5,7 +5,7 @@ WORKDIR /app
 
 # 安装系统依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
+    gcc libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # 复制并安装 Python 依赖
@@ -23,7 +23,7 @@ RUN mkdir -p /app/data/pcaps
 RUN mkdir -p /app/data/pcaps /app/models
 
 # 环境变量
-ENV DATABASE_URL="sqlite:///./data/nettwin.db"
+ENV DATABASE_URL="postgresql://nettwin:nettwin_secret@db:5432/nettwin"
 ENV DATA_DIR="/app/data"
 ENV PYTHONPATH="/app"
 

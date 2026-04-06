@@ -1,36 +1,23 @@
 """
 数据库配置。
 包含 SQLAlchemy 引擎与会话管理。
+PostgreSQL 专用（连接池 + MVCC 并发）。
 """
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
 from app.core.config import settings
 
 
-# 创建 SQLAlchemy 引擎
-# 对 SQLite 使用 connect_args 以支持多线程
-connect_args = {}
-if settings.DATABASE_URL.startswith("sqlite"):
-    connect_args["check_same_thread"] = False
-
+# PostgreSQL 连接池配置
 engine = create_engine(
     settings.DATABASE_URL,
-    connect_args=connect_args,
+    pool_size=10,           # 连接池常驻连接数
+    max_overflow=20,        # 超出 pool_size 时最多额外创建的连接
+    pool_pre_ping=True,     # 使用前 ping 检测连接是否存活
     echo=settings.DEBUG,
 )
-
-# SQLite 性能优化：WAL 模式 + 减少 fsync + 大缓存
-if settings.DATABASE_URL.startswith("sqlite"):
-    @event.listens_for(engine, "connect")
-    def _set_sqlite_pragma(dbapi_connection, connection_record):
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA journal_mode=WAL")
-        cursor.execute("PRAGMA synchronous=NORMAL")
-        cursor.execute("PRAGMA cache_size=-64000")  # 64MB
-        cursor.execute("PRAGMA temp_store=MEMORY")
-        cursor.close()
 
 # 会话工厂
 SessionLocal = sessionmaker(
