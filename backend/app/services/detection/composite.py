@@ -78,22 +78,34 @@ class CompositeDetectionService:
         if not flows:
             return flows
 
+        import time as _time
+
         logger.info("CompositeDetectionService 开始处理 %d 条流", len(flows))
 
         # ── Layer 1: 基线检测 ──
+        t0 = _time.monotonic()
         flows = self.baseline.score(flows)
+        logger.info("  Layer 1 (baseline): %.1fs", _time.monotonic() - t0)
 
         # ── Layer 2: 规则增强 ──
+        t0 = _time.monotonic()
         flows = self.rule_enricher.enrich(flows)
+        logger.info("  Layer 2 (rule): %.1fs", _time.monotonic() - t0)
 
         # ── 图特征构建 ──
+        t0 = _time.monotonic()
         flows = self.graph_builder.build_and_extract(flows)
+        logger.info("  Graph features: %.1fs", _time.monotonic() - t0)
 
         # ── 特征矩阵合并 ──
+        t0 = _time.monotonic()
         feature_names, feature_matrix = self.feature_pipeline.build_feature_matrix(flows)
+        logger.info("  Feature matrix: %.1fs", _time.monotonic() - t0)
 
         # ── Layer 3: 最终排序/分类 ──
+        t0 = _time.monotonic()
         flows = self.ranker.predict(flows, feature_matrix, feature_names)
+        logger.info("  Layer 3 (ranker): %.1fs", _time.monotonic() - t0)
 
         # ── 向后兼容映射 ──
         flows = self._write_back_compat(flows)

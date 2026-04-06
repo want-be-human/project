@@ -305,49 +305,35 @@ class IngestionService:
 
         storage_path = pcap.storage_path
 
-        # 2. 在事务中按顺序删除关联数据
+        # 2. 利用 PostgreSQL CASCADE 高效删除
+        #
+        # 级联链：
+        #   DELETE pcap_files → CASCADE flows → CASCADE alert_flows
+        #                     → CASCADE scenarios → CASCADE scenario_runs
+        #
+        # Python 只需处理：
+        #   - alerts 孤立清理（alert_flows 被级联删掉后，alert 可能没有关联 flow 了）
+        #   - pipeline_runs（无 CASCADE）
+        #   - batch_file 状态更新（无 CASCADE）
         try:
-            # 获取该 PCAP 的所有 flow_id
-            flow_ids = [fid for (fid,) in
-                        self.db.query(Flow.id).filter(Flow.pcap_id == pcap_id).all()]
+            from sqlalchemy import select, text
 
-            if flow_ids:
-                # 先找出仅属于该 PCAP 的 alerts（必须在删除 alert_flows 之前查询）
-                alert_ids_to_delete = self._find_orphan_alerts(flow_ids)
-
-                # 删除 alert_flows 关联记录
+            # 先收集受影响的 alert_id（在 CASCADE 删除 alert_flows 之前）
+            related_alert_ids = [
+                aid for (aid,) in
                 self.db.execute(
-                    alert_flows.delete().where(alert_flows.c.flow_id.in_(flow_ids))
-                )
-
-                # 删除孤立 alerts
-                if alert_ids_to_delete:
-                    self.db.query(Alert).filter(Alert.id.in_(alert_ids_to_delete)).delete(
-                        synchronize_session=False
+                    select(alert_flows.c.alert_id).distinct().where(
+                        alert_flows.c.flow_id.in_(
+                            select(Flow.id).where(Flow.pcap_id == pcap_id)
+                        )
                     )
+                ).all()
+            ]
 
-                # 删除 flows
-                self.db.query(Flow).filter(Flow.pcap_id == pcap_id).delete(
-                    synchronize_session=False
-                )
-
-            # 删除 pipeline_runs
+            # 删除 pipeline_runs（无 CASCADE，手动删）
             self.db.query(PipelineRunModel).filter(
                 PipelineRunModel.pcap_id == pcap_id
             ).delete(synchronize_session=False)
-
-            # 删除 scenario_runs 和 scenarios
-            scenario_ids = [
-                sid for (sid,) in
-                self.db.query(Scenario.id).filter(Scenario.pcap_id == pcap_id).all()
-            ]
-            if scenario_ids:
-                self.db.query(ScenarioRun).filter(
-                    ScenarioRun.scenario_id.in_(scenario_ids)
-                ).delete(synchronize_session=False)
-                self.db.query(Scenario).filter(
-                    Scenario.pcap_id == pcap_id
-                ).delete(synchronize_session=False)
 
             # 同步清理：将引用该 pcap 的 batch_file 标记为失败
             affected_batch_ids: set[str] = set()
@@ -387,8 +373,29 @@ class IngestionService:
                         else "partial_failure"
                     )
 
-            # 删除 pcap_files 主记录
-            self.db.delete(pcap)
+            # 核心删除：用原始 SQL 绕过 ORM relationship 的 SET NULL 行为
+            # PostgreSQL CASCADE 自动删除 flows, alert_flows, scenarios, scenario_runs
+            self.db.execute(
+                text("DELETE FROM pcap_files WHERE id = :pid"),
+                {"pid": pcap_id},
+            )
+            self.db.flush()
+
+            # 清理孤立 alerts（alert_flows 已被 CASCADE 删除，检查哪些 alert 不再关联任何 flow）
+            if related_alert_ids:
+                orphan_aids = [
+                    aid for aid in related_alert_ids
+                    if self.db.execute(
+                        select(alert_flows.c.alert_id)
+                        .where(alert_flows.c.alert_id == aid)
+                        .limit(1)
+                    ).first() is None
+                ]
+                if orphan_aids:
+                    self.db.query(Alert).filter(Alert.id.in_(orphan_aids)).delete(
+                        synchronize_session=False
+                    )
+
             self.db.commit()
         except Exception:
             self.db.rollback()

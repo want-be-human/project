@@ -360,7 +360,7 @@ function TopologyInner() {
     // 拉取告警列表，构建 id→severity 映射
     api.listAlerts({}).then((alerts) => {
       const map: Record<string, 'low' | 'medium' | 'high' | 'critical'> = {};
-      for (const a of alerts) {
+      for (const a of alerts.items) {
         if (a.id && a.severity) map[a.id] = a.severity as any;
       }
       setAlertSeverityMap(map);

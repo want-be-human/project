@@ -73,11 +73,11 @@ class BatchFile(BaseModel):
 
     # 所属批次
     batch_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("batches.id"), nullable=False,
+        String(36), ForeignKey("batches.id", ondelete="CASCADE"), nullable=False,
     )
-    # 关联的 PcapFile（store 阶段后填充）
+    # 关联的 PcapFile（store 阶段后填充；删 pcap 时置 NULL 保留记录）
     pcap_id: Mapped[Optional[str]] = mapped_column(
-        String(36), ForeignKey("pcap_files.id"), nullable=True,
+        String(36), ForeignKey("pcap_files.id", ondelete="SET NULL"), nullable=True,
     )
     # 文件元数据
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -132,10 +132,10 @@ class Job(BaseModel):
 
     # 所属批次与文件
     batch_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("batches.id"), nullable=False,
+        String(36), ForeignKey("batches.id", ondelete="CASCADE"), nullable=False,
     )
     batch_file_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("batch_files.id"), nullable=False,
+        String(36), ForeignKey("batch_files.id", ondelete="CASCADE"), nullable=False,
     )
     pcap_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
     # 状态

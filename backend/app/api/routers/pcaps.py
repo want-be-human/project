@@ -136,34 +136,9 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
             with tracker.stage(PipelineStage.DETECT) as stg:
                 stg.skip("mode != flows_and_detect")
 
-        # 步骤 5：将 flows 入库（Core bulk insert，绕过 ORM 开销）
-        _BULK = 50_000
-        flow_rows = [
-            {
-                "id": fd["id"],
-                "version": fd.get("version", "1.1"),
-                "created_at": fd["created_at"],
-                "pcap_id": pcap_id,
-                "ts_start": fd["ts_start"],
-                "ts_end": fd["ts_end"],
-                "src_ip": fd["src_ip"],
-                "src_port": fd["src_port"],
-                "dst_ip": fd["dst_ip"],
-                "dst_port": fd["dst_port"],
-                "proto": fd["proto"],
-                "packets_fwd": fd["packets_fwd"],
-                "packets_bwd": fd["packets_bwd"],
-                "bytes_fwd": fd["bytes_fwd"],
-                "bytes_bwd": fd["bytes_bwd"],
-                "features": json.dumps(fd.get("features", {})),
-                "anomaly_score": fd.get("anomaly_score"),
-                "label": fd.get("label"),
-            }
-            for fd in flow_dicts
-        ]
-        flow_table = Flow.__table__
-        for i in range(0, len(flow_rows), _BULK):
-            db.execute(flow_table.insert(), flow_rows[i:i + _BULK])
+        # 步骤 5：将 flows 入库（PostgreSQL COPY 协议，比 executemany 快 10-20x）
+        from app.services.batch.stages import _persist_flows_copy
+        _persist_flows_copy(db, pcap_id, flow_dicts)
         db.flush()
         pcap.progress = 85
         db.commit()
@@ -182,10 +157,13 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
             else:
                 alert_svc = AlertingService(score_threshold=0.7, window_sec=window_sec)
                 alert_dicts = alert_svc.generate_alerts(flow_dicts, pcap_id)
+            # 收集所有 alert 记录和关联关系
+            _BULK = 50_000
+            alert_records: list[dict] = []
             alert_flow_links: list[dict] = []
             for ad in alert_dicts:
                 flow_ids_for_alert = ad.pop("_flow_ids", [])
-                db.execute(Alert.__table__.insert(), [{
+                alert_records.append({
                     "id": ad["id"],
                     "version": ad.get("version", "1.1"),
                     "created_at": ad["created_at"],
@@ -204,20 +182,29 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
                     "twin": ad["twin"],
                     "tags": ad["tags"],
                     "notes": ad.get("notes", ""),
-                }])
+                })
                 for fid in flow_ids_for_alert:
                     alert_flow_links.append({"alert_id": ad["id"], "flow_id": fid, "role": "top"})
-                _publish(ALERT_CREATED, {
-                    "alert_id": ad["id"],
-                    "severity": ad["severity"],
-                })
+
+            # 批量 INSERT alerts（一次网络往返，而非逐条）
+            if alert_records:
+                for i in range(0, len(alert_records), _BULK):
+                    db.execute(Alert.__table__.insert(), alert_records[i:i + _BULK])
             if alert_flow_links:
                 for i in range(0, len(alert_flow_links), _BULK):
                     db.execute(alert_flows.insert(), alert_flow_links[i:i + _BULK])
+
             alert_count = len(alert_dicts)
             db.commit()
             pcap.progress = 95
             db.commit()
+
+            # 事件发布放在 commit 之后（确保前端查询时数据已可见）
+            for ad in alert_dicts:
+                _publish(ALERT_CREATED, {
+                    "alert_id": ad["id"],
+                    "severity": ad["severity"],
+                })
             _publish(PCAP_PROCESS_PROGRESS, {"pcap_id": pcap_id, "percent": 95})
         elif tracker:
             with tracker.stage(PipelineStage.AGGREGATE) as stg:

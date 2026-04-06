@@ -5,6 +5,7 @@ import { api } from '@/lib/api';
 import { FlowRecord, FlowListParams } from '@/lib/api/types';
 import { useTranslations } from 'next-intl';
 import FlowFilterBar from '@/components/flows/FlowFilterBar';
+import type { FlowFilters } from '@/components/flows/FlowFilterBar';
 import FlowTable from '@/components/flows/FlowTable';
 import FlowDetailDrawer from '@/components/flows/FlowDetailDrawer';
 import Pagination from '@/components/shared/Pagination';
@@ -36,7 +37,7 @@ export default function FlowsPage() {
     fetchFlows({ ...filters, limit, offset });
   }, [filters, limit, offset, fetchFlows]);
 
-  const handleFilterChange = useCallback((rawFilters: Record<string, string | undefined>) => {
+  const handleFilterChange = useCallback((rawFilters: FlowFilters) => {
     // Map FlowFilterBar keys to backend API param names
     const mapped: FlowListParams = {
       pcap_id: rawFilters.pcap_id,
