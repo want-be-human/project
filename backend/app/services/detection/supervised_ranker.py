@@ -126,6 +126,11 @@ class SupervisedRanker:
 
             base_mode = "persisted"
 
+            # 预计算 top-10 特征重要性索引（模型级常量，而非逐流计算）
+            # feature_importances_ 是 XGBoost @property，每次访问都解析 200 棵树。
+            # 501K 流 × 0.4ms/次 = ~200s 的无谓开销。预计算一次后为 O(0)。
+            top_feature_indices = self._precompute_top_features(feature_names)
+
             for i, flow in enumerate(flows):
                 det = flow.setdefault("_detection", {})
                 raw_score = float(scores[i])
@@ -142,6 +147,7 @@ class SupervisedRanker:
                     flow, feature_names, feature_matrix[i], mode,
                     guard_triggers=guard_triggers,
                     original_score=raw_score if guard_triggers else None,
+                    top_feature_indices=top_feature_indices,
                 )
 
             logger.info(
@@ -249,6 +255,41 @@ class SupervisedRanker:
             return rule_type if rule_type != "anomaly" else "anomaly"
         return "normal"
 
+    def _precompute_top_features(
+        self, feature_names: list[str],
+    ) -> list[tuple[int, str, float]] | None:
+        """
+        预计算模型 top-10 特征索引和重要性（模型级常量）。
+
+        feature_importances_ 是 XGBoost 的 @property，每次访问都解析全部树结构。
+        对 501K 流逐条调用 = 501K × 0.4ms = ~200 秒的无谓开销。
+        预计算一次后逐流查值为 O(1) 索引访问。
+
+        返回: [(feature_index, feature_name, importance), ...] 按重要性降序，最多 10 项
+        """
+        try:
+            estimator = self.model
+            if not hasattr(estimator, "feature_importances_") and hasattr(estimator, "estimator"):
+                estimator = estimator.estimator
+            if (
+                not hasattr(estimator, "feature_importances_")
+                and hasattr(self.model, "calibrated_classifiers_")
+                and self.model.calibrated_classifiers_
+            ):
+                estimator = self.model.calibrated_classifiers_[0].estimator
+
+            if hasattr(estimator, "feature_importances_"):
+                importances = estimator.feature_importances_
+                indices = np.argsort(np.abs(importances))[::-1][:10]
+                return [
+                    (int(idx), feature_names[idx], float(importances[idx]))
+                    for idx in indices
+                    if idx < len(feature_names)
+                ]
+        except Exception:
+            pass
+        return None
+
     def _build_explanation(
         self,
         flow: dict,
@@ -257,6 +298,7 @@ class SupervisedRanker:
         mode: str,
         guard_triggers: list[str] | None = None,
         original_score: float | None = None,
+        top_feature_indices: list[tuple[int, str, float]] | None = None,
     ) -> dict:
         """构建紧凑的逐流解释负载。"""
         det = flow.get("_detection", {})
@@ -284,45 +326,31 @@ class SupervisedRanker:
                 "model_decision" if base == "persisted" else "fallback_fusion"
             )
 
-        if mode.endswith("persisted") and feature_values and self.model is not None:
-            importance = self._get_feature_importance(feature_names, feature_values)
-            if importance:
-                explanation["top_features"] = importance[:5]
+        # 使用预计算的 top feature 索引（O(1) 查值，而非逐流解析模型树）
+        if top_feature_indices and feature_values:
+            explanation["top_features"] = [
+                {
+                    "name": name,
+                    "importance": round(imp, 4),
+                    "value": round(float(feature_values[idx]), 4),
+                }
+                for idx, name, imp in top_feature_indices[:5]
+                if idx < len(feature_values)
+            ]
+        elif mode.endswith("persisted") and feature_values and self.model is not None:
+            # Fallback: 无预计算时逐流计算（仅 fallback 路径）
+            explanation["top_features"] = self._get_feature_importance_slow(
+                feature_names, feature_values
+            )
 
         return explanation
 
-    def _get_feature_importance(
+    def _get_feature_importance_slow(
         self,
         feature_names: list[str],
         feature_values: list[float],
     ) -> list[dict]:
-        """返回模型特征重要性（如果可用）。"""
-        try:
-            estimator = self.model
-            if not hasattr(estimator, "feature_importances_") and hasattr(estimator, "estimator"):
-                estimator = estimator.estimator
-            if (
-                not hasattr(estimator, "feature_importances_")
-                and hasattr(self.model, "calibrated_classifiers_")
-                and self.model.calibrated_classifiers_
-            ):
-                estimator = self.model.calibrated_classifiers_[0].estimator
-
-            if hasattr(estimator, "feature_importances_"):
-                importances = estimator.feature_importances_
-                pairs = list(zip(feature_names, importances, feature_values))
-                pairs.sort(key=lambda x: abs(x[1]), reverse=True)
-                return [
-                    {
-                        "name": name,
-                        "importance": round(float(imp), 4),
-                        "value": round(float(val), 4),
-                    }
-                    for name, imp, val in pairs[:10]
-                ]
-        except Exception:
-            pass
-
+        """慢路径：逐流计算特征重要性。仅在 fallback 模式使用。"""
         if feature_values:
             pairs = list(zip(feature_names, feature_values))
             pairs.sort(key=lambda x: abs(x[1]), reverse=True)
