@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     DEBUG: bool = False
 
     # 数据库：PostgreSQL（本地开发通过 Docker 暴露 5432 端口）
-    DATABASE_URL: str = "postgresql://nettwin:nettwin_secret@localhost:5432/nettwin"
+    DATABASE_URL: str = "postgresql://nettwin:yun211314@localhost:5432/nettwin"
 
     # 数据存储：基于 backend/ 推导绝对路径
     DATA_DIR: Path = BASE_DIR / "data"

@@ -14,7 +14,7 @@ services:
       - backend_data:/app/data
       - ../backend/scripts:/app/scripts
     environment:
-      - DATABASE_URL=postgresql://nettwin:nettwin_secret@db:5432/nettwin
+      - DATABASE_URL=postgresql://nettwin:yun211314@db:5432/nettwin
       - DATA_DIR=/app/data
       - DEBUG=true
       - WATCHFILES_FORCE_POLLING=true
@@ -35,7 +35,7 @@ services:
       - "5432:5432"
     environment:
       - POSTGRES_USER=nettwin
-      - POSTGRES_PASSWORD=nettwin_secret
+      - POSTGRES_PASSWORD=yun211314
       - POSTGRES_DB=nettwin
     volumes:
       - postgres_data:/var/lib/postgresql/data

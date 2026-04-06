@@ -23,7 +23,7 @@ RUN mkdir -p /app/data/pcaps
 RUN mkdir -p /app/data/pcaps /app/models
 
 # 环境变量
-ENV DATABASE_URL="postgresql://nettwin:nettwin_secret@db:5432/nettwin"
+ENV DATABASE_URL="postgresql://nettwin:yun211314@db:5432/nettwin"
 ENV DATA_DIR="/app/data"
 ENV PYTHONPATH="/app"
 
