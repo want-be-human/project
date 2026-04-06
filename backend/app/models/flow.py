@@ -5,7 +5,7 @@ FlowRecord ORM 模型。
 
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import String, Integer, Float, Text, ForeignKey, Index
+from sqlalchemy import String, Integer, BigInteger, Float, Text, ForeignKey, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import BaseModel
@@ -38,11 +38,11 @@ class Flow(BaseModel):
     dst_port: Mapped[int] = mapped_column(Integer, nullable=False)
     proto: Mapped[str] = mapped_column(String(10), nullable=False)  # TCP, UDP, ICMP, OTHER
 
-    # 报文与字节计数
-    packets_fwd: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    packets_bwd: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    bytes_fwd: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    bytes_bwd: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # 报文与字节计数（BigInteger: NFStream 超时制聚合可产生超过 2GB 的大流）
+    packets_fwd: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    packets_bwd: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    bytes_fwd: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    bytes_bwd: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
 
     # 特征 JSON：为兼容 SQLite，使用 TEXT 存储
     features: Mapped[str] = mapped_column(Text, nullable=False, default="{}")

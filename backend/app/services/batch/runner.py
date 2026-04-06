@@ -395,6 +395,12 @@ class JobRunner:
         stage: str, error: str,
     ) -> None:
         """标记 job 和 batch_file 为失败。"""
+        # PostgreSQL 要求在事务错误后先 rollback 才能继续操作
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
         now = utc_now()
         job.status = "failed"
         job.error_message = f"[{stage}] {error}"
