@@ -119,7 +119,7 @@ class DomainEvent(BaseModel):
     event_id: str = Field(default_factory=generate_uuid)
     event_type: str
     data: dict[str, Any]
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     # ── v2 新增字段 ──
     trace_id: str = Field(default_factory=generate_uuid)
     source: str = Field(default="nettwin-soc")

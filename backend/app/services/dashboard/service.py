@@ -114,7 +114,7 @@ class DashboardService:
         """
         now = utc_now()
         # 去掉时区信息以兼容 SQLite 存储的 naive datetime
-        now_naive = now.replace(tzinfo=None)
+        now_naive = now
         threshold_24h = now_naive - timedelta(hours=24)
 
         # ---- 合并计数查询（1 次 SQL 替代 8 次）----
@@ -269,7 +269,7 @@ class DashboardService:
         按最近 7 天分组，按 severity 细分。
         使用 SQLAlchemy func.date() 兼容 SQLite。
         """
-        now_naive = utc_now().replace(tzinfo=None)
+        now_naive = utc_now()
         seven_days_ago = now_naive - timedelta(days=7)
 
         # 按日期和严重程度分组查询
@@ -565,7 +565,7 @@ class DashboardService:
 
     def _query_daily_counts(self, model, date_col, days=7):
         """通用：查询最近 N 天每日记录数，返回长度为 days 的 int 数组，缺失日期补 0"""
-        now_naive = utc_now().replace(tzinfo=None)
+        now_naive = utc_now()
         start = now_naive - timedelta(days=days)
         rows = (
             self.db.query(func.date(date_col), func.count())
@@ -582,7 +582,7 @@ class DashboardService:
 
     def _query_open_alert_trend(self, days=7):
         """查询最近 N 天每日开放状态告警数，过滤 _OPEN_STATUSES，返回长度为 days 的 int 数组"""
-        now_naive = utc_now().replace(tzinfo=None)
+        now_naive = utc_now()
         start = now_naive - timedelta(days=days)
         rows = (
             self.db.query(func.date(Alert.created_at), func.count())

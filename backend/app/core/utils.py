@@ -17,8 +17,8 @@ def generate_uuid() -> str:
 
 
 def utc_now() -> datetime:
-    """获取当前 UTC 时间（不带 tzinfo，与 SQLite 存储一致）。"""
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    """获取当前 UTC 时间（带 tzinfo，PostgreSQL 兼容）。"""
+    return datetime.now(timezone.utc)
 
 
 def utc_now_iso() -> str:

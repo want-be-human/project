@@ -49,9 +49,10 @@ class TopologyService:
         
         logger.info(f"构建拓扑图: {start} 至 {end}, 模式={mode}")
         
-        # 规范化为 naive UTC，便于与 SQLite 存储的时间比较
-        _start = start.replace(tzinfo=None) if start.tzinfo else start
-        _end = end.replace(tzinfo=None) if end.tzinfo else end
+        # 确保查询参数为 aware UTC（PostgreSQL 返回 aware datetime）
+        from datetime import timezone as _tz
+        _start = start if start.tzinfo else start.replace(tzinfo=_tz.utc)
+        _end = end if end.tzinfo else end.replace(tzinfo=_tz.utc)
         
         # 查询与时间窗“重叠”的 flow（而非仅完全包含）
         # 重叠条件：flow.ts_start <= end 且 flow.ts_end >= start
@@ -127,8 +128,8 @@ class TopologyService:
             edge["weight"] += 1
             
             # 将区间裁剪到查询窗口，确保时间滑块行为精确
-            flow_start = flow.ts_start.replace(tzinfo=None) if flow.ts_start.tzinfo else flow.ts_start
-            flow_end = flow.ts_end.replace(tzinfo=None) if flow.ts_end.tzinfo else flow.ts_end
+            flow_start = flow.ts_start if flow.ts_start.tzinfo else flow.ts_start.replace(tzinfo=_tz.utc)
+            flow_end = flow.ts_end if flow.ts_end.tzinfo else flow.ts_end.replace(tzinfo=_tz.utc)
             iv_start = max(flow_start, _start)
             iv_end = min(flow_end, _end)
             interval = [datetime_to_iso(iv_start), datetime_to_iso(iv_end)]
