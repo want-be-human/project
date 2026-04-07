@@ -66,3 +66,10 @@ frontend/src/__tests__/
 frontend/coverage/
 frontend/src/components/dashboard/__tests__
 dashboard_add
+
+
+# ── 其他 ───────────────────────────────────────────────────
+*.png
+大数据赛道准备模板.md
+项目介绍.md
+研究报告.md

@@ -1,22 +1,19 @@
 #!/usr/bin/env python3
 """
-Leak-free composite model training with TensorBoard logging and GPU support.
-
-Supported modes:
-- legacy two-PCAP mode: one normal PCAP + one attack PCAP
-- manifest mode: one or more PCAP sources, each optionally paired with an
-  official labels CSV
-- dataset preset mode: CIC-IDS2017 core subset discovery
-
-The training flow is:
-1. Load labeled flows.
-2. Split into train / validation / test.
-3. Fit IsolationForest on train only and score every split without refitting.
-4. Add rule and graph features without leaking test information.
-5. Train the supervised ranker on train (GPU accelerated when available).
-6. Fit a probability calibrator on a calibration holdout from validation.
-7. Tune the decision threshold on a separate threshold holdout.
-8. Evaluate once on test and persist the calibrated model.
+采用 TensorBoard 日志记录和 GPU 支持进行无泄漏复合模型训练。
+支持的模式：
+- 传统的双 PCAP 模式：一个正常 PCAP 文件 + 一个攻击 PCAP 文件
+- 明细模式：一个或多个 PCAP 源文件，每个文件可选择配对一个官方标签 CSV 文件
+- 数据集预设模式：CIC-IDS2017 核心子集发现
+训练流程如下：
+1. 加载已标注的流程。
+2. 分为训练集/验证集/测试集。
+3. 仅对训练数据应用孤立森林算法，并在每次分割时进行评分，而不进行重新训练。
+4. 添加规则和图表功能，同时不泄露测试信息。
+5. 在训练集上训练监督型排序器（在可用的情况下会使用 GPU 进行加速）。
+6. 在验证过程中的一个校准样本上安装一个概率校准器。
+7. 在单独的阈值验证集上调整决策阈值。
+8. 在测试中进行一次评估，并保存校准后的模型。
 """
 
 from __future__ import annotations
