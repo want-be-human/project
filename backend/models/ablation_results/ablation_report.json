@@ -1,0 +1,147 @@
+{
+  "ablation_table": [
+    {
+      "config": "L1_only",
+      "precision": 0.1317,
+      "recall": 0.1707,
+      "f1": 0.1487,
+      "roc_auc": 0.7777,
+      "predicted_positive": 47315
+    },
+    {
+      "config": "L1_L2a",
+      "precision": 0.5757,
+      "recall": 0.9948,
+      "f1": 0.7293,
+      "roc_auc": 0.9016,
+      "predicted_positive": 63071
+    },
+    {
+      "config": "L1_L2a_L2b",
+      "precision": 0.5043,
+      "recall": 0.9951,
+      "f1": 0.6693,
+      "roc_auc": 0.8886,
+      "predicted_positive": 72026
+    },
+    {
+      "config": "L1_L2a_L2b_L3",
+      "precision": 1.0,
+      "recall": 0.9998,
+      "f1": 0.9999,
+      "roc_auc": 0.9999,
+      "predicted_positive": 36493
+    },
+    {
+      "config": "L1_L2a_L2b_L3_Guard",
+      "precision": 0.5122,
+      "recall": 0.9999,
+      "f1": 0.6774,
+      "roc_auc": 0.9999,
+      "predicted_positive": 71246
+    }
+  ],
+  "confusion_matrix": {
+    "TN": 186679,
+    "FP": 34752,
+    "FN": 5,
+    "TP": 36494
+  },
+  "roc_curve": {
+    "fpr": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0017,
+      0.0258,
+      0.1104,
+      0.1104,
+      0.1113,
+      0.1164,
+      0.1187,
+      0.1569,
+      1.0
+    ],
+    "tpr": [
+      0.0,
+      0.8875,
+      0.8876,
+      0.8881,
+      0.8882,
+      0.9998,
+      0.9998,
+      0.9998,
+      0.9998,
+      0.9998,
+      0.9998,
+      0.9998,
+      0.9999,
+      0.9999,
+      1.0
+    ],
+    "auc": 0.9999
+  },
+  "per_type_metrics": {
+    "bruteforce": {
+      "roc_auc": null,
+      "pr_auc": null,
+      "f1": 0.9977,
+      "precision": 1.0,
+      "recall": 0.9953,
+      "threshold": 0.53,
+      "total_samples": 1067,
+      "positive_samples": 1067,
+      "predicted_positive": 1062,
+      "sample_count": 1067
+    },
+    "dos": {
+      "roc_auc": null,
+      "pr_auc": null,
+      "f1": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "threshold": 0.53,
+      "total_samples": 3719,
+      "positive_samples": 3719,
+      "predicted_positive": 3719,
+      "sample_count": 3719
+    },
+    "normal": {
+      "roc_auc": null,
+      "pr_auc": null,
+      "f1": 0.0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "threshold": 0.53,
+      "total_samples": 221431,
+      "positive_samples": 0,
+      "predicted_positive": 34752,
+      "sample_count": 221431
+    },
+    "scan": {
+      "roc_auc": null,
+      "pr_auc": null,
+      "f1": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "threshold": 0.53,
+      "total_samples": 31713,
+      "positive_samples": 31713,
+      "predicted_positive": 31713,
+      "sample_count": 31713
+    }
+  },
+  "threshold": 0.53,
+  "test_samples": 257930,
+  "test_positive": 36499,
+  "test_negative": 221431,
+  "attack_type_distribution_test": {
+    "normal": 221431,
+    "bruteforce": 1067,
+    "dos": 3719,
+    "scan": 31713
+  }
+}
