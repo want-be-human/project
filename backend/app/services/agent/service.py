@@ -1,8 +1,3 @@
-"""
-智能体服务。
-为分诊、调查与建议生成结构化输出。
-"""
-
 import json
 
 from sqlalchemy.orm import Session
@@ -26,36 +21,49 @@ from app.services.threat_enrichment.service import ThreatEnrichmentService
 
 logger = get_logger(__name__)
 
+_TYPE_ZH = {
+    "anomaly": "异常",
+    "scan": "扫描",
+    "dos": "拒绝服务",
+    "bruteforce": "暴力破解",
+    "exfil": "数据外泄",
+    "unknown": "未知",
+}
+
+_HYPOTHESIS_ZH = {
+    "scan": "来自 {src} 的疑似端口扫描或网络侦察行为",
+    "bruteforce": "针对 {proto}/{port} 的疑似暴力破解攻击",
+    "dos": "针对 {dst} 的疑似拒绝服务攻击",
+    "exfil": "来自 {src} 的疑似数据外泄行为",
+    "anomaly": "检测到来自 {src} 的异常网络行为",
+}
+
+_HYPOTHESIS_EN = {
+    "scan": "Possible port scanning or network reconnaissance from {src}",
+    "bruteforce": "Possible brute-force attack targeting {proto}/{port}",
+    "dos": "Possible denial-of-service attack against {dst}",
+    "exfil": "Possible data exfiltration from {src}",
+    "anomaly": "Anomalous network behavior detected from {src}",
+}
+
+
+def _load_json_field(value) -> dict:
+    return json.loads(value) if isinstance(value, str) else value
+
 
 class AgentService:
-    """
-用于智能体分析的服务。
-
-遵循 DOC B B4.7 规范。
-仅生成结构化输出，不执行动作。
-"""
+    """Generates structured triage/investigation/recommendation output; no actions executed."""
 
     def __init__(self, db: Session):
         self.db = db
 
     def triage(self, alert: Alert, language: str = "en") -> str:
-        """
-        为告警生成简短的分诊摘要。
-
-        Args:
-            alert: Alert 模型实例
-            language: 'zh' 为中文，'en' 为英文
-
-        Returns:
-            分诊摘要字符串
-        """
-        aggregation = json.loads(alert.aggregation) if isinstance(alert.aggregation, str) else alert.aggregation
-        
+        aggregation = _load_json_field(alert.aggregation)
         flow_count = aggregation.get("count_flows", 0)
-        
+
         if language == "zh":
             summary = (
-                f"检测到{alert.severity}级{self._type_to_zh(alert.type)}异常。"
+                f"检测到{alert.severity}级{_TYPE_ZH.get(alert.type, alert.type)}异常。"
                 f"来源IP {alert.primary_src_ip} 在时间窗口内产生了 {flow_count} 条异常流量，"
                 f"目标服务为 {alert.primary_proto}/{alert.primary_dst_port}。"
                 f"建议进一步调查并考虑临时封禁措施。"
@@ -67,49 +75,29 @@ class AgentService:
                 f"targeting {alert.primary_proto}/{alert.primary_dst_port}. "
                 f"Recommend investigation and consider temporary blocking."
             )
-        
-        # 更新 alert 的 triage 摘要
-        agent_data = json.loads(alert.agent) if isinstance(alert.agent, str) else alert.agent
+
+        agent_data = _load_json_field(alert.agent)
         agent_data["triage_summary"] = summary
         alert.agent = json.dumps(agent_data)
         self.db.commit()
-        
+
         logger.info(f"已为告警 {alert.id} 生成分诊摘要")
         return summary
 
     def investigate(self, alert: Alert, language: str = "en") -> InvestigationSchema:
-        """
-        为告警生成结构化调查报告。
+        evidence = _load_json_field(alert.evidence)
+        aggregation = _load_json_field(alert.aggregation)
 
-        Args:
-            alert: Alert 模型实例
-            language: 'zh' 为中文，'en' 为英文
-
-        Returns:
-            Investigation schema
-        """
-        evidence = json.loads(alert.evidence) if isinstance(alert.evidence, str) else alert.evidence
-        aggregation = json.loads(alert.aggregation) if isinstance(alert.aggregation, str) else alert.aggregation
-        
-        # 威胁增强（模块 E）
         threat_context = self._run_enrichment(alert, evidence)
 
-        # 基于告警类型构建假设
         hypothesis = self._build_hypothesis(alert, language, threat_context)
-        
-        # 构建推理依据
         why = self._build_why(alert, evidence, aggregation, language, threat_context)
-        
-        # 评估影响
         impact = self._assess_impact(alert, evidence)
-        
-        # 给出后续步骤
         next_steps = self._suggest_next_steps(alert, language)
-        
-        # 创建 investigation 记录
+
         inv_id = generate_uuid()
         now = utc_now()
-        
+
         investigation = InvestigationSchema(
             version="1.1",
             id=inv_id,
@@ -125,8 +113,7 @@ class AgentService:
             safety_note="仅供参考，未执行任何操作。" if language == "zh" else "Advisory only; no actions executed.",
             threat_context=threat_context,
         )
-        
-        # 写入数据库
+
         inv_model = Investigation(
             id=inv_id,
             created_at=now,
@@ -134,40 +121,25 @@ class AgentService:
             payload=investigation.model_dump_json(),
         )
         self.db.add(inv_model)
-        
-        # 更新 alert 的 agent 字段
-        agent_data = json.loads(alert.agent) if isinstance(alert.agent, str) else alert.agent
+
+        agent_data = _load_json_field(alert.agent)
         agent_data["investigation_id"] = inv_id
         alert.agent = json.dumps(agent_data)
-        
+
         self.db.commit()
-        
+
         logger.info(f"已为告警 {alert.id} 生成调查报告 {inv_id}")
         return investigation
 
     def recommend(self, alert: Alert, language: str = "en") -> RecommendationSchema:
-        """
-        为告警生成动作建议。
+        evidence = _load_json_field(alert.evidence)
 
-        Args:
-            alert: Alert 模型实例
-            language: 'zh' 为中文，'en' 为英文
-
-        Returns:
-            Recommendation schema
-        """
-        evidence = json.loads(alert.evidence) if isinstance(alert.evidence, str) else alert.evidence
-
-        # 威胁增强（模块 E）
         threat_context = self._run_enrichment(alert, evidence)
-
-        # 基于告警类型与严重级别构建建议动作
         actions = self._build_actions(alert, language, threat_context)
-        
-        # 创建 recommendation 记录
+
         rec_id = generate_uuid()
         now = utc_now()
-        
+
         recommendation = RecommendationSchema(
             version="1.1",
             id=rec_id,
@@ -176,8 +148,7 @@ class AgentService:
             actions=actions,
             threat_context=threat_context,
         )
-        
-        # 写入数据库
+
         rec_model = Recommendation(
             id=rec_id,
             created_at=now,
@@ -185,63 +156,40 @@ class AgentService:
             payload=recommendation.model_dump_json(),
         )
         self.db.add(rec_model)
-        
-        # 更新 alert 的 agent 字段
-        agent_data = json.loads(alert.agent) if isinstance(alert.agent, str) else alert.agent
+
+        agent_data = _load_json_field(alert.agent)
         agent_data["recommendation_id"] = rec_id
         alert.agent = json.dumps(agent_data)
-        
+
         self.db.commit()
-        
+
         logger.info(f"已为告警 {alert.id} 生成建议 {rec_id}")
         return recommendation
 
-    def _type_to_zh(self, alert_type: str) -> str:
-        """将告警类型翻译为中文。"""
-        mapping = {
-            "anomaly": "异常",
-            "scan": "扫描",
-            "dos": "拒绝服务",
-            "bruteforce": "暴力破解",
-            "exfil": "数据外泄",
-            "unknown": "未知",
-        }
-        return mapping.get(alert_type, alert_type)
-
     def _run_enrichment(self, alert: Alert, evidence: dict) -> ThreatContext | None:
-        """在启用时执行威胁增强；失败或关闭时返回 None。"""
         if not settings.THREAT_ENRICHMENT_ENABLED:
             return None
-        top_features = evidence.get("top_features", [])
         return ThreatEnrichmentService().enrich(
             alert_type=alert.type,
             protocol=alert.primary_proto,
             port=alert.primary_dst_port,
-            top_features=top_features,
+            top_features=evidence.get("top_features", []),
         )
 
-    def _build_hypothesis(self, alert: Alert, language: str = "en", threat_context: ThreatContext | None = None) -> str:
-        """构建调查假设。"""
-        if language == "zh":
-            self._type_to_zh(alert.type)
-            hypotheses = {
-                "scan": f"来自 {alert.primary_src_ip} 的疑似端口扫描或网络侦察行为",
-                "bruteforce": f"针对 {alert.primary_proto}/{alert.primary_dst_port} 的疑似暴力破解攻击",
-                "dos": f"针对 {alert.primary_dst_ip} 的疑似拒绝服务攻击",
-                "exfil": f"来自 {alert.primary_src_ip} 的疑似数据外泄行为",
-                "anomaly": f"检测到来自 {alert.primary_src_ip} 的异常网络行为",
-            }
-        else:
-            hypotheses = {
-                "scan": f"Possible port scanning or network reconnaissance from {alert.primary_src_ip}",
-                "bruteforce": f"Possible brute-force attack targeting {alert.primary_proto}/{alert.primary_dst_port}",
-                "dos": f"Possible denial-of-service attack against {alert.primary_dst_ip}",
-                "exfil": f"Possible data exfiltration from {alert.primary_src_ip}",
-                "anomaly": f"Anomalous network behavior detected from {alert.primary_src_ip}",
-            }
-        base = hypotheses.get(alert.type, hypotheses["anomaly"])
+    def _build_hypothesis(
+        self,
+        alert: Alert,
+        language: str = "en",
+        threat_context: ThreatContext | None = None,
+    ) -> str:
+        templates = _HYPOTHESIS_ZH if language == "zh" else _HYPOTHESIS_EN
+        base = templates.get(alert.type, templates["anomaly"]).format(
+            src=alert.primary_src_ip,
+            dst=alert.primary_dst_ip,
+            proto=alert.primary_proto,
+            port=alert.primary_dst_port,
+        )
 
-        # 补充 MITRE 技术引用
         if threat_context and threat_context.techniques:
             top = threat_context.techniques[0]
             if language == "zh":
@@ -259,19 +207,19 @@ class AgentService:
         language: str = "en",
         threat_context: ThreatContext | None = None,
     ) -> list[str]:
-        """构建支撑假设的推理依据。"""
         reasons = []
-        
         flow_count = aggregation.get("count_flows", 0)
+
         if language == "zh":
             reasons.append(f"在聚合窗口内检测到 {flow_count} 条异常流量")
         else:
             reasons.append(f"Detected {flow_count} anomalous flows in aggregation window")
-        
-        top_features = evidence.get("top_features", [])
-        for feature in top_features[:3]:
+
+        for feature in evidence.get("top_features", [])[:3]:
             if language == "zh":
-                direction_zh = {"high": "偏高", "low": "偏低"}.get(feature.get('direction', ''), feature.get('direction', ''))
+                direction_zh = {"high": "偏高", "low": "偏低"}.get(
+                    feature.get("direction", ""), feature.get("direction", ""),
+                )
                 reasons.append(
                     f"特征 '{feature['name']}' 数值{direction_zh}：{feature['value']}"
                 )
@@ -279,13 +227,12 @@ class AgentService:
                 reasons.append(
                     f"Feature '{feature['name']}' shows {feature['direction']} value: {feature['value']}"
                 )
-        
+
         if language == "zh":
             reasons.append(f"基于异常评分，告警严重等级评估为 {alert.severity}")
         else:
             reasons.append(f"Alert severity assessed as {alert.severity} based on anomaly scores")
 
-        # 追加基于 MITRE 的推理说明
         if threat_context and threat_context.techniques:
             tactics_str = ", ".join(threat_context.tactics)
             if language == "zh":
@@ -302,24 +249,18 @@ class AgentService:
         return reasons
 
     def _assess_impact(self, alert: Alert, evidence: dict) -> dict:
-        """评估影响范围与置信度。"""
         scope = [
             f"dst_ip:{alert.primary_dst_ip}",
             f"service:{alert.primary_proto}/{alert.primary_dst_port}",
         ]
-        
-        # 基于 flow 数量与严重级别计算置信度
+
         flow_count = len(evidence.get("flow_ids", []))
-
         base_confidence = SEVERITY_BASE.get(alert.severity, 0.5)
-
-        # 按 flow 数量调整
         confidence = min(base_confidence + (flow_count * 0.01), CONFIDENCE_CAP)
-        
+
         return {"scope": scope, "confidence": round(confidence, 2)}
 
     def _suggest_next_steps(self, alert: Alert, language: str = "en") -> list[str]:
-        """给出调查下一步建议。"""
         if language == "zh":
             steps = [
                 f"查看 {alert.primary_src_ip} 的详细流量记录",
@@ -344,7 +285,7 @@ class AgentService:
             if alert.type == "dos":
                 steps.append("Check target service availability")
                 steps.append("Consider rate limiting")
-        
+
         return steps
 
     def _build_actions(
@@ -353,14 +294,15 @@ class AgentService:
         language: str = "en",
         threat_context: ThreatContext | None = None,
     ) -> list[RecommendedAction]:
-        """基于告警构建推荐动作。"""
         actions = []
+        is_zh = language == "zh"
+        high_priority = "high" if alert.severity in ["critical", "high"] else "medium"
 
         if alert.type in ["scan", "bruteforce"]:
-            if language == "zh":
+            if is_zh:
                 actions.append(RecommendedAction(
                     title=f"临时封禁源 IP {alert.primary_src_ip}",
-                    priority="high" if alert.severity in ["critical", "high"] else "medium",
+                    priority=high_priority,
                     steps=[
                         f"添加防火墙规则封禁 {alert.primary_src_ip}",
                         "设置过期时间（建议：24 小时）",
@@ -380,7 +322,7 @@ class AgentService:
             else:
                 actions.append(RecommendedAction(
                     title=f"Temporary block source IP {alert.primary_src_ip}",
-                    priority="high" if alert.severity in ["critical", "high"] else "medium",
+                    priority=high_priority,
                     steps=[
                         f"Add firewall rule to block {alert.primary_src_ip}",
                         "Set expiration time (recommended: 24 hours)",
@@ -399,7 +341,7 @@ class AgentService:
                 ))
 
         if alert.type == "dos":
-            if language == "zh":
+            if is_zh:
                 actions.append(RecommendedAction(
                     title=f"对 {alert.primary_proto}/{alert.primary_dst_port} 的流量进行速率限制",
                     priority="high",
@@ -441,10 +383,10 @@ class AgentService:
                 ))
 
         if alert.type == "exfil":
-            if language == "zh":
+            if is_zh:
                 actions.append(RecommendedAction(
                     title=f"封禁数据外泄源 IP {alert.primary_src_ip}",
-                    priority="high" if alert.severity in ["critical", "high"] else "medium",
+                    priority=high_priority,
                     steps=[
                         f"添加防火墙规则封禁 {alert.primary_src_ip} 的出站流量",
                         "检查是否有已泄露数据需要处置",
@@ -464,7 +406,7 @@ class AgentService:
             else:
                 actions.append(RecommendedAction(
                     title=f"Block exfiltration source IP {alert.primary_src_ip}",
-                    priority="high" if alert.severity in ["critical", "high"] else "medium",
+                    priority=high_priority,
                     steps=[
                         f"Add firewall rule to block outbound traffic from {alert.primary_src_ip}",
                         "Check if any exfiltrated data requires remediation",
@@ -483,10 +425,10 @@ class AgentService:
                 ))
 
         if alert.type == "anomaly":
-            if language == "zh":
+            if is_zh:
                 actions.append(RecommendedAction(
                     title=f"隔离异常行为源主机 {alert.primary_src_ip}",
-                    priority="high" if alert.severity in ["critical", "high"] else "medium",
+                    priority=high_priority,
                     steps=[
                         f"将 {alert.primary_src_ip} 从网络中隔离",
                         "检查主机上的可疑进程和连接",
@@ -506,7 +448,7 @@ class AgentService:
             else:
                 actions.append(RecommendedAction(
                     title=f"Isolate anomalous source host {alert.primary_src_ip}",
-                    priority="high" if alert.severity in ["critical", "high"] else "medium",
+                    priority=high_priority,
                     steps=[
                         f"Isolate {alert.primary_src_ip} from the network",
                         "Inspect suspicious processes and connections on the host",
@@ -524,16 +466,15 @@ class AgentService:
                     ),
                 ))
 
-        # 构建 MITRE 风险后缀，增强上下文引用
         mitre_risk_suffix = ""
         if threat_context and threat_context.techniques:
             top = threat_context.techniques[0]
-            if language == "zh":
+            if is_zh:
                 mitre_risk_suffix = f"。关联威胁技术: {top.technique_id} ({top.technique_name})"
             else:
                 mitre_risk_suffix = f". Related threat technique: {top.technique_id} ({top.technique_name})"
 
-        if language == "zh":
+        if is_zh:
             actions.append(RecommendedAction(
                 title="加强对相关实体的监控",
                 priority="medium",

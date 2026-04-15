@@ -1,7 +1,4 @@
-"""
-流记录路由。
-GET /flows、GET /flows/{flow_id}
-"""
+"""流记录路由。"""
 
 import json
 from typing import cast
@@ -21,8 +18,7 @@ router = APIRouter(prefix="/flows", tags=["flows"])
 
 
 def _flow_to_schema(flow: Flow) -> FlowRecordSchema:
-    """将 ORM Flow 转换为 Pydantic Schema。"""
-    # features 在 SQLite 中以 TEXT（JSON 字符串）存储
+    # features在SQLite中以TEXT存储
     features = flow.features
     if isinstance(features, str):
         try:
@@ -55,21 +51,20 @@ def _flow_to_schema(flow: Flow) -> FlowRecordSchema:
     "",
     response_model=ApiResponse[PaginatedData[FlowRecordSchema]],
     summary="List Flows",
-    description="List flows with filtering and pagination. (DOC C C6.3)",
+    description="分页列出流记录，支持多维度过滤。(DOC C C6.3)",
 )
 async def list_flows(
-    pcap_id: str | None = Query(default=None, description="Filter by PCAP ID"),
-    src_ip: str | None = Query(default=None, description="Filter by source IP"),
-    dst_ip: str | None = Query(default=None, description="Filter by destination IP"),
-    proto: str | None = Query(default=None, description="Filter by protocol"),
-    min_score: float | None = Query(default=None, ge=0.0, le=1.0, description="Minimum anomaly score"),
-    start: str | None = Query(default=None, description="Start time filter ISO8601"),
-    end: str | None = Query(default=None, description="End time filter ISO8601"),
-    limit: int = Query(default=100, ge=1, le=1000, description="Max results"),
-    offset: int = Query(default=0, ge=0, description="Skip count"),
+    pcap_id: str | None = Query(default=None, description="按 PCAP ID 过滤"),
+    src_ip: str | None = Query(default=None, description="按源 IP 过滤"),
+    dst_ip: str | None = Query(default=None, description="按目的 IP 过滤"),
+    proto: str | None = Query(default=None, description="按协议过滤"),
+    min_score: float | None = Query(default=None, ge=0.0, le=1.0, description="最小异常分数"),
+    start: str | None = Query(default=None, description="起始时间（ISO8601）"),
+    end: str | None = Query(default=None, description="结束时间（ISO8601）"),
+    limit: int = Query(default=100, ge=1, le=1000, description="最大返回条数"),
+    offset: int = Query(default=0, ge=0, description="跳过条数"),
     db: Session = Depends(get_db),
 ) -> ApiResponse[PaginatedData[FlowRecordSchema]]:
-    """按可选筛选条件列出流记录。"""
     conditions = []
     if pcap_id:
         conditions.append(Flow.pcap_id == pcap_id)
@@ -107,13 +102,12 @@ async def list_flows(
     "/{flow_id}",
     response_model=ApiResponse[FlowRecordSchema],
     summary="Get Flow Details",
-    description="Get a specific flow record by ID. (DOC C C6.3)",
+    description="按 ID 查询单条流记录详情。(DOC C C6.3)",
 )
 async def get_flow(
-    flow_id: str = Path(..., description="Flow ID"),
+    flow_id: str = Path(..., description="流记录 ID"),
     db: Session = Depends(get_db),
 ) -> ApiResponse[FlowRecordSchema]:
-    """按 ID 获取流记录。"""
     flow = db.get(Flow, flow_id)
     if not flow:
         raise NotFoundError(

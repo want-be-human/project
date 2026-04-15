@@ -106,16 +106,10 @@ class ActionPlanSchema(BaseModel):
         from_attributes = True
 
 
-# ══════════════════════════════════════════════════════════════
-# DryRunResult Schema（DOC C C2.2，v1.2 数据驱动扩展）
-# ══════════════════════════════════════════════════════════════
-
 class GraphHash(BaseModel):
     """用于前后对比的图状态哈希。"""
     graph_hash: str = Field(..., description="图状态的 SHA256 哈希")
 
-
-# ── 多维可达性指标 ──────────────────────────────────────────
 
 class PairReachabilityMetric(BaseModel):
     """源-目标对可达性指标。"""
@@ -133,9 +127,6 @@ class ReachabilityDetail(BaseModel):
     subnet_reachability_drop: float = Field(..., ge=0.0, le=1.0, description="按子网对可达性损失率")
     pair_metrics: list[PairReachabilityMetric] = Field(default_factory=list, description="逐对可达性明细")
 
-
-# ── 逐服务影响明细 ──────────────────────────────────────────
-
 class ImpactedServiceDetail(BaseModel):
     """单个受影响服务的详细分解。"""
     service: str = Field(..., description="协议/端口，如 tcp/22")
@@ -145,9 +136,6 @@ class ImpactedServiceDetail(BaseModel):
     traffic_proportion: float = Field(default=0.0, ge=0.0, le=1.0, description="该服务在当前时间窗口的流量占比")
     alert_severity_stats: dict[str, int] = Field(default_factory=dict, description="关联告警严重等级统计")
     risk_contribution: float = Field(default=0.0, description="对总风险的贡献值")
-
-
-# ── 服务风险分解 ────────────────────────────────────────────
 
 class ServiceRiskBreakdown(BaseModel):
     """服务中断风险的数据驱动分解。"""
@@ -159,9 +147,6 @@ class ServiceRiskBreakdown(BaseModel):
     historical_score: float = Field(default=0.0, ge=0.0, le=1.0, description="历史演练/场景得分")
     composite_risk: float = Field(..., ge=0.0, le=1.0, description="综合风险值")
 
-
-# ── 结构化解释（面向研究报告）──────────────────────────────
-
 class ExplainSection(BaseModel):
     """结构化解释段落，适用于研究报告引用。"""
     section: str = Field(..., description="段落类型：affected_objects / impact_reason / metric_changes / risk_judgment / recommended_actions")
@@ -169,12 +154,9 @@ class ExplainSection(BaseModel):
     content: list[str] = Field(default_factory=list, description="段落内容条目")
 
 
-# ── 影响评估主模型 ──────────────────────────────────────────
-
 class DryRunImpact(BaseModel):
     """演练影响评估 - DOC C C2.2（v1.2 数据驱动扩展）。"""
 
-    # ── 保留原有字段（向后兼容）──
     impacted_nodes_count: int = Field(..., description="受影响节点数量")
     impacted_edges_count: int = Field(..., description="受影响边数量")
     reachability_drop: float = Field(..., ge=0.0, le=1.0, description="可达性下降幅度（兼容旧版，取 pair_reachability_drop）")
@@ -182,25 +164,18 @@ class DryRunImpact(BaseModel):
     affected_services: list[str] = Field(default_factory=list, description="受影响服务列表")
     warnings: list[str] = Field(default_factory=list, description="告警提示")
 
-    # ── 新增：对象 ID 集合 ──
     removed_node_ids: list[str] = Field(default_factory=list, description="被移除的节点 ID")
     removed_edge_ids: list[str] = Field(default_factory=list, description="被移除的边 ID")
     affected_node_ids: list[str] = Field(default_factory=list, description="受波及的邻居节点 ID")
     affected_edge_ids: list[str] = Field(default_factory=list, description="受波及的邻居边 ID")
 
-    # ── 新增：多维可达性 ──
     reachability_detail: ReachabilityDetail | None = Field(default=None, description="多维可达性分解")
 
-    # ── 新增：逐服务影响明细 ──
     impacted_services: list[ImpactedServiceDetail] = Field(default_factory=list, description="逐服务影响明细")
-
-    # ── 新增：风险分解 ──
     service_risk_breakdown: ServiceRiskBreakdown | None = Field(default=None, description="服务风险数据驱动分解")
 
-    # ── 新增：置信度 ──
     confidence: float = Field(default=0.5, ge=0.0, le=1.0, description="评估置信度")
 
-    # ── 新增：节点/边级增量（供前端 diff 视图使用）──
     node_risk_deltas: dict[str, float] = Field(
         default_factory=dict,
         description="节点级风险变化：nodeId → 动作后新风险值",
@@ -227,7 +202,7 @@ class DryRunResultSchema(BaseModel):
     """
 
     version: str = Field(default="1.2", description="模式版本")
-    id: str = Field(..., description="dry-run UUID")
+    id: str = Field(..., description="Dry-run UUID")
     created_at: str = Field(..., description="ISO8601 UTC 时间戳")
     alert_id: str = Field(..., description="关联告警 ID")
     plan_id: str = Field(..., description="关联方案 ID")

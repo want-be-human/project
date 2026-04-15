@@ -1,9 +1,4 @@
-"""add batch ingestion tables
-
-Revision ID: 0006
-Revises: 0005
-Create Date: 2026-04-01 00:00:00.000000
-
+"""
 新增批量接入三张表：
 - batches: 批次管理单元
 - batch_files: 批次文件处理单元
@@ -21,7 +16,6 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # ── batches 表 ──
     op.create_table(
         "batches",
         sa.Column("id", sa.String(36), primary_key=True, nullable=False),
@@ -46,7 +40,6 @@ def upgrade() -> None:
     op.create_index("idx_batch_status", "batches", ["status"])
     op.create_index("idx_batch_created", "batches", ["created_at"])
 
-    # ── batch_files 表 ──
     op.create_table(
         "batch_files",
         sa.Column("id", sa.String(36), primary_key=True, nullable=False),
@@ -73,7 +66,6 @@ def upgrade() -> None:
     op.create_index("idx_bf_status", "batch_files", ["status"])
     op.create_index("idx_bf_sha256", "batch_files", ["sha256"])
 
-    # ── jobs 表 ──
     op.create_table(
         "jobs",
         sa.Column("id", sa.String(36), primary_key=True, nullable=False),

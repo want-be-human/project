@@ -6,11 +6,6 @@
 from typing import Any, Literal
 from pydantic import BaseModel, Field
 
-
-# ══════════════════════════════════════════════════════════════
-# 动作原语（Action Primitive）
-# ══════════════════════════════════════════════════════════════
-
 class RiskProfile(BaseModel):
     """动作的风险画像。"""
     disruption_level: Literal["none", "low", "medium", "high", "critical"] = Field(
@@ -52,10 +47,6 @@ class DecisionAction(BaseModel):
     )
 
 
-# ══════════════════════════════════════════════════════════════
-# 回退计划
-# ══════════════════════════════════════════════════════════════
-
 class RollbackPlan(BaseModel):
     """
     回退计划，描述如何撤销推荐动作。
@@ -78,11 +69,6 @@ class RollbackPlan(BaseModel):
     not_supported_reason: str | None = Field(
         default=None, description="不支持回退的原因（当 rollback_supported=False 时必填）"
     )
-
-
-# ══════════════════════════════════════════════════════════════
-# 三段式决策结果
-# ══════════════════════════════════════════════════════════════
 
 class RecommendedDecision(BaseModel):
     """首选推荐动作及推理依据。"""
@@ -127,11 +113,6 @@ class DecisionResult(BaseModel):
     comparison: ActionComparison | None = Field(
         default=None, description="首选方案与替代方案的对比"
     )
-
-
-# ══════════════════════════════════════════════════════════════
-# Scenario 决策校验
-# ══════════════════════════════════════════════════════════════
 
 class DecisionValidation(BaseModel):
     """场景执行时对决策结果的校验。"""

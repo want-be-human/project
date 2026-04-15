@@ -1,14 +1,4 @@
-"""
-Layer 3 监督排序器。
-
-支持：
-- 持久化模式：加载已训练的分类器推断 final_score/final_label
-- 降级模式：使用固定权重组合 baseline/rule/graph 分数
-- 保护机制：防止强规则信号和多源一致性被监督模型覆盖
-"""
-
 import json
-from pathlib import Path
 
 import numpy as np
 
@@ -17,12 +7,12 @@ from app.core.logging import get_logger
 from app.core.scoring_policy import (
     COMPOSITE_DETECTION_THRESHOLDS,
     COMPOSITE_DETECTION_WEIGHTS,
-    STRONG_RULE_TYPES,
-    GUARD_RULE_FLOOR_THRESHOLD,
-    GUARD_RULE_FLOOR_FACTOR,
     GUARD_CONSENSUS_BASELINE,
-    GUARD_CONSENSUS_SECONDARY,
     GUARD_CONSENSUS_FLOOR,
+    GUARD_CONSENSUS_SECONDARY,
+    GUARD_RULE_FLOOR_FACTOR,
+    GUARD_RULE_FLOOR_THRESHOLD,
+    STRONG_RULE_TYPES,
 )
 from app.services.detection.model_compat import validate_sklearn_version
 
@@ -34,8 +24,6 @@ RANKER_META_PATH = MODEL_DIR / "composite_ranker.meta.json"
 
 
 class SupervisedRanker:
-    """基于复合特征向量的最终评分器。"""
-
     def __init__(self, mode: str = "persisted"):
         self.model = None
         self.meta = None
@@ -54,7 +42,6 @@ class SupervisedRanker:
         logger.info("SupervisedRanker 初始化完成, 模式=%s", self.mode)
 
     def _load_model(self) -> bool:
-        """加载持久化的监督模型和元数据。"""
         try:
             import joblib
 
@@ -91,7 +78,6 @@ class SupervisedRanker:
         feature_matrix: list[list[float]],
         feature_names: list[str],
     ) -> list[dict]:
-        """计算每条流的 final_score/final_label。"""
         if not flows:
             return flows
 
@@ -105,7 +91,6 @@ class SupervisedRanker:
         feature_matrix: list[list[float]],
         feature_names: list[str],
     ) -> list[dict]:
-        """使用持久化分类器进行推断。"""
         try:
             X = np.array(feature_matrix)
             expected_features = self.meta.get("feature_names", [])
@@ -126,16 +111,12 @@ class SupervisedRanker:
 
             base_mode = "persisted"
 
-            # 预计算 top-10 特征重要性索引（模型级常量，而非逐流计算）
-            # feature_importances_ 是 XGBoost @property，每次访问都解析 200 棵树。
-            # 501K 流 × 0.4ms/次 = ~200s 的无谓开销。预计算一次后为 O(0)。
             top_feature_indices = self._precompute_top_features(feature_names)
 
             for i, flow in enumerate(flows):
                 det = flow.setdefault("_detection", {})
                 raw_score = float(scores[i])
 
-                # 应用保护机制
                 guarded_score, guard_triggers = self._apply_guardrails(flow, raw_score)
                 mode = f"guarded_{base_mode}" if guard_triggers else base_mode
 
@@ -166,7 +147,6 @@ class SupervisedRanker:
         flows: list[dict],
         feature_names: list[str],
     ) -> list[dict]:
-        """降级模式：baseline_score、rule_score 和 graph_score 的加权融合。"""
         weights = COMPOSITE_DETECTION_WEIGHTS
         base_mode = "fallback"
 
@@ -183,7 +163,6 @@ class SupervisedRanker:
             )
             raw_score = float(np.clip(raw_score, 0.0, 1.0))
 
-            # 应用保护机制
             guarded_score, guard_triggers = self._apply_guardrails(flow, raw_score)
             mode = f"guarded_{base_mode}" if guard_triggers else base_mode
 
@@ -207,19 +186,7 @@ class SupervisedRanker:
     def _apply_guardrails(
         self, flow: dict, final_score: float,
     ) -> tuple[float, list[str]]:
-        """
-        应用保护逻辑，防止强规则信号或多源一致性被监督模型压制。
-
-        Guard 1 — 强规则下限保护：
-            当 rule_type 为强风险类型且 rule_score >= 阈值时，
-            final_score 不得低于 rule_score × floor_factor。
-
-        Guard 2 — 多源一致性保护：
-            当 baseline_score 高，且 rule_score 或 graph_score 同时较高时，
-            final_score 不得低于 consensus_floor。
-
-        返回：(guarded_score, guard_triggers)
-        """
+    
         det = flow.get("_detection", {})
         guards: list[str] = []
         guarded = final_score
@@ -229,7 +196,6 @@ class SupervisedRanker:
         baseline = det.get("baseline_score", 0.0)
         graph = det.get("graph_score", 0.0)
 
-        # Guard 1: 强规则下限
         if rule_type in STRONG_RULE_TYPES and rule_score >= GUARD_RULE_FLOOR_THRESHOLD:
             floor = rule_score * GUARD_RULE_FLOOR_FACTOR
             if final_score < floor:
@@ -238,7 +204,6 @@ class SupervisedRanker:
                     f"rule_floor:{rule_type}(rule={rule_score:.2f},floor={floor:.2f})"
                 )
 
-        # Guard 2: 多源一致性
         if baseline >= GUARD_CONSENSUS_BASELINE:
             secondary = max(rule_score, graph)
             if secondary >= GUARD_CONSENSUS_SECONDARY and final_score < GUARD_CONSENSUS_FLOOR:
@@ -250,23 +215,13 @@ class SupervisedRanker:
         return float(np.clip(guarded, 0.0, 1.0)), guards
 
     def _score_to_label(self, final_score: float, rule_type: str) -> str:
-        """将 final_score 映射为最终标签。"""
-        if final_score >= self.threshold:
-            return rule_type if rule_type != "anomaly" else "anomaly"
-        return "normal"
+        if final_score < self.threshold:
+            return "normal"
+        return rule_type if rule_type != "anomaly" else "anomaly"
 
     def _precompute_top_features(
         self, feature_names: list[str],
     ) -> list[tuple[int, str, float]] | None:
-        """
-        预计算模型 top-10 特征索引和重要性（模型级常量）。
-
-        feature_importances_ 是 XGBoost 的 @property，每次访问都解析全部树结构。
-        对 501K 流逐条调用 = 501K × 0.4ms = ~200 秒的无谓开销。
-        预计算一次后逐流查值为 O(1) 索引访问。
-
-        返回: [(feature_index, feature_name, importance), ...] 按重要性降序，最多 10 项
-        """
         try:
             estimator = self.model
             if not hasattr(estimator, "feature_importances_") and hasattr(estimator, "estimator"):
@@ -300,7 +255,6 @@ class SupervisedRanker:
         original_score: float | None = None,
         top_feature_indices: list[tuple[int, str, float]] | None = None,
     ) -> dict:
-        """构建紧凑的逐流解释负载。"""
         det = flow.get("_detection", {})
         explanation: dict = {
             "mode": mode,
@@ -313,7 +267,6 @@ class SupervisedRanker:
             "rule_reasons": det.get("rule_reasons", []),
         }
 
-        # 保护机制信息
         if guard_triggers:
             explanation["guard_triggers"] = guard_triggers
             explanation["final_decision_reason"] = "guardrail_applied"
@@ -326,7 +279,6 @@ class SupervisedRanker:
                 "model_decision" if base == "persisted" else "fallback_fusion"
             )
 
-        # 使用预计算的 top feature 索引（O(1) 查值，而非逐流解析模型树）
         if top_feature_indices and feature_values:
             explanation["top_features"] = [
                 {
@@ -338,7 +290,6 @@ class SupervisedRanker:
                 if idx < len(feature_values)
             ]
         elif mode.endswith("persisted") and feature_values and self.model is not None:
-            # Fallback: 无预计算时逐流计算（仅 fallback 路径）
             explanation["top_features"] = self._get_feature_importance_slow(
                 feature_names, feature_values
             )
@@ -350,9 +301,8 @@ class SupervisedRanker:
         feature_names: list[str],
         feature_values: list[float],
     ) -> list[dict]:
-        """慢路径：逐流计算特征重要性。仅在 fallback 模式使用。"""
-        if feature_values:
-            pairs = list(zip(feature_names, feature_values))
-            pairs.sort(key=lambda x: abs(x[1]), reverse=True)
-            return [{"name": name, "value": round(float(val), 4)} for name, val in pairs[:5]]
-        return []
+        if not feature_values:
+            return []
+        pairs = list(zip(feature_names, feature_values))
+        pairs.sort(key=lambda x: abs(x[1]), reverse=True)
+        return [{"name": name, "value": round(float(val), 4)} for name, val in pairs[:5]]

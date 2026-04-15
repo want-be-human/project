@@ -1,14 +1,4 @@
-"""
-检测服务。
-
-提供基于 IsolationForest 的 Layer 1 基线异常检测器。
-支持：
-- 持久化模式：加载预训练模型直接评分
-- 运行时模式：在当前批次上拟合 IsolationForest
-"""
-
 import json
-from pathlib import Path
 
 import numpy as np
 
@@ -24,8 +14,6 @@ META_PATH = MODEL_DIR / "flow_iforest.meta.json"
 
 
 class DetectionService:
-    """基于 IsolationForest 的基线异常评分服务。"""
-
     DEFAULT_FEATURE_NAMES = [
         "total_packets",
         "total_bytes",
@@ -59,7 +47,6 @@ class DetectionService:
             self.mode = "runtime"
 
     def _load_model(self) -> bool:
-        """加载持久化的 IsolationForest 模型和元数据。"""
         try:
             import joblib
 
@@ -99,7 +86,6 @@ class DetectionService:
             return False
 
     def score_flows(self, flows: list[dict]) -> list[dict]:
-        """对流量评分并��地写入 anomaly_score。"""
         if not flows:
             return flows
 
@@ -113,7 +99,6 @@ class DetectionService:
         return self._score_runtime(flows)
 
     def _score_persisted(self, flows: list[dict]) -> list[dict]:
-        """使用持久化模型直接评分，无需拟合。"""
         try:
             X = self._flows_to_matrix(flows)
             expected_cols = len(self.feature_names)
@@ -148,13 +133,10 @@ class DetectionService:
             return flows
 
         except Exception as exc:
-            logger.error(
-                "持久化基线推断失败: %s; 回退到运行时模式", exc
-            )
+            logger.error("持久化基线推断失败: %s; 回退到运行时模式", exc)
             return self._score_runtime(flows)
 
     def _score_runtime(self, flows: list[dict]) -> list[dict]:
-        """在当前批次上拟合 IsolationForest 并评分。"""
         try:
             from sklearn.ensemble import IsolationForest
 
@@ -174,7 +156,6 @@ class DetectionService:
             )
             model.fit(X)
 
-            # 保存已拟合模型和归一化参数，供后续 score_with_fitted 使用
             self.model = model
 
             raw_scores = model.score_samples(X)
@@ -212,7 +193,6 @@ class DetectionService:
             return flows
 
     def _flows_to_matrix(self, flows: list[dict]) -> np.ndarray:
-        """将流量列表转换为数值特征矩阵。"""
         rows = []
         for flow in flows:
             features = flow.get("features", {})
@@ -231,7 +211,6 @@ class DetectionService:
         threshold: float = 0.7,
         limit: int = 10,
     ) -> list[dict]:
-        """返回超过阈值的最异常流量。"""
         anomalous = [f for f in flows if (f.get("anomaly_score") or 0) >= threshold]
         anomalous.sort(key=lambda x: x.get("anomaly_score", 0), reverse=True)
         return anomalous[:limit]

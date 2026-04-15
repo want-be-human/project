@@ -6,16 +6,8 @@
 from typing import Any
 
 from pydantic import BaseModel, Field
-
-
-# ══════════════════════════════════════════════════════════════
-# 评分通用结构
-# ══════════════════════════════════════════════════════════════
-
-
 class ScoreFactorSchema(BaseModel):
     """评分因子"""
-
     name: str = Field(..., description="因子名称")
     value: float = Field(..., description="因子值")
     weight: float = Field(..., description="因子权重")
@@ -67,12 +59,6 @@ class ScoreResultSchema(BaseModel):
         default=None, description="高层解释摘要，适合前端提示和图表展示"
     )
 
-
-# ══════════════════════════════════════════════════════════════
-# 总览 API
-# ══════════════════════════════════════════════════════════════
-
-
 class AnalyticsOverviewSchema(BaseModel):
     """统一总览（含评分）"""
 
@@ -109,11 +95,6 @@ class AnalyticsOverviewSchema(BaseModel):
     action_safety_score: ScoreResultSchema | None = Field(
         default=None, description="行动安全评分"
     )
-
-
-# ══════════════════════════════════════════════════════════════
-# 高风险资产 API
-# ══════════════════════════════════════════════════════════════
 
 
 class TopAssetItemSchema(BaseModel):

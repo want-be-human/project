@@ -1,8 +1,4 @@
-"""
-批量接入路由。
-
-提供批次创建、文件上传、启动处理、取消、重试等 API 端点。
-"""
+"""批量接入路由：批次创建、文件上传、启动/取消/重试等端点。"""
 
 from fastapi import APIRouter, Depends, UploadFile, File, Query, BackgroundTasks
 from sqlalchemy.orm import Session
@@ -28,8 +24,6 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/batches", tags=["batches"])
 
 
-# ── 批次管理 ──────────────────────────────────────────────────
-
 @router.post(
     "",
     response_model=ApiResponse[BatchSchema],
@@ -40,7 +34,6 @@ async def create_batch(
     request: CreateBatchRequest,
     db: Session = Depends(get_db),
 ) -> ApiResponse[BatchSchema]:
-    """创建批次。"""
     svc = BatchService(db)
     batch = svc.create_batch(
         name=request.name,
@@ -62,7 +55,6 @@ async def list_batches(
     status: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> ApiResponse[list[BatchSchema]]:
-    """列出批次。"""
     svc = BatchService(db)
     batches = svc.list_batches(limit=limit, offset=offset, status=status)
     return ApiResponse.success(batches)
@@ -78,13 +70,10 @@ async def get_batch_detail(
     batch_id: str,
     db: Session = Depends(get_db),
 ) -> ApiResponse[BatchDetailSchema]:
-    """获取批次详情。"""
     svc = BatchService(db)
     detail = svc.get_batch_detail(batch_id)
     return ApiResponse.success(detail)
 
-
-# ── 文件上传 ──────────────────────────────────────────────────
 
 @router.post(
     "/{batch_id}/files",
@@ -97,7 +86,6 @@ async def upload_batch_files(
     files: list[UploadFile] = File(..., description="PCAP 文件列表"),
     db: Session = Depends(get_db),
 ) -> ApiResponse[list[BatchFileSchema]]:
-    """上传文件到批次。"""
     svc = BatchService(db)
     file_tuples = [(f.filename or "unknown.pcap", f.file) for f in files]
     results = svc.upload_files(batch_id, file_tuples)
@@ -117,13 +105,10 @@ async def list_batch_files(
     status: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> ApiResponse[list[BatchFileSchema]]:
-    """列出批次文件。"""
     svc = BatchService(db)
     files = svc.list_batch_files(batch_id, limit=limit, offset=offset, status=status)
     return ApiResponse.success(files)
 
-
-# ── 处理控制 ──────────────────────────────────────────────────
 
 @router.post(
     "/{batch_id}/start",
@@ -135,11 +120,9 @@ async def start_batch(
     batch_id: str,
     db: Session = Depends(get_db),
 ) -> ApiResponse[BatchStartResponse]:
-    """启动批次处理。"""
     svc = BatchService(db)
     response, job_ids = svc.start_batch(batch_id)
 
-    # 将 job 入队到 runner
     runner = get_job_runner()
     for jid in job_ids:
         await runner.enqueue(jid)
@@ -158,11 +141,9 @@ async def cancel_batch(
     request: CancelBatchRequest = CancelBatchRequest(),
     db: Session = Depends(get_db),
 ) -> ApiResponse[BatchSchema]:
-    """取消批次。"""
     svc = BatchService(db)
     batch = svc.cancel_batch(batch_id, reason=request.reason)
 
-    # 通知 runner 取消正在运行的 job
     runner = get_job_runner()
     await runner.cancel_batch(batch_id)
 
@@ -180,11 +161,9 @@ async def delete_batch(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ) -> ApiResponse[dict]:
-    """删除批次。"""
     svc = BatchService(db)
     pcap_ids, staging_paths = svc.delete_batch(batch_id)
 
-    # 通知 runner 清理取消标记
     runner = get_job_runner()
     runner._cancel_batch_set.discard(batch_id)
 
@@ -200,7 +179,6 @@ def _cleanup_batch_assets(
     pcap_ids: list[str],
     staging_paths: list,
 ) -> None:
-    """后台清理批次关联的 PCAP 文件和暂存文件。"""
     from app.core.database import SessionLocal
     from app.services.ingestion.service import IngestionService
 
@@ -218,7 +196,6 @@ def _cleanup_batch_assets(
     finally:
         db.close()
 
-    # 清理暂存区文件
     for sp in staging_paths:
         if sp.exists():
             try:
@@ -228,8 +205,6 @@ def _cleanup_batch_assets(
 
     logger.info(f"批次 {batch_id} 后台清理完成（{len(pcap_ids)} 个 PCAP）")
 
-
-# ── 重试 ──────────────────────────────────────────────────────
 
 @router.post(
     "/{batch_id}/retry",
@@ -241,7 +216,6 @@ async def retry_batch(
     batch_id: str,
     db: Session = Depends(get_db),
 ) -> ApiResponse[BatchRetryResponse]:
-    """重试批次中所有失败文件。"""
     svc = BatchService(db)
     response, job_ids = svc.retry_batch(batch_id)
 
@@ -263,7 +237,6 @@ async def retry_file(
     file_id: str,
     db: Session = Depends(get_db),
 ) -> ApiResponse[JobSchema]:
-    """重试单个文件。"""
     svc = BatchService(db)
     job_schema, job_id = svc.retry_file(batch_id, file_id)
 
@@ -272,8 +245,6 @@ async def retry_file(
 
     return ApiResponse.success(job_schema)
 
-
-# ── 作业历史 ──────────────────────────────────────────────────
 
 @router.get(
     "/{batch_id}/files/{file_id}/jobs",
@@ -286,7 +257,6 @@ async def list_file_jobs(
     file_id: str,
     db: Session = Depends(get_db),
 ) -> ApiResponse[list[JobSchema]]:
-    """查看文件作业历史。"""
     svc = BatchService(db)
     jobs = svc.list_file_jobs(batch_id, file_id)
     return ApiResponse.success(jobs)

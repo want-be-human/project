@@ -1,37 +1,25 @@
-"""
-Investigation ORM 模型。
-遵循附录F第 5 节（investigations 表）。
-"""
+"""Investigation ORM 模型（附录F 第 5 节）。"""
 
-from sqlalchemy import String, Text, ForeignKey, Index
+from sqlalchemy import ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import BaseModel
 
 
 class Investigation(BaseModel):
-    """
-    智能体调查结果。
-
-    对应 DOC C C1.4 Investigation schema。
-    """
+    """智能体调查结果（DOC C C1.4 Investigation schema）。"""
 
     __tablename__ = "investigations"
 
-    # 指向 alerts 的外键
     alert_id: Mapped[str] = mapped_column(
         String(36),
         ForeignKey("alerts.id", ondelete="CASCADE"),
         nullable=False,
     )
-
-    # 完整 Investigation JSON 载荷
     payload: Mapped[str] = mapped_column(Text, nullable=False)
 
-    # 关联关系
     alert = relationship("Alert", backref="investigations")
 
-    # 索引（附录F 5.2）
     __table_args__ = (
         Index("idx_inv_alert_created", "alert_id", "created_at"),
     )

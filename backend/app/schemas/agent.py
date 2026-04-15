@@ -9,7 +9,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
-# ---------- 威胁增强 Schema（模块 E） ----------
+# 威胁增强 Schema（模块 E）
 
 class ThreatTechnique(BaseModel):
     """增强流程匹配到的单个 MITRE ATT&CK 技术。"""
@@ -33,8 +33,6 @@ class ThreatContext(BaseModel):
     enrichment_confidence: float = Field(default=0.0, ge=0.0, le=1.0, description="整体增强置信度")
     enrichment_source: str = Field(default="local_mitre_v1", description="增强数据来源标识")
 
-
-# ---------- Investigation Schema - DOC C C1.4 ----------
 
 class InvestigationImpact(BaseModel):
     """调查中的影响评估。"""
@@ -68,7 +66,6 @@ class InvestigationSchema(BaseModel):
         from_attributes = True
 
 
-# Recommendation Schema（DOC C C1.5）
 class CompileHint(BaseModel):
     """编译器提示，提供首选 action_type 映射。"""
     preferred_action_type: str = Field(..., description="建议的 action_type，例如 'block_ip'")
@@ -114,7 +111,7 @@ class RecommendationSchema(BaseModel):
 # Triage 请求/响应 - DOC C C6.5
 class TriageRequest(BaseModel):
     """POST /alerts/{id}/triage 的请求体 - DOC C C6.5。"""
-    language: Literal["zh", "en"] = Field(default="en", description="Output language")
+    language: Literal["zh", "en"] = Field(default="en", description="输出语言")
 
 
 class TriageResponse(BaseModel):

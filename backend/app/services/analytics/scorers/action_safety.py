@@ -1,19 +1,9 @@
 """
 行动安全评分器 v1 — 六维度归一化风险指数。
-
-核心公式：
     ActionRiskIndex = Σ(effective_weight_i × normalized_value_i)   ∈ [0, 1]
     ActionSafetyScore = round(100 × (1 - ActionRiskIndex), 2)     ∈ [0, 100]
 
-六个组件：
-    1. ServiceDisruptionRisk  — 服务中断风险（dry-run 直传）
-    2. ReachabilityDrop       — 可达性损失（dry-run 直传）
-    3. ImpactedRatio          — 影响范围比例（饱和曲线）
-    4. ConfidencePenalty      — 置信度惩罚（1 - confidence）
-    5. IrreversibilityPenalty — 不可逆惩罚（可逆性 + 恢复成本映射）
-    6. RollbackComplexity     — 回退复杂度（复杂度 + 回退风险复合）
-
-当某些组件数据不可用时，其权重按比例重分配给可用组件。
+缺失组件的权重按比例重分配给可用组件。
 """
 
 from __future__ import annotations
@@ -31,11 +21,6 @@ from app.services.analytics.scorers.base import BaseScorer
 
 logger = get_logger(__name__)
 
-# ══════════════════════════════════════════════════════════════
-# 常量
-# ══════════════════════════════════════════════════════════════
-
-# 基础权重
 _BASE_WEIGHTS: dict[str, float] = {
     "service_disruption_risk": 0.30,
     "reachability_drop": 0.25,
@@ -45,10 +30,9 @@ _BASE_WEIGHTS: dict[str, float] = {
     "rollback_complexity": 0.10,
 }
 
-# 影响范围比例饱和曲线半饱和常数
+# 饱和曲线半饱和常数：ratio=0.3 时归一化值 = 0.5
 _K_IMPACTED_RATIO = 0.3
 
-# 恢复成本 → 不可逆惩罚映射
 _RECOVERY_COST_MAP: dict[str, float] = {
     "none": 0.0,
     "low": 0.1,
@@ -56,7 +40,6 @@ _RECOVERY_COST_MAP: dict[str, float] = {
     "high": 0.6,
 }
 
-# 回退复杂度映射
 _ROLLBACK_COMPLEXITY_MAP: dict[str, float] = {
     "trivial": 0.0,
     "simple": 0.15,
@@ -64,7 +47,6 @@ _ROLLBACK_COMPLEXITY_MAP: dict[str, float] = {
     "complex": 1.0,
 }
 
-# 回退风险映射
 _ROLLBACK_RISK_MAP: dict[str, float] = {
     "none": 0.0,
     "low": 0.1,
@@ -72,11 +54,9 @@ _ROLLBACK_RISK_MAP: dict[str, float] = {
     "high": 0.5,
 }
 
-# 回退复杂度组件子权重
 _ROLLBACK_COMPLEXITY_WEIGHT = 0.6
 _ROLLBACK_RISK_WEIGHT = 0.4
 
-# 中文组件名映射
 _CN_NAMES: dict[str, str] = {
     "service_disruption_risk": "服务中断风险",
     "reachability_drop": "可达性损失",
@@ -86,16 +66,18 @@ _CN_NAMES: dict[str, str] = {
     "rollback_complexity": "回退复杂度",
 }
 
-
-# ══════════════════════════════════════════════════════════════
-# 内部数据结构
-# ═══════════════════════════════════���══════════════════════════
+_REASON_TEMPLATES: dict[str, str] = {
+    "service_disruption_risk": "服务中断风险高",
+    "reachability_drop": "可达性损失大",
+    "impacted_ratio": "影响范围广",
+    "confidence_penalty": "评估置信度不足",
+    "irreversibility_penalty": "动作不可逆或恢复代价高",
+    "rollback_complexity": "回退操作复杂",
+}
 
 
 @dataclass
 class _ComponentResult:
-    """单个组件的计算结果（内部使用）。"""
-
     name: str
     raw_value: float
     normalized_value: float
@@ -103,21 +85,7 @@ class _ComponentResult:
     description: str
 
 
-# ══════════════════════════════════════════════════════════════
-# 评分器
-# ══════════════════════════════════════════════════════════════
-
-
 class ActionSafetyScorer(BaseScorer):
-    """
-    行动安全评分器 v1 — 六维度归一化风险指数体系。
-
-    衡量"如果现在执行推荐动作，会不会伤到业务"。
-    从最新 dry-run 影响评估和三段式决策结果中提取数据，
-    通过六个维度计算综合风险指数。
-    缺失数据时自动降级并重分配权重。
-    """
-
     version = "action_safety_v1"
 
     def compute(
@@ -134,21 +102,6 @@ class ActionSafetyScorer(BaseScorer):
         rollback_risk: str | None = None,
         **kwargs,
     ) -> ScoreResultSchema:
-        """
-        计算行动安全评分。
-
-        参数:
-            service_disruption_risk: 服务中断风险 [0,1]，来自 DryRunImpact
-            reachability_drop: 可达性损失 [0,1]，来自 DryRunImpact
-            impacted_nodes_count: 受影响节点数量，来自 DryRunImpact
-            total_node_count: 拓扑总节点数量
-            confidence: 评估置信度 [0,1]，来自 DryRunImpact
-            reversible: 动作是否可逆，来自 DecisionAction
-            recovery_cost: 恢复成本等级，来自 DecisionAction
-            rollback_complexity: 回退复杂度等级，来自 RollbackPlan
-            rollback_risk: 回退风险等级，来自 RollbackPlan
-        """
-        # ---- 计算六个组件 ----
         components = [
             self._service_disruption_risk(service_disruption_risk),
             self._reachability_drop(reachability_drop),
@@ -158,7 +111,6 @@ class ActionSafetyScorer(BaseScorer):
             self._rollback_complexity(rollback_complexity, rollback_risk),
         ]
 
-        # ---- 权重重分配 + 计算 RiskIndex ----
         risk_index = 0.0
         for comp in components:
             if comp.available:
@@ -168,10 +120,8 @@ class ActionSafetyScorer(BaseScorer):
         risk_index = round(min(1.0, max(0.0, risk_index)), 6)
         score = round(100.0 * (1.0 - risk_index), 2)
 
-        # ---- 构建 posture_components（复用通用 Schema）----
         posture_components = self._build_posture_components(components)
 
-        # ---- 构建 factors（向后兼容格式）----
         factors = [
             ScoreFactorSchema(
                 name=pc.name,
@@ -182,19 +132,16 @@ class ActionSafetyScorer(BaseScorer):
             for pc in posture_components
         ]
 
-        # ---- 解释摘要（one_line_explanation）----
         explain_summary = self._build_explain_summary(
             score, risk_index, posture_components
         )
 
-        # ---- 简短解释 ----
         available_count = sum(1 for c in components if c.available)
         explain = (
             f"行动安全评分 {score}（风险指数 {risk_index:.4f}）。"
             f"可用组件 {available_count}/6。"
         )
 
-        # ---- 构建 breakdown ----
         breakdown = {
             "formula": "ActionSafetyScore = 100 × (1 - ActionRiskIndex)",
             "risk_index": risk_index,
@@ -221,17 +168,7 @@ class ActionSafetyScorer(BaseScorer):
             explain_summary=explain_summary,
         )
 
-    # ------------------------------------------------------------------
-    # 组件计算
-    # ------------------------------------------------------------------
-
-    def _service_disruption_risk(
-        self, value: float | None
-    ) -> _ComponentResult:
-        """
-        服务中断风险：直接使用 dry-run 计算的 service_disruption_risk [0,1]。
-        衡量"执行动作后服务中断的可能性"。
-        """
+    def _service_disruption_risk(self, value: float | None) -> _ComponentResult:
         if value is None:
             return _ComponentResult(
                 name="service_disruption_risk",
@@ -251,10 +188,6 @@ class ActionSafetyScorer(BaseScorer):
         )
 
     def _reachability_drop(self, value: float | None) -> _ComponentResult:
-        """
-        可达性损失：直接使用 dry-run 计算的 reachability_drop [0,1]。
-        衡量"执行动作后网络可达性下降幅度"。
-        """
         if value is None:
             return _ComponentResult(
                 name="reachability_drop",
@@ -276,10 +209,6 @@ class ActionSafetyScorer(BaseScorer):
     def _impacted_ratio(
         self, impacted_count: int | None, total_count: int | None
     ) -> _ComponentResult:
-        """
-        影响范围比例：impacted_nodes_count / total_node_count，饱和曲线归一化。
-        饱和曲线 r/(r+K) 防止小规模网络中单节点占比过高导致过度惩罚。
-        """
         if impacted_count is None or total_count is None or total_count <= 0:
             return _ComponentResult(
                 name="impacted_ratio",
@@ -290,7 +219,7 @@ class ActionSafetyScorer(BaseScorer):
             )
 
         ratio = impacted_count / total_count
-        # 饱和曲线：ratio=0.3 时归一化值 = 0.5
+        # 饱和曲线防止小规模网络中单节点占比过高导致过度惩罚
         normalized = ratio / (ratio + _K_IMPACTED_RATIO) if ratio > 0 else 0.0
 
         return _ComponentResult(
@@ -302,10 +231,6 @@ class ActionSafetyScorer(BaseScorer):
         )
 
     def _confidence_penalty(self, confidence: float | None) -> _ComponentResult:
-        """
-        置信度惩罚：1 - confidence。
-        置信度越低（评估越不确定），惩罚越高。
-        """
         if confidence is None:
             return _ComponentResult(
                 name="confidence_penalty",
@@ -329,10 +254,6 @@ class ActionSafetyScorer(BaseScorer):
     def _irreversibility_penalty(
         self, reversible: bool | None, recovery_cost: str | None
     ) -> _ComponentResult:
-        """
-        不可逆惩罚：根据动作可逆性和恢复成本计算。
-        不可逆动作直接惩罚 1.0；可逆动作根据恢复成本分级惩罚。
-        """
         if reversible is None:
             return _ComponentResult(
                 name="irreversibility_penalty",
@@ -363,10 +284,6 @@ class ActionSafetyScorer(BaseScorer):
     def _rollback_complexity(
         self, complexity: str | None, risk: str | None
     ) -> _ComponentResult:
-        """
-        回退复杂度：综合回退操作复杂度和回退风险。
-        公式：0.6 × complexity_map + 0.4 × risk_map。
-        """
         if complexity is None:
             return _ComponentResult(
                 name="rollback_complexity",
@@ -394,14 +311,9 @@ class ActionSafetyScorer(BaseScorer):
             ),
         )
 
-    # ------------------------------------------------------------------
-    # 权重重分配
-    # ------------------------------------------------------------------
-
     def _effective_weight(
         self, comp: _ComponentResult, all_components: list[_ComponentResult]
     ) -> float:
-        """计算单个组件的有效权重（不可用组件权重按比例分配给可用组件）。"""
         if not comp.available:
             return 0.0
 
@@ -414,14 +326,9 @@ class ActionSafetyScorer(BaseScorer):
 
         return base_w / available_sum
 
-    # ------------------------------------------------------------------
-    # 构建输出
-    # ------------------------------------------------------------------
-
     def _build_posture_components(
         self, components: list[_ComponentResult]
     ) -> list[PostureComponentSchema]:
-        """将内部计算结果转换为输出 Schema（复用 PostureComponentSchema）。"""
         result = []
         for comp in components:
             ew = self._effective_weight(comp, components)
@@ -450,38 +357,29 @@ class ActionSafetyScorer(BaseScorer):
         risk_index: float,
         components: list[PostureComponentSchema],
     ) -> str:
-        """
-        生成解释摘要（one_line_explanation）。
-        分三级：高安全（≥80）、中安全（50-79）、低安全（<50）。
-        低安全时精确指出风险来源。
-        """
         available = [c for c in components if c.available]
         sorted_by_contribution = sorted(
             available, key=lambda c: c.contribution, reverse=True
         )
 
-        # 主要风险因子
         top_factors = []
         for c in sorted_by_contribution[:3]:
             if c.contribution > 0.01:
                 cn = _CN_NAMES.get(c.name, c.name)
                 top_factors.append(f"{cn}（{c.normalized_value:.2f}）")
 
-        # 不可用组件说明
         unavailable = [c for c in components if not c.available]
         unavailable_text = ""
         if unavailable:
             names = "、".join(_CN_NAMES.get(c.name, c.name) for c in unavailable)
             unavailable_text = f"（{names} 数据缺失，已降级）"
 
-        # 分级判断
         if score >= 80:
             summary = f"评分 {score}，处置安全性良好，可放心执行推荐动作"
         elif score >= 50:
             factors_text = "、".join(top_factors) if top_factors else "综合因素"
             summary = f"评分 {score}，处置安全性一般，主要风险：{factors_text}。建议复核后执行"
         else:
-            # 低安全度：精确指出问题
             reasons = self._pinpoint_reasons(sorted_by_contribution)
             summary = f"评分 {score}，处置安全性偏低，{reasons}。建议暂缓执行或选用更安全的替代方案"
 
@@ -494,21 +392,9 @@ class ActionSafetyScorer(BaseScorer):
     def _pinpoint_reasons(
         sorted_components: list[PostureComponentSchema],
     ) -> str:
-        """当安全度低时，精确指出哪些因子导致风险。"""
-        # 问题描述映射（normalized_value > 0.5 视为问题显著）
-        reason_templates: dict[str, str] = {
-            "service_disruption_risk": "服务中断风险高",
-            "reachability_drop": "可达性损失大",
-            "impacted_ratio": "影响范围广",
-            "confidence_penalty": "评估置信度不足",
-            "irreversibility_penalty": "动作不可逆或恢复代价高",
-            "rollback_complexity": "回退操作复杂",
-        }
-
         reasons = []
         for c in sorted_components:
             if c.normalized_value > 0.3 and c.contribution > 0.01:
-                reason = reason_templates.get(c.name, c.name)
-                reasons.append(reason)
+                reasons.append(_REASON_TEMPLATES.get(c.name, c.name))
 
         return "、".join(reasons[:3]) if reasons else "综合风险偏高"

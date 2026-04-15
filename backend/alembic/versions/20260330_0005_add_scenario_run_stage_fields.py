@@ -1,9 +1,4 @@
-"""add scenario run stage fields
-
-Revision ID: 0005
-Revises: 0004
-Create Date: 2026-03-30 00:00:00.000000
-
+"""
 为 scenario_runs 表新增三列：
 - stages_log: 阶段时间线 JSON（list[ScenarioStageRecord]）
 - validation_latency_ms: 校验耗时（阶段 1-8 之和，毫秒）

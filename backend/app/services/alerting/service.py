@@ -1,9 +1,5 @@
-"""
-告警服务。
-将 Flow 生成并聚合为 Alert。
-"""
-
 import json
+from collections import Counter
 from datetime import datetime
 
 from app.core.logging import get_logger
@@ -12,7 +8,6 @@ from app.core.utils import generate_uuid, utc_now
 
 logger = get_logger(__name__)
 
-# ── 服务端口语义分类 ──
 _AUTH_PORTS = frozenset({
     22, 23, 21, 3389,           # SSH, Telnet, FTP, RDP
     3306, 5432, 1433,           # MySQL, PostgreSQL, MSSQL
@@ -23,14 +18,58 @@ _WEB_PORTS = frozenset({80, 443, 8080, 8443})
 _DNS_PORTS = frozenset({53})
 _MAIL_PORTS = frozenset({25, 587, 465, 993, 995})
 
+_PRIMARY_SCAN_CODES = {
+    "SCAN_HORIZONTAL", "SCAN_VERTICAL", "SCAN_MULTI_DST_IP",
+    "SCAN_MULTI_PORT", "SCAN_SYN_RATIO",
+}
+
+_AGG_DIM_LABELS = {
+    "src_ip": "源IP",
+    "dst_target": "目标",
+    "service_key": "服务",
+    "inferred_type": "类型",
+    "time_bucket": "时间桶",
+}
+
+_TYPE_LABELS_ZH = {
+    "scan": "扫描",
+    "bruteforce": "暴力破解",
+    "dos": "拒绝服务",
+    "anomaly": "异常行为",
+}
+
+_REASON_CODE_LABELS = {
+    "SCAN_HORIZONTAL": "水平扫描(多目标IP少端口)",
+    "SCAN_VERTICAL": "垂直扫描(少目标IP多端口)",
+    "SCAN_MULTI_DST_IP": "多目标IP",
+    "SCAN_MULTI_PORT": "多端口",
+    "SCAN_SYN_RATIO": "高SYN比例",
+    "SCAN_INCOMPLETE_HANDSHAKE": "不完整握手",
+    "SCAN_HIGH_RST": "高RST回复率",
+    "BRUTE_AUTH_PORT": "认证端口",
+    "BRUTE_REPEATED_FLOWS": "重复连接模式",
+    "BRUTE_REPEATED_SHORT_FLOWS": "大量短连接",
+    "BRUTE_HIGH_RST": "高RST(连接被拒绝)",
+    "BRUTE_LOW_HANDSHAKE": "低握手完成度",
+    "DOS_HIGH_VOLUME": "高流量",
+    "DOS_HIGH_RATE": "高包速率",
+    "DOS_HIGH_BPS": "高带宽",
+    "DOS_SYN_FLOOD": "SYN洪泛",
+    "DOS_ASYMMETRIC": "流量不对称",
+    "ANOMALY_DEFAULT": "未匹配已知攻击模式",
+}
+
+_SEVERITY_LABELS_ZH = {"critical": "严重", "high": "高", "medium": "中", "low": "低"}
+
+_BREAKDOWN_FIELDS = {
+    "max_score": ("最高异常分", 0.40),
+    "flow_density": ("流密度", 0.25),
+    "duration_factor": ("持续时长", 0.20),
+    "aggregation_quality": ("聚合质量", 0.15),
+}
+
 
 class AlertingService:
-    """
-用于生成并聚合告警的服务。
-
-遵循 DOC B B4.5 规范。
-"""
-
     def __init__(
         self,
         score_threshold: float = 0.7,
@@ -38,8 +77,6 @@ class AlertingService:
     ):
         self.score_threshold = score_threshold
         self.window_sec = window_sec
-        
-        # 复合分数 → 严重等级映射（阈值基于加权复合分数，非原始 anomaly_score）
         self.severity_thresholds = SEVERITY_THRESHOLDS
 
     def generate_alerts(
@@ -47,73 +84,49 @@ class AlertingService:
         flows: list[dict],
         pcap_id: str,
     ) -> list[dict]:
-        """
-        从评分后的流量中生成告警。
-
-        Args:
-            flows: 包含 anomaly_score 的流量列表
-            pcap_id: 来源 PCAP 的 ID
-
-        Returns:
-            告警字典列表
-        """
-        # 筛选异常流
         anomalous = [
             f for f in flows
             if (f.get("anomaly_score") or 0) >= self.score_threshold
         ]
-        
+
         if not anomalous:
             logger.info("未发现超过阈值的异常流")
             return []
-        
+
         logger.info(f"发现 {len(anomalous)} 条异常流")
-        
-        # 按聚合规则分组：same_src_ip + window
+
         groups = self._aggregate_flows(anomalous)
-        
-        # 基于分组生成告警
-        alerts = []
-        for group_key, group_flows in groups.items():
-            alert = self._create_alert(group_key, group_flows, pcap_id)
-            alerts.append(alert)
-        
+
+        alerts = [
+            self._create_alert(group_key, group_flows, pcap_id)
+            for group_key, group_flows in groups.items()
+        ]
+
         logger.info(f"已生成 {len(alerts)} 条告警")
         return alerts
 
     @staticmethod
     def _infer_flow_type(flow: dict) -> str:
-        """
-        检测层优先的单流类型推断，启发式兜底。
+        """Detection-first single-flow type inference with heuristic fallback.
 
-        优先级：
-          1. features.final_label（如果是具体攻击类型，非 normal/anomaly）
-          2. features.rule_type（检测层规则推断）
-          3. 启发式规则（向后兼容 fallback）
+        Priority: features.final_label > features.rule_type > heuristic.
         """
         features = flow.get("features", {})
 
-        # Priority 1: 检测层 final_label
         final_label = features.get("final_label")
         if final_label and final_label not in ("normal", "anomaly"):
             return final_label
 
-        # Priority 2: 检测层 rule_type
         rule_type = features.get("rule_type")
         if rule_type and rule_type not in ("anomaly",):
             return rule_type
 
-        # Priority 3: 启发式 fallback
         result, _, _ = AlertingService._infer_flow_type_detailed(flow)
         return result
 
     @staticmethod
     def _infer_flow_type_detailed(flow: dict) -> tuple[str, list[str], dict]:
-        """
-        单流类型推断——优先复用 RuleEnricher 已计算的结果，避免重复评估。
-        返回 (type, reason_codes, details)。
-        """
-        # 优先从 _detection（RuleEnricher 写入）或 features（持久化后回写）读取
+        """Prefers RuleEnricher output (via _detection or features) to avoid recomputing."""
         det = flow.get("_detection", {})
         features = flow.get("features", {})
 
@@ -121,10 +134,11 @@ class AlertingService:
         reason_codes = det.get("rule_reasons") or features.get("rule_reasons")
 
         if rule_type and reason_codes:
-            details = {"source": "rule_enricher", "reason_count": len(reason_codes)}
-            return rule_type, list(reason_codes), details
+            return rule_type, list(reason_codes), {
+                "source": "rule_enricher",
+                "reason_count": len(reason_codes),
+            }
 
-        # Fallback：简化判定（兼容未经过检测管线的旧流）
         dst_port = flow.get("dst_port", 0)
         syn_count = features.get("syn_count", 0) or 0
         total_packets = features.get("total_packets", 0) or 0
@@ -139,9 +153,9 @@ class AlertingService:
         return "anomaly", ["ANOMALY_DEFAULT"], {}
 
     def _aggregate_flows(self, flows: list[dict]) -> dict[str, list[dict]]:
-        """
-        多维聚合：src_ip + dst_target + service_key + inferred_type + time_bucket。
-        同一源 IP 在同一时间窗口内的不同攻击模式会被拆分为不同告警。
+        """Groups by src_ip + dst_target + service_key + inferred_type + time_bucket.
+
+        Distinct attack modes from the same source IP in one window yield distinct alerts.
         """
         groups: dict[str, list[dict]] = {}
 
@@ -149,29 +163,22 @@ class AlertingService:
             src_ip = flow.get("src_ip", "unknown")
             ts_start = flow.get("ts_start")
 
-            # 计算时间桶（与原逻辑一致）
             if isinstance(ts_start, datetime):
                 bucket = int(ts_start.timestamp()) // self.window_sec * self.window_sec
             else:
                 bucket = 0
 
-            # 推断类型
             inferred = self._infer_flow_type(flow)
 
-            # 目标维度
             dst_ip = flow.get("dst_ip", "unknown")
             dst_port = flow.get("dst_port", 0)
             proto = flow.get("proto", "TCP")
 
-            # scan 类型合并目标（避免每个端口一条告警）
             dst_target = "multi" if inferred == "scan" else dst_ip
             service_key = "multi" if inferred == "scan" else f"{proto}/{dst_port}"
 
             group_key = f"{src_ip}|{dst_target}|{service_key}|{inferred}|{bucket}"
-
-            if group_key not in groups:
-                groups[group_key] = []
-            groups[group_key].append(flow)
+            groups.setdefault(group_key, []).append(flow)
 
         return groups
 
@@ -181,44 +188,30 @@ class AlertingService:
         flows: list[dict],
         pcap_id: str,
     ) -> dict:
-        """根据一组流量创建告警。"""
         now = utc_now()
-        
-        # 计算时间窗口
+
         ts_starts = [f.get("ts_start") for f in flows if f.get("ts_start")]
         ts_ends = [f.get("ts_end") for f in flows if f.get("ts_end")]
-        
         window_start = min(t for t in ts_starts if t is not None) if ts_starts else now
         window_end = max(t for t in ts_ends if t is not None) if ts_ends else now
-        
-        # 从最异常流中提取主要实体
+
         flows_sorted = sorted(flows, key=lambda x: x.get("anomaly_score", 0), reverse=True)
         primary_flow = flows_sorted[0]
-        
-        # 复合严重度评分（替代旧的 max_score 单因子）
+
         composite_score, score_breakdown = self._compute_composite_score(flows)
         severity = self._score_to_severity(composite_score)
-
-        # 基于模式判断告警类型（增强版，附带判定原因）
         alert_type, type_reason = self._determine_type(flows)
 
-        # 构建 evidence
         flow_ids = [f.get("id") for f in flows if f.get("id")]
-        top_flows = self._get_top_flows(flows_sorted[:5])
-        top_features = self._get_top_features(flows)
-
         evidence = {
             "flow_ids": flow_ids,
-            "top_flows": top_flows,
-            "top_features": top_features,
+            "top_flows": self._get_top_flows(flows_sorted[:5]),
+            "top_features": self._get_top_features(flows),
             "pcap_ref": {"pcap_id": pcap_id, "offset_hint": None},
         }
 
-        # 构建 aggregation（保留原有字段 + 新增维度信息 + 可追溯摘要）
         dimensions = ["src_ip", "dst_target", "service_key", "inferred_type", "time_bucket"]
 
-        # 检测层标签汇总
-        from collections import Counter
         det_labels = [
             f.get("features", {}).get("final_label")
             for f in flows
@@ -240,15 +233,14 @@ class AlertingService:
             "dimensions": dimensions,
             "composite_score": round(composite_score, 4),
             "score_breakdown": score_breakdown,
-            "type_reason": type_reason,  # 类型判定原因（含 reason_codes 和 details）
-            "detection_summary": detection_summary,  # 检测层透传摘要
-            # 人类可读的可追溯摘要
+            "type_reason": type_reason,
+            "detection_summary": detection_summary,
             "aggregation_summary": self._build_aggregation_summary(group_key, len(flows), dimensions),
             "type_summary": self._build_type_summary(type_reason),
             "severity_summary": self._build_severity_summary(composite_score, score_breakdown, severity),
         }
-        
-        alert = {
+
+        return {
             "id": generate_uuid(),
             "version": "1.1",
             "created_at": now,
@@ -274,29 +266,16 @@ class AlertingService:
             }),
             "tags": json.dumps(["auto"]),
             "notes": "",
-            "_flow_ids": flow_ids,  # 用于创建 alert_flows 关联
+            "_flow_ids": flow_ids,
         }
-        
-        return alert
 
     def _compute_composite_score(self, flows: list[dict]) -> tuple[float, dict]:
-        """
-        计算复合严重度分数（0-1），返回 (composite_score, breakdown_dict)。
-
-        权重分配：
-          - max_score:           0.40  （组内最高异常分数）
-          - flow_density:        0.25  （流数量密度，归一化）
-          - duration_factor:     0.20  （活动持续时长，归一化）
-          - aggregation_quality: 0.15  （组内一致性/质量）
-        """
-        # --- max_score ---
+        """Weights: max_score 0.40, flow_density 0.25, duration 0.20, agg_quality 0.15."""
         scores = [f.get("anomaly_score", 0) for f in flows]
         max_score = max(scores) if scores else 0.0
 
-        # --- flow_density: min(count / 20, 1.0) ---
         flow_density = min(len(flows) / 20.0, 1.0)
 
-        # --- duration_factor: min(duration_sec / 300, 1.0) ---
         ts_starts = [f["ts_start"] for f in flows if isinstance(f.get("ts_start"), datetime)]
         ts_ends = [f["ts_end"] for f in flows if isinstance(f.get("ts_end"), datetime)]
         if ts_starts and ts_ends:
@@ -305,8 +284,6 @@ class AlertingService:
             duration_sec = 0.0
         duration_factor = min(duration_sec / 300.0, 1.0)
 
-        # --- aggregation_quality ---
-        # 高于阈值的流占比 × 0.6 + 分数一致性 × 0.4
         above = sum(1 for s in scores if s >= self.score_threshold)
         ratio_above = above / max(len(scores), 1)
 
@@ -316,18 +293,17 @@ class AlertingService:
             std_dev = variance ** 0.5
         else:
             std_dev = 0.0
-        coherence = 1.0 - min(std_dev, 1.0)  # 标准差越小越一致
+        coherence = 1.0 - min(std_dev, 1.0)
 
         aggregation_quality = ratio_above * 0.6 + coherence * 0.4
 
-        # --- 加权合成 ---
-        composite = (
+        composite = min(
             max_score * COMPOSITE_WEIGHTS["max_score"]
             + flow_density * COMPOSITE_WEIGHTS["flow_density"]
             + duration_factor * COMPOSITE_WEIGHTS["duration_factor"]
-            + aggregation_quality * COMPOSITE_WEIGHTS["aggregation_quality"]
+            + aggregation_quality * COMPOSITE_WEIGHTS["aggregation_quality"],
+            1.0,
         )
-        composite = min(composite, 1.0)
 
         breakdown = {
             "max_score": round(max_score, 4),
@@ -340,23 +316,13 @@ class AlertingService:
         return composite, breakdown
 
     def _score_to_severity(self, score: float) -> str:
-        """将复合分数映射为严重等级。"""
         for severity, threshold in self.severity_thresholds.items():
             if score >= threshold:
                 return severity
         return "low"
 
     def _determine_type(self, flows: list[dict]) -> tuple[str, dict]:
-        """
-        检测层优先的组级类型判定，启发式兜底。
-
-        优先级：
-          1. 汇总组内所有 flow 的 features.final_label，取多数具体攻击类型
-          2. 若无具体攻击类型，回退到启发式组级分析
-        """
-        from collections import Counter
-
-        # 收集检测层标签和原因
+        """Detection-layer-first group type decision; heuristic fallback."""
         detection_labels: list[str] = []
         detection_reasons: list[str] = []
         for f in flows:
@@ -368,7 +334,6 @@ class AlertingService:
             if isinstance(reasons, list):
                 detection_reasons.extend(reasons)
 
-        # 检测层提供了具体攻击类型（非 anomaly）
         specific = [lbl for lbl in detection_labels if lbl != "anomaly"]
         if specific:
             label_counts = Counter(specific)
@@ -386,11 +351,9 @@ class AlertingService:
                 "details": base_details,
             }
 
-        # 回退到启发式
         return self._determine_type_heuristic(flows)
 
     def _compute_base_details(self, flows: list[dict]) -> dict:
-        """计算组级基础统计信息（类型判定的共用数据）。"""
         dst_ips = set(f.get("dst_ip") for f in flows)
         dst_ports = set(f.get("dst_port") for f in flows)
         n_flows = len(flows)
@@ -421,12 +384,6 @@ class AlertingService:
         }
 
     def _determine_type_heuristic(self, flows: list[dict]) -> tuple[str, dict]:
-        """
-        根据流量组模式判定告警类型（启发式），返回 (type, type_reason)。
-        type_reason 包含 reason_codes 和 details，用于可解释性。
-        当检测层无具体攻击类型标签时，由 _determine_type() 调用此方法作为兜底。
-        """
-        # ── 聚合统计 ──
         base_details = self._compute_base_details(flows)
         dst_ips = set(f.get("dst_ip") for f in flows)
         dst_ports = set(f.get("dst_port") for f in flows)
@@ -438,7 +395,6 @@ class AlertingService:
         avg_rst_ratio = base_details["avg_rst_ratio"]
         base_details["source"] = "heuristic"
 
-        # 额外统计（heuristic 特有）
         max_pps = max(
             (f.get("features", {}).get("packets_per_second", 0) for f in flows), default=0
         )
@@ -453,76 +409,47 @@ class AlertingService:
             1 for f in flows if f.get("features", {}).get("is_short_flow", 0)
         )
 
-        # ── scan 检测（多子类型）──
         scan_reasons: list[str] = []
-
-        # 水平扫描：多目标 IP，少端口
         if len(dst_ips) > 5 and len(dst_ports) <= 3:
             scan_reasons.append("SCAN_HORIZONTAL")
-
-        # 垂直扫描：单目标 IP，多端口
         if len(dst_ips) <= 2 and len(dst_ports) > 10:
             scan_reasons.append("SCAN_VERTICAL")
-
-        # 广泛扫描：多 IP + 多端口
         if len(dst_ips) > 5 and len(dst_ports) > 10:
             scan_reasons.append("SCAN_MULTI_DST_IP")
             scan_reasons.append("SCAN_MULTI_PORT")
-
-        # 通用多目标/多端口（兼容原逻辑，避免重复添加）
-        if len(dst_ips) > 5 or len(dst_ports) > 10:
-            if not scan_reasons:
-                scan_reasons.append(
-                    "SCAN_MULTI_DST_IP" if len(dst_ips) > 5 else "SCAN_MULTI_PORT"
-                )
-
-        # SYN 扫描特征
+        if (len(dst_ips) > 5 or len(dst_ports) > 10) and not scan_reasons:
+            scan_reasons.append(
+                "SCAN_MULTI_DST_IP" if len(dst_ips) > 5 else "SCAN_MULTI_PORT"
+            )
         if total_packets > 100 and syn_ratio > 0.5:
             scan_reasons.append("SCAN_SYN_RATIO")
-
-        # 不完整握手（组级）
         if avg_handshake < 0.5 and n_flows > 3:
             scan_reasons.append("SCAN_INCOMPLETE_HANDSHAKE")
-
-        # 高 RST 回复率（目标拒绝连接）
         if avg_rst_ratio > 0.3 and n_flows > 3:
             scan_reasons.append("SCAN_HIGH_RST")
 
-        if scan_reasons:
-            # 握手/RST 信号仅作为辅助，需要至少一个主要 scan 指标才判定
-            _primary_scan = {"SCAN_HORIZONTAL", "SCAN_VERTICAL", "SCAN_MULTI_DST_IP",
-                             "SCAN_MULTI_PORT", "SCAN_SYN_RATIO"}
-            if _primary_scan & set(scan_reasons):
-                return "scan", {
-                    "type": "scan",
-                    "reason_codes": scan_reasons,
-                    "details": base_details,
-                }
+        if scan_reasons and _PRIMARY_SCAN_CODES & set(scan_reasons):
+            return "scan", {
+                "type": "scan",
+                "reason_codes": scan_reasons,
+                "details": base_details,
+            }
 
-        # ── bruteforce 检测 ──
         brute_reasons: list[str] = []
-        # 收集组内所有目标端口，取众数作为主要端口
         all_dst_ports = [f.get("dst_port", 0) for f in flows]
         primary_port = max(set(all_dst_ports), key=all_dst_ports.count) if all_dst_ports else 0
 
         if primary_port in _AUTH_PORTS:
             brute_reasons.append("BRUTE_AUTH_PORT")
-
-        # 重复流模式：多条流到同一认证端口
         if n_flows > 3 and len(dst_ips) <= 2 and primary_port in _AUTH_PORTS:
             brute_reasons.append("BRUTE_REPEATED_FLOWS")
-
-        # 短流占比高
         if n_flows > 3 and short_flow_count / max(n_flows, 1) > 0.5:
             brute_reasons.append("BRUTE_REPEATED_SHORT_FLOWS")
-
-        # 高 RST / 低握手完成度 → 连接被拒绝
         if avg_rst_ratio > 0.3:
             brute_reasons.append("BRUTE_HIGH_RST")
         if avg_handshake < 0.7 and n_flows > 3:
             brute_reasons.append("BRUTE_LOW_HANDSHAKE")
 
-        # 需要端口匹配 + 至少一个行为指标才判定（避免仅凭端口误判）
         if "BRUTE_AUTH_PORT" in brute_reasons and len(brute_reasons) >= 2:
             return "bruteforce", {
                 "type": "bruteforce",
@@ -531,26 +458,15 @@ class AlertingService:
                             "short_flow_ratio": round(short_flow_count / max(n_flows, 1), 4)},
             }
 
-        # ── dos 检测 ──
         dos_reasons: list[str] = []
-
-        # 流量型
         if total_bytes > 1000000 and len(dst_ips) <= 2:
             dos_reasons.append("DOS_HIGH_VOLUME")
-
-        # 包速率型
         if max_pps > 1000:
             dos_reasons.append("DOS_HIGH_RATE")
-
-        # 带宽速率型
         if max_bps > 1000000:
             dos_reasons.append("DOS_HIGH_BPS")
-
-        # SYN Flood：高 SYN + 低握手 + 单目标
         if syn_ratio > 0.7 and avg_handshake < 0.5 and len(dst_ips) <= 2:
             dos_reasons.append("DOS_SYN_FLOOD")
-
-        # 流量不对称（单向洪泛）
         if avg_asymmetry > 0.8 and total_bytes > 500000:
             dos_reasons.append("DOS_ASYMMETRIC")
 
@@ -562,7 +478,6 @@ class AlertingService:
                             "avg_asymmetry": round(avg_asymmetry, 4)},
             }
 
-        # ── 默认 anomaly ──
         return "anomaly", {
             "type": "anomaly",
             "reason_codes": ["ANOMALY_DEFAULT"],
@@ -570,7 +485,6 @@ class AlertingService:
         }
 
     def _get_top_flows(self, flows: list[dict]) -> list[dict]:
-        """获取用于证据展示的高优先级流摘要，含检测层信息。"""
         result = []
         for flow in flows:
             summary = f"{flow.get('proto', 'TCP')}/{flow.get('dst_port', 0)}"
@@ -583,7 +497,6 @@ class AlertingService:
                 "summary": summary,
             }
 
-            # 透传检测层分数（如果可用）
             feat = flow.get("features", {})
             if feat.get("final_score") is not None:
                 entry["detection"] = {
@@ -598,22 +511,14 @@ class AlertingService:
         return result
 
     def _get_top_features(self, flows: list[dict]) -> list[dict]:
-        """获取跨流量的主要贡献特征。"""
-        # 聚合特征
-        feature_values = {}
-        
+        feature_values: dict[str, list] = {}
         for flow in flows:
-            features = flow.get("features", {})
-            for name, value in features.items():
+            for name, value in flow.get("features", {}).items():
                 if isinstance(value, (int, float)):
-                    if name not in feature_values:
-                        feature_values[name] = []
-                    feature_values[name].append(value)
-        
-        # 找出方差较高或极值特征
+                    feature_values.setdefault(name, []).append(value)
+
         top_features = []
-        
-        # 检查 SYN 计数是否偏高
+
         syn_counts = feature_values.get("syn_count", [])
         if syn_counts and max(syn_counts) > 10:
             top_features.append({
@@ -621,8 +526,7 @@ class AlertingService:
                 "value": int(max(syn_counts)),
                 "direction": "high",
             })
-        
-        # 检查包速率是否偏高
+
         total_packets = feature_values.get("total_packets", [])
         if total_packets and max(total_packets) > 100:
             top_features.append({
@@ -630,8 +534,7 @@ class AlertingService:
                 "value": int(max(total_packets)),
                 "direction": "high",
             })
-        
-        # 检查 RST 比例
+
         rst_ratios = feature_values.get("rst_ratio", [])
         if rst_ratios and max(rst_ratios) > 0.3:
             top_features.append({
@@ -640,8 +543,6 @@ class AlertingService:
                 "direction": "high",
             })
 
-        # --- 低阈值补充候选特征 ---
-        # bytes_per_packet 特征
         bpp = feature_values.get("bytes_per_packet", [])
         if bpp and max(bpp) > 0:
             top_features.append({
@@ -649,7 +550,7 @@ class AlertingService:
                 "value": round(max(bpp), 2),
                 "direction": "high",
             })
-        # flow_duration_ms（极短时长/扫描特征）
+
         dur = feature_values.get("flow_duration_ms", [])
         if dur:
             min_dur = min(dur)
@@ -658,7 +559,7 @@ class AlertingService:
                 "value": round(min_dur, 2),
                 "direction": "low" if min_dur < 100 else "high",
             })
-        # fwd_ratio_packets（单向流特征）
+
         fwd = feature_values.get("fwd_ratio_packets", [])
         if fwd and max(fwd) >= 0.9:
             top_features.append({
@@ -666,72 +567,27 @@ class AlertingService:
                 "value": round(max(fwd), 2),
                 "direction": "high",
             })
-        
-        return top_features[:5]  # 最多保留 5 项
 
-    # ── 可追溯摘要生成 ──
+        return top_features[:5]
 
     @staticmethod
     def _build_aggregation_summary(group_key: str, count_flows: int, dimensions: list[str]) -> str:
-        """根据聚合键和维度生成人类可读的聚合依据摘要。"""
         parts = group_key.split("|")
-        labels = {
-            "src_ip": "源IP",
-            "dst_target": "目标",
-            "service_key": "服务",
-            "inferred_type": "类型",
-            "time_bucket": "时间桶",
-        }
-        segments = []
-        for dim, val in zip(dimensions, parts):
-            label = labels.get(dim, dim)
-            segments.append(f"{label} {val}")
+        segments = [
+            f"{_AGG_DIM_LABELS.get(dim, dim)} {val}"
+            for dim, val in zip(dimensions, parts)
+        ]
         return f"按 {' + '.join(segments)} 聚合，共 {count_flows} 条流"
 
     @staticmethod
     def _build_type_summary(type_reason: dict) -> str:
-        """根据类型判定原因生成人类可读的类型摘要。"""
         alert_type = type_reason.get("type", "anomaly")
         reason_codes = type_reason.get("reason_codes", [])
         details = type_reason.get("details", {})
 
-        # 类型中文映射
-        type_labels = {
-            "scan": "扫描",
-            "bruteforce": "暴力破解",
-            "dos": "拒绝服务",
-            "anomaly": "异常行为",
-        }
-        type_label = type_labels.get(alert_type, alert_type)
+        type_label = _TYPE_LABELS_ZH.get(alert_type, alert_type)
+        desc_parts = [_REASON_CODE_LABELS.get(code, code) for code in reason_codes]
 
-        # 根据 reason_codes 构建描述片段
-        desc_parts: list[str] = []
-
-        # reason_code 中文映射
-        code_labels = {
-            "SCAN_HORIZONTAL": "水平扫描(多目标IP少端口)",
-            "SCAN_VERTICAL": "垂直扫描(少目标IP多端口)",
-            "SCAN_MULTI_DST_IP": "多目标IP",
-            "SCAN_MULTI_PORT": "多端口",
-            "SCAN_SYN_RATIO": "高SYN比例",
-            "SCAN_INCOMPLETE_HANDSHAKE": "不完整握手",
-            "SCAN_HIGH_RST": "高RST回复率",
-            "BRUTE_AUTH_PORT": "认证端口",
-            "BRUTE_REPEATED_FLOWS": "重复连接模式",
-            "BRUTE_REPEATED_SHORT_FLOWS": "大量短连接",
-            "BRUTE_HIGH_RST": "高RST(连接被拒绝)",
-            "BRUTE_LOW_HANDSHAKE": "低握手完成度",
-            "DOS_HIGH_VOLUME": "高流量",
-            "DOS_HIGH_RATE": "高包速率",
-            "DOS_HIGH_BPS": "高带宽",
-            "DOS_SYN_FLOOD": "SYN洪泛",
-            "DOS_ASYMMETRIC": "流量不对称",
-            "ANOMALY_DEFAULT": "未匹配已知攻击模式",
-        }
-        for code in reason_codes:
-            desc_parts.append(code_labels.get(code, code))
-
-        # 补充关键数值
         stats: list[str] = []
         if "unique_dst_ips" in details:
             stats.append(f"{details['unique_dst_ips']}个目标IP")
@@ -753,23 +609,11 @@ class AlertingService:
         score_breakdown: dict,
         severity: str,
     ) -> str:
-        """根据复合评分和分项明细生成严重度来源摘要。"""
-        # 严重度中文映射
-        sev_labels = {"critical": "严重", "high": "高", "medium": "中", "low": "低"}
-        sev_label = sev_labels.get(severity, severity)
-
-        parts = []
-        field_labels = {
-            "max_score": ("最高异常分", 0.40),
-            "flow_density": ("流密度", 0.25),
-            "duration_factor": ("持续时长", 0.20),
-            "aggregation_quality": ("聚合质量", 0.15),
-        }
-        for key, (label, weight) in field_labels.items():
-            val = score_breakdown.get(key, 0)
-            pct = int(weight * 100)
-            parts.append(f"{label}{val}×{pct}%")
-
+        sev_label = _SEVERITY_LABELS_ZH.get(severity, severity)
+        parts = [
+            f"{label}{score_breakdown.get(key, 0)}×{int(weight * 100)}%"
+            for key, (label, weight) in _BREAKDOWN_FIELDS.items()
+        ]
         return (
             f"复合评分 {round(composite_score, 4)}（{sev_label}）："
             f"{' + '.join(parts)}"

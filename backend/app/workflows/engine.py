@@ -1,8 +1,3 @@
-"""
-工作流引擎：负责编排阶段执行并记录轨迹。
-通过阶段包装器将实际分析委托给既有 AgentService。
-"""
-
 import json
 import time
 from typing import Any
@@ -23,7 +18,6 @@ from app.workflows.stages.compile_plan import CompilePlanStage
 
 logger = get_logger(__name__)
 
-# 阶段注册表：将阶段名映射到阶段类
 _STAGE_REGISTRY: dict[str, type[BaseStage]] = {
     "triage": TriageStage,
     "investigate": InvestigationStage,
@@ -31,22 +25,18 @@ _STAGE_REGISTRY: dict[str, type[BaseStage]] = {
     "compile_plan": CompilePlanStage,
 }
 
+# triage 归入 investigate 阶段的 PipelineStage 枚举
+_STAGE_TO_PIPELINE = {
+    "triage": "investigate",
+    "investigate": "investigate",
+    "recommend": "recommend",
+    "compile_plan": "compile_plan",
+}
+
 
 class WorkflowEngine:
-    """
-    编排智能体工作流阶段并记录执行轨迹。
-
-    用法：
-        engine = WorkflowEngine(db)
-        result = engine.run_stage("triage", alert, language="en")
-    """
-
     def __init__(self, db: Session):
         self.db = db
-
-    # ------------------------------------------------------------------
-    # 对外 API
-    # ------------------------------------------------------------------
 
     def run_stage(
         self,
@@ -55,11 +45,6 @@ class WorkflowEngine:
         language: str = "en",
         **kwargs: Any,
     ) -> Any:
-        """
-        执行单个阶段并记录执行轨迹。
-
-        返回阶段输出（与原服务返回类型兼容）。
-        """
         stage_cls = _STAGE_REGISTRY.get(stage_name)
         if stage_cls is None:
             raise ValueError(f"未知阶段: {stage_name}")
@@ -72,62 +57,49 @@ class WorkflowEngine:
             db=self.db,
         )
 
-        # 创建执行记录
-        execution = self._create_execution(alert.id, stage_name)
-
-        # 执行阶段并计时
-        stage_log = StageExecutionLog(
+        execution = self._create_exec(alert.id, stage_name)
+        log = StageExecutionLog(
             stage_name=stage_name,
             status="running",
             started_at=datetime_to_iso(utc_now()),
             input_snapshot={"alert_id": alert.id, "language": language},
         )
 
+        t0 = time.monotonic()
         try:
-            t0 = time.monotonic()
             result = stage.execute(context)
-            elapsed_ms = (time.monotonic() - t0) * 1000
+            elapsed = (time.monotonic() - t0) * 1000
 
-            stage_log.status = "completed"
-            stage_log.completed_at = datetime_to_iso(utc_now())
-            stage_log.latency_ms = round(elapsed_ms, 2)
-            stage_log.output_snapshot = self._build_output_snapshot(stage_name, result.output)
+            log.status = "completed"
+            log.completed_at = datetime_to_iso(utc_now())
+            log.latency_ms = round(elapsed, 2)
+            log.output_snapshot = self._snapshot(stage_name, result.output)
 
             execution.status = "completed"
             execution.completed_at = utc_now()
-            execution.stages_log = json.dumps(
-                [stage_log.model_dump()], ensure_ascii=False
-            )
+            execution.stages_log = json.dumps([log.model_dump()], ensure_ascii=False)
             self.db.commit()
 
             logger.info(
                 "工作流阶段 '%s' 已完成，告警 %s，耗时 %.1f ms",
-                stage_name,
-                alert.id,
-                elapsed_ms,
+                stage_name, alert.id, elapsed,
             )
-
-            # 对接到流水线可观测性
-            self._bridge_to_pipeline(alert, stage_log)
-
+            self._bridge(alert, log)
             return result.output
 
         except Exception:
-            stage_log.status = "failed"
-            stage_log.completed_at = datetime_to_iso(utc_now())
-            stage_log.latency_ms = round((time.monotonic() - t0) * 1000, 2)
-            stage_log.error = "阶段执行失败"
+            log.status = "failed"
+            log.completed_at = datetime_to_iso(utc_now())
+            log.latency_ms = round((time.monotonic() - t0) * 1000, 2)
+            log.error = "阶段执行失败"
 
             execution.status = "failed"
             execution.completed_at = utc_now()
-            execution.stages_log = json.dumps(
-                [stage_log.model_dump()], ensure_ascii=False
-            )
+            execution.stages_log = json.dumps([log.model_dump()], ensure_ascii=False)
             try:
                 self.db.commit()
             except Exception:
                 self.db.rollback()
-
             raise
 
     def run_pipeline(
@@ -136,14 +108,9 @@ class WorkflowEngine:
         alert: Alert,
         language: str = "en",
     ) -> dict[str, Any]:
-        """
-        顺序执行多个阶段，并将输出逐级传递。
-
-        返回字典：stage_name → stage_output。
-        """
-        execution = self._create_execution(alert.id, "full_pipeline")
-        previous_outputs: dict[str, Any] = {}
-        stage_logs: list[StageExecutionLog] = []
+        execution = self._create_exec(alert.id, "full_pipeline")
+        prev: dict[str, Any] = {}
+        logs: list[StageExecutionLog] = []
 
         for stage_name in stage_names:
             stage_cls = _STAGE_REGISTRY.get(stage_name)
@@ -154,41 +121,40 @@ class WorkflowEngine:
             context = StageContext(
                 alert=alert,
                 language=language,
-                previous_outputs=previous_outputs,
+                previous_outputs=prev,
                 db=self.db,
             )
-
-            stage_log = StageExecutionLog(
+            log = StageExecutionLog(
                 stage_name=stage_name,
                 status="running",
                 started_at=datetime_to_iso(utc_now()),
                 input_snapshot={"alert_id": alert.id, "language": language},
             )
 
+            t0 = time.monotonic()
             try:
-                t0 = time.monotonic()
                 result = stage.execute(context)
-                elapsed_ms = (time.monotonic() - t0) * 1000
+                elapsed = (time.monotonic() - t0) * 1000
 
-                stage_log.status = "completed"
-                stage_log.completed_at = datetime_to_iso(utc_now())
-                stage_log.latency_ms = round(elapsed_ms, 2)
-                stage_log.output_snapshot = self._build_output_snapshot(stage_name, result.output)
+                log.status = "completed"
+                log.completed_at = datetime_to_iso(utc_now())
+                log.latency_ms = round(elapsed, 2)
+                log.output_snapshot = self._snapshot(stage_name, result.output)
 
-                previous_outputs[stage_name] = result.output
-                stage_logs.append(stage_log)
+                prev[stage_name] = result.output
+                logs.append(log)
 
             except Exception:
-                stage_log.status = "failed"
-                stage_log.completed_at = datetime_to_iso(utc_now())
-                stage_log.latency_ms = round((time.monotonic() - t0) * 1000, 2)
-                stage_log.error = "阶段执行失败"
-                stage_logs.append(stage_log)
+                log.status = "failed"
+                log.completed_at = datetime_to_iso(utc_now())
+                log.latency_ms = round((time.monotonic() - t0) * 1000, 2)
+                log.error = "阶段执行失败"
+                logs.append(log)
 
                 execution.status = "failed"
                 execution.completed_at = utc_now()
                 execution.stages_log = json.dumps(
-                    [s.model_dump() for s in stage_logs], ensure_ascii=False
+                    [s.model_dump() for s in logs], ensure_ascii=False
                 )
                 try:
                     self.db.commit()
@@ -199,23 +165,17 @@ class WorkflowEngine:
         execution.status = "completed"
         execution.completed_at = utc_now()
         execution.stages_log = json.dumps(
-            [s.model_dump() for s in stage_logs], ensure_ascii=False
+            [s.model_dump() for s in logs], ensure_ascii=False
         )
         self.db.commit()
 
         logger.info(
             "工作流流水线 [%s] 已完成，告警 %s",
-            ", ".join(stage_names),
-            alert.id,
+            ", ".join(stage_names), alert.id,
         )
-        return previous_outputs
+        return prev
 
-    # ------------------------------------------------------------------
-    # 内部辅助方法
-    # ------------------------------------------------------------------
-
-    def _create_execution(self, alert_id: str, workflow_type: str) -> WorkflowExecution:
-        """创建并持久化一条新的 WorkflowExecution 记录。"""
+    def _create_exec(self, alert_id: str, workflow_type: str) -> WorkflowExecution:
         execution = WorkflowExecution(
             id=generate_uuid(),
             alert_id=alert_id,
@@ -223,60 +183,31 @@ class WorkflowEngine:
             status="running",
         )
         self.db.add(execution)
-        self.db.flush()  # 确保 id 可用，但将最终提交延迟给调用方
+        self.db.flush()
         return execution
 
     @staticmethod
-    def _build_output_snapshot(stage_name: str, output: Any) -> dict[str, Any]:
-        """构建用于执行日志的精简输出快照。"""
+    def _snapshot(stage_name: str, output: Any) -> dict[str, Any]:
         if stage_name == "triage":
             return {"triage_summary_length": len(output) if isinstance(output, str) else 0}
         if hasattr(output, "id"):
             return {"id": output.id}
         return {}
 
-    # ------------------------------------------------------------------
-    # 流水线可观测性桥接
-    # ------------------------------------------------------------------
-
-    # 将工作流阶段名映射到 PipelineStage 枚举值
-    _STAGE_TO_PIPELINE = {
-        "triage": "investigate",       # triage 属于 investigate 阶段的一部分
-        "investigate": "investigate",
-        "recommend": "recommend",
-        "compile_plan": "compile_plan",
-    }
-
-    def _bridge_to_pipeline(self, alert: Alert, stage_log: StageExecutionLog) -> None:
-        """
-        若启用流水线可观测性，将阶段记录追加到对应的 PipelineRun。
-        对应关系通过 alert 的 pcap_id 间接查找。
-        """
+    def _bridge(self, alert: Alert, log: StageExecutionLog) -> None:
         if not settings.PIPELINE_OBSERVABILITY_ENABLED:
             return
+
+        pipeline_stage = _STAGE_TO_PIPELINE.get(log.stage_name)
+        if not pipeline_stage:
+            return
+
         try:
             from app.models.pipeline import PipelineRunModel
             from app.services.pipeline.models import StageRecord
-
-            pipeline_stage = self._STAGE_TO_PIPELINE.get(stage_log.stage_name)
-            if not pipeline_stage:
-                return
-
-            # 通过 alert 关联的 flow 查找 PCAP id
             from app.models.flow import Flow
-            flow = (
-                self.db.query(Flow.pcap_id)
-                .join(
-                    Alert.__table__.metadata.tables.get("alert_flows", None)
-                    or self.db.execute(
-                        __import__("sqlalchemy").text("SELECT 1")
-                    ),  # 兜底分支（理论上不应触发）
-                )
-                .filter(Flow.pcap_id.isnot(None))
-                .first()
-            )
-            # 更直接：通过 alert_flows → flow → pcap_id 查询
             from app.models.alert import alert_flows as af_table
+
             row = (
                 self.db.query(Flow.pcap_id)
                 .join(af_table, af_table.c.flow_id == Flow.id)
@@ -287,42 +218,37 @@ class WorkflowEngine:
                 return
             pcap_id = row[0]
 
-            # 查找该 pcap 对应的现有 pipeline run
-            pipeline_run = (
+            run = (
                 self.db.query(PipelineRunModel)
                 .filter(PipelineRunModel.pcap_id == pcap_id)
                 .order_by(PipelineRunModel.created_at.desc())
                 .first()
             )
-            if not pipeline_run:
+            if not run:
                 return
 
-            import json as _json
-            existing_stages = _json.loads(pipeline_run.stages_log or "[]")
-
+            stages = json.loads(run.stages_log or "[]")
             record = StageRecord(
                 stage_name=pipeline_stage,
-                status=stage_log.status,
-                started_at=stage_log.started_at,
-                completed_at=stage_log.completed_at,
-                latency_ms=stage_log.latency_ms,
-                key_metrics=stage_log.output_snapshot,
-                input_summary=stage_log.input_snapshot,
-                output_summary=stage_log.output_snapshot,
-                error_summary=stage_log.error,
+                status=log.status,
+                started_at=log.started_at,
+                completed_at=log.completed_at,
+                latency_ms=log.latency_ms,
+                key_metrics=log.output_snapshot,
+                input_summary=log.input_snapshot,
+                output_summary=log.output_snapshot,
+                error_summary=log.error,
             )
 
-            # 替换已存在阶段记录，或追加新记录
-            replaced = False
-            for i, s in enumerate(existing_stages):
+            # 替换同名阶段记录，否则追加
+            for i, s in enumerate(stages):
                 if s.get("stage_name") == pipeline_stage:
-                    existing_stages[i] = record.model_dump()
-                    replaced = True
+                    stages[i] = record.model_dump()
                     break
-            if not replaced:
-                existing_stages.append(record.model_dump())
+            else:
+                stages.append(record.model_dump())
 
-            pipeline_run.stages_log = _json.dumps(existing_stages, ensure_ascii=False)
+            run.stages_log = json.dumps(stages, ensure_ascii=False)
             self.db.flush()
 
         except Exception:

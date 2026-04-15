@@ -1,17 +1,9 @@
-"""持久化模型兼容性校验辅助函数。"""
-
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
 
 def validate_sklearn_version(meta: dict, model_label: str) -> bool:
-    """
-    要求加载持久化模型时 sklearn 版本精确匹配。
-
-    经 pickle 序列化的 sklearn 模型在不同版本间不具备前向兼容性，
-    因此选择拒绝加载而非带警告尝试加载。
-    """
     trained_version = meta.get("sklearn_version")
     if not trained_version:
         logger.warning(

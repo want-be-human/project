@@ -1,7 +1,4 @@
-"""
-健康检查路由。
-GET /api/v1/health
-"""
+"""健康检查路由。"""
 
 from fastapi import APIRouter
 
@@ -14,13 +11,7 @@ router = APIRouter(tags=["health"])
     "/health",
     response_model=ApiResponse[HealthStatus],
     summary="Health Check",
-    description="Returns service health status per DOC C C6.1",
+    description="返回服务健康状态（DOC C C6.1）",
 )
 async def health_check() -> ApiResponse[HealthStatus]:
-    """
-    健康检查端点。
-
-    返回：
-        { ok: true, data: { status: "ok" } }
-    """
     return ApiResponse.success(HealthStatus(status="ok"))

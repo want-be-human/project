@@ -1,12 +1,3 @@
-"""
-解析服务。
-将 PCAP 聚合为 Flow。
-
-支持两种后端：
-- NFStream（首选）：C 层解析+聚合，5-20x 快于 dpkt，超时制流定义
-- dpkt（fallback）：纯 Python 逐包解析，固定时间窗口流定义
-"""
-
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -15,12 +6,10 @@ from app.core.utils import generate_uuid, utc_now
 
 logger = get_logger(__name__)
 
-# 协议号 → 字符串
 _PROTO_MAP = {6: "TCP", 17: "UDP", 1: "ICMP"}
 
 
 def _nfstream_available() -> bool:
-    """检测 NFStream 是否可用（Windows + Python 3.12 可能不兼容）。"""
     try:
         from nfstream import NFStreamer  # noqa: F401
         return True
@@ -32,51 +21,24 @@ _USE_NFSTREAM = _nfstream_available()
 
 
 class ParsingService:
-    """
-    用于解析 PCAP 文件并提取流记录的服务。
-
-    优先使用 NFStream（C 层，超时制流定义），不可用时回退到 dpkt。
-    """
-
-    def __init__(self):
-        pass
-
     def parse_to_flows(
         self,
         pcap_path: Path,
         *,
         idle_timeout: int = 120,
         active_timeout: int = 1800,
-        # 旧参数兼容：如果调用方传了 window_sec，dpkt fallback 会使用它
-        window_sec: int | None = None,
+        window_sec: int | None = None,  # dpkt-fallback only
     ) -> list[dict]:
-        """
-        解析 PCAP 并将报文聚合为双向会话。
-
-        参数：
-            pcap_path: PCAP 文件路径
-            idle_timeout: 流空闲超时（秒），NFStream 模式使用
-            active_timeout: 流活跃超时（秒），NFStream 模式使用
-            window_sec: 会话聚合时间窗（秒），仅 dpkt fallback 使用
-
-        返回：
-            可直接入库的 flow 字典列表
-        """
         if _USE_NFSTREAM:
             return self._parse_with_nfstream(pcap_path, idle_timeout, active_timeout)
-        else:
-            ws = window_sec if window_sec is not None else 60
-            logger.info("NFStream 不可用，使用 dpkt fallback (window_sec=%d)", ws)
-            return self._parse_with_dpkt(pcap_path, ws)
 
-    # ══════════════════════════════════════════════════════════════
-    # NFStream 后端（首选）
-    # ══════════════════════════════════════════════════════════════
+        ws = window_sec if window_sec is not None else 60
+        logger.info("NFStream 不可用，使用 dpkt fallback (window_sec=%d)", ws)
+        return self._parse_with_dpkt(pcap_path, ws)
 
     def _parse_with_nfstream(
         self, pcap_path: Path, idle_timeout: int, active_timeout: int,
     ) -> list[dict]:
-        """使用 NFStream 解析 PCAP（C 层，5-20x 快于 dpkt）。"""
         from nfstream import NFStreamer
 
         logger.info(
@@ -92,23 +54,16 @@ class ParsingService:
         )
 
         now = utc_now()
-        flow_list = []
-
-        for nf in streamer:
-            flow_list.append(self._nfstream_to_flow_dict(nf, now))
-
+        flow_list = [self._nfstream_to_flow_dict(nf, now) for nf in streamer]
         logger.info("NFStream 提取了 %d 条流", len(flow_list))
         return flow_list
 
     def _nfstream_to_flow_dict(self, nf, now: datetime) -> dict:
-        """将 NFStream Flow 对象映射为项目标准 flow dict。"""
         proto_str = _PROTO_MAP.get(nf.protocol, "OTHER")
 
-        # 时间戳：NFStream 用毫秒 epoch
         ts_start_epoch = nf.bidirectional_first_seen_ms / 1000.0
         ts_end_epoch = nf.bidirectional_last_seen_ms / 1000.0
 
-        # TCP 标志位：双向求和
         tcp_flags = {"syn": 0, "ack": 0, "fin": 0, "rst": 0, "psh": 0}
         if proto_str == "TCP":
             tcp_flags = {
@@ -119,7 +74,6 @@ class ParsingService:
                 "psh": getattr(nf, "src2dst_psh_packets", 0) + getattr(nf, "dst2src_psh_packets", 0),
             }
 
-        # IAT 预计算值（NFStream 已在 C 层计算，避免 Python 再算一遍）
         iat_stats = {
             "mean_ms": getattr(nf, "bidirectional_mean_piat_ms", 0.0) or 0.0,
             "std_ms": getattr(nf, "bidirectional_stddev_piat_ms", 0.0) or 0.0,
@@ -144,16 +98,11 @@ class ParsingService:
             "anomaly_score": None,
             "label": None,
             "_tcp_flags": tcp_flags,
-            "_packet_timestamps": [],       # NFStream 不提供逐包时间戳
-            "_iat_stats": iat_stats,         # NFStream 预计算的 IAT
+            "_packet_timestamps": [],
+            "_iat_stats": iat_stats,
         }
 
-    # ══════════════════════════════════════════════════════════════
-    # dpkt 后端（fallback）
-    # ══════════════════════════════════════════════════════════════
-
     def _parse_with_dpkt(self, pcap_path: Path, window_sec: int) -> list[dict]:
-        """使用 dpkt 解析 PCAP（纯 Python，固定时间窗口）。"""
         logger.info("dpkt 解析: %s, 窗口=%ds", pcap_path, window_sec)
 
         flows: dict = {}
@@ -189,7 +138,6 @@ class ParsingService:
         window_sec: int,
         flows: dict,
     ):
-        """处理单个报文并更新流聚合状态。"""
         try:
             import dpkt
 
@@ -273,7 +221,6 @@ class ParsingService:
             logger.debug("处理数据包出错: %s", e)
 
     def _extract_tcp_flags(self, tcp) -> dict:
-        """从报文中提取 TCP 标志位。"""
         flags = {}
         if tcp.flags & 0x02:
             flags["syn"] = 1
@@ -288,20 +235,18 @@ class ParsingService:
         return flags
 
     def _ip_to_str(self, ip_bytes: bytes) -> str:
-        """将 IP 字节转换为字符串。"""
         if len(ip_bytes) == 4:
             return ".".join(str(b) for b in ip_bytes)
-        elif len(ip_bytes) == 16:
+        if len(ip_bytes) == 16:
             return ":".join(f"{ip_bytes[i]:02x}{ip_bytes[i+1]:02x}" for i in range(0, 16, 2))
         return "0.0.0.0"
 
     def _finalize_flows(self, flows: dict) -> list[dict]:
-        """将 dpkt 流字典转换为标准 flow dict 列表。"""
         result = []
         now = utc_now()
 
         for flow in flows.values():
-            record = {
+            result.append({
                 "id": generate_uuid(),
                 "version": "1.1",
                 "created_at": now,
@@ -321,7 +266,6 @@ class ParsingService:
                 "label": None,
                 "_tcp_flags": flow["tcp_flags"],
                 "_packet_timestamps": flow["packet_timestamps"],
-            }
-            result.append(record)
+            })
 
         return result

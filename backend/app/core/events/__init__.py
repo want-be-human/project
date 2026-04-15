@@ -1,7 +1,6 @@
 """
-核心事件包：统一内部事件总线。
-
-用法::
+统一内部事件总线。
+用法:
 
     from app.core.events import get_event_bus, DomainEvent, make_event
 
@@ -38,7 +37,7 @@ from app.core.events.models import (
     ALL_EVENT_TYPES,
 )
 
-# ── 单例 ─────────────────────────────────────────────────────────
+# 单例
 
 _bus_instance: EventBus | None = None
 

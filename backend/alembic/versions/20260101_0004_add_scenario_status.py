@@ -1,11 +1,5 @@
-"""add scenario status column
-
-Revision ID: 0004
-Revises: 0003
-Create Date: 2024-01-01 00:03:00.000000
-
-Adds lifecycle status (active/archived) to scenarios table.
-Existing rows default to 'active'.
+"""
+新增 scenario status 字段，用于标识场景的状态
 """
 from typing import Sequence, Union
 

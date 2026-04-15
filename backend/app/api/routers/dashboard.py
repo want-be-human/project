@@ -1,8 +1,4 @@
-"""
-仪表盘路由。
-GET /dashboard/summary — 获取仪表盘聚合数据。
-实现需求 1.1、1.2。
-"""
+"""仪表盘路由。GET /dashboard/summary（需求 1.1、1.2）。"""
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -23,7 +19,4 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 async def get_dashboard_summary(
     db: Session = Depends(get_db),
 ) -> ApiResponse[DashboardSummarySchema]:
-    """聚合所有仪表盘所需数据并返回。"""
-    service = DashboardService(db)
-    summary = service.get_summary()
-    return ApiResponse.success(summary)
+    return ApiResponse.success(DashboardService(db).get_summary())

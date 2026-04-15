@@ -1,13 +1,4 @@
-"""
-场景路由。
-POST   /scenarios
-GET    /scenarios
-POST   /scenarios/{scenario_id}/run
-GET    /scenarios/{scenario_id}/latest-run
-PATCH  /scenarios/{scenario_id}/archive
-PATCH  /scenarios/{scenario_id}/unarchive
-DELETE /scenarios/{scenario_id}
-"""
+"""场景路由。"""
 
 import json
 
@@ -33,7 +24,7 @@ router = APIRouter(prefix="/scenarios", tags=["scenarios"])
     "",
     response_model=ApiResponse[ScenarioSchema],
     summary="Create Scenario",
-    description="Create a regression scenario. (DOC C C6.9)",
+    description="创建回归场景。(DOC C C6.9)",
 )
 async def create_scenario(
     request: CreateScenarioRequest,
@@ -58,12 +49,12 @@ async def create_scenario(
     "",
     response_model=ApiResponse[list[ScenarioSchema]],
     summary="List Scenarios",
-    description="List scenarios. Default: active only. Pass include_archived=true to include archived.",
+    description="列出场景，默认仅返回活动场景；传入 include_archived=true 以包含已归档场景。",
 )
 async def list_scenarios(
-    limit: int = Query(default=50, ge=1, le=1000, description="Max results"),
-    offset: int = Query(default=0, ge=0, description="Skip count"),
-    include_archived: bool = Query(default=False, description="Include archived scenarios"),
+    limit: int = Query(default=50, ge=1, le=1000, description="最大返回条数"),
+    offset: int = Query(default=0, ge=0, description="跳过条数"),
+    include_archived: bool = Query(default=False, description="是否包含已归档场景"),
     db: Session = Depends(get_db),
 ) -> ApiResponse[list[ScenarioSchema]]:
     svc = ScenariosService(db)
@@ -75,11 +66,11 @@ async def list_scenarios(
     "/{scenario_id}/run",
     response_model=ApiResponse[ScenarioRunResultSchema],
     summary="Run Scenario",
-    description="Execute a scenario and return results. Returns 409 if scenario is archived. "
-                "Emits real-time WS events: scenario.run.started, scenario.stage.*, scenario.run.done.",
+    description="执行场景并返回运行结果；场景已归档时返回 409。"
+                "实时推送 WS 事件：scenario.run.started、scenario.stage.*、scenario.run.done。",
 )
 async def run_scenario(
-    scenario_id: str = Path(..., description="Scenario ID"),
+    scenario_id: str = Path(..., description="场景 ID"),
     db: Session = Depends(get_db),
 ) -> ApiResponse[ScenarioRunResultSchema]:
     svc = ScenariosService(db)
@@ -97,10 +88,10 @@ async def run_scenario(
     "/{scenario_id}/latest-run",
     response_model=ApiResponse[ScenarioRunResultSchema],
     summary="Get Latest Scenario Run",
-    description="Fetch the most recent run result for a scenario.",
+    description="获取指定场景最近一次的运行结果。",
 )
 async def get_latest_scenario_run(
-    scenario_id: str = Path(..., description="Scenario ID"),
+    scenario_id: str = Path(..., description="场景 ID"),
     db: Session = Depends(get_db),
 ) -> ApiResponse[ScenarioRunResultSchema]:
     run = (
@@ -119,10 +110,10 @@ async def get_latest_scenario_run(
     "/{scenario_id}/archive",
     response_model=ApiResponse[ScenarioSchema],
     summary="Archive Scenario",
-    description="Archive a scenario. Returns 409 if already archived.",
+    description="归档场景；若已归档则返回 409。",
 )
 async def archive_scenario(
-    scenario_id: str = Path(..., description="Scenario ID"),
+    scenario_id: str = Path(..., description="场景 ID"),
     db: Session = Depends(get_db),
 ) -> ApiResponse[ScenarioSchema]:
     svc = ScenariosService(db)
@@ -134,10 +125,10 @@ async def archive_scenario(
     "/{scenario_id}/unarchive",
     response_model=ApiResponse[ScenarioSchema],
     summary="Unarchive Scenario",
-    description="Restore an archived scenario to active. Returns 409 if already active.",
+    description="将已归档场景恢复为活动状态；若已为活动状态则返回 409。",
 )
 async def unarchive_scenario(
-    scenario_id: str = Path(..., description="Scenario ID"),
+    scenario_id: str = Path(..., description="场景 ID"),
     db: Session = Depends(get_db),
 ) -> ApiResponse[ScenarioSchema]:
     svc = ScenariosService(db)
@@ -149,10 +140,10 @@ async def unarchive_scenario(
     "/{scenario_id}",
     status_code=204,
     summary="Delete Scenario",
-    description="Permanently delete a scenario and all its run records. Irreversible.",
+    description="永久删除场景及其所有运行记录，操作不可逆。",
 )
 async def delete_scenario(
-    scenario_id: str = Path(..., description="Scenario ID"),
+    scenario_id: str = Path(..., description="场景 ID"),
     db: Session = Depends(get_db),
 ) -> None:
     svc = ScenariosService(db)

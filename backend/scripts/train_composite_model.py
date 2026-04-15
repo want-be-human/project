@@ -1,19 +1,14 @@
 #!/usr/bin/env python3
-"""
-采用 TensorBoard 日志记录和 GPU 支持进行无泄漏复合模型训练。
-支持的模式：
-- 传统的双 PCAP 模式：一个正常 PCAP 文件 + 一个攻击 PCAP 文件
-- 明细模式：一个或多个 PCAP 源文件，每个文件可选择配对一个官方标签 CSV 文件
-- 数据集预设模式：CIC-IDS2017 核心子集发现
-训练流程如下：
-1. 加载已标注的流程。
-2. 分为训练集/验证集/测试集。
-3. 仅对训练数据应用孤立森林算法，并在每次分割时进行评分，而不进行重新训练。
-4. 添加规则和图表功能，同时不泄露测试信息。
-5. 在训练集上训练监督型排序器（在可用的情况下会使用 GPU 进行加速）。
-6. 在验证过程中的一个校准样本上安装一个概率校准器。
-7. 在单独的阈值验证集上调整决策阈值。
-8. 在测试中进行一次评估，并保存校准后的模型。
+"""Leak-free composite detection training (baseline + rules + graph + supervised ranker).
+
+Modes:
+- legacy dual-PCAP (--pcap-normal/--pcap-attack)
+- dataset manifest (--dataset-manifest)
+- dataset preset (--dataset-preset cicids2017_core)
+
+Flow: load labeled → split → fit baseline on train only → add rule/graph features without
+leaking val/test → train ranker (GPU if available) → calibrate probabilities on a
+validation split → tune threshold on a held-out validation split → evaluate on test.
 """
 
 from __future__ import annotations
@@ -56,13 +51,11 @@ DEFAULT_ATTACK_PCAP = BACKEND_DIR / "data" / "pcaps" / "training_attack.pcap"
 DEFAULT_CICIDS2017_ROOT = BACKEND_DIR / "data" / "datasets" / "cicids2017"
 DEFAULT_TB_DIR = BACKEND_DIR / "runs"
 
+_GRAPH_PREFIXES = ("node_", "neighbor_", "edge_", "subnet_")
+_GRAPH_NAMES = {"is_hub", "betweenness", "clustering"}
 
-# ---------------------------------------------------------------------------
-# GPU detection
-# ---------------------------------------------------------------------------
 
 def _detect_gpu() -> bool:
-    """检查 XGBoost CUDA GPU 是否可用。"""
     try:
         import xgboost as xgb
         m = xgb.XGBClassifier(device="cuda", n_estimators=1, verbosity=0)
@@ -72,12 +65,7 @@ def _detect_gpu() -> bool:
         return False
 
 
-# ---------------------------------------------------------------------------
-# XGBoost TensorBoard callback
-# ---------------------------------------------------------------------------
-
 def _make_tb_callback(writer):
-    """构建记录到 TensorBoard 的 XGBoost TrainingCallback。"""
     from xgboost.callback import TrainingCallback  # type: ignore[attr-defined]
 
     class _TBCallback(TrainingCallback):
@@ -85,17 +73,11 @@ def _make_tb_callback(writer):
             for data_name, metrics in evals_log.items():
                 for metric_name, values in metrics.items():
                     val = values[-1] if values else 0
-                    writer.add_scalar(
-                        f"xgb_iter/{data_name}_{metric_name}", val, epoch,
-                    )
+                    writer.add_scalar(f"xgb_iter/{data_name}_{metric_name}", val, epoch)
             return False
 
     return _TBCallback()
 
-
-# ---------------------------------------------------------------------------
-# 数据划分
-# ---------------------------------------------------------------------------
 
 def three_way_split(
     flows: list[dict],
@@ -106,8 +88,6 @@ def three_way_split(
 ) -> tuple[list[dict], list[dict], list[dict]]:
     from sklearn.model_selection import train_test_split
 
-    labels = [f.get("_label", 0) for f in flows]
-
     if strategy == "temporal":
         block_size = 10
         group_ids = [i // block_size for i in range(len(flows))]
@@ -117,37 +97,31 @@ def three_way_split(
 
         n_train = int(len(unique_groups) * train_ratio)
         n_val = int(len(unique_groups) * val_ratio)
-
-        train_groups = set(unique_groups[:n_train])
-        val_groups = set(unique_groups[n_train:n_train + n_val])
+        train_g = set(unique_groups[:n_train])
+        val_g = set(unique_groups[n_train:n_train + n_val])
 
         train_flows: list[dict] = []
         val_flows: list[dict] = []
         test_flows: list[dict] = []
-        for index, flow in enumerate(flows):
-            group_id = group_ids[index]
-            if group_id in train_groups:
+        for idx, flow in enumerate(flows):
+            gid = group_ids[idx]
+            if gid in train_g:
                 train_flows.append(flow)
-            elif group_id in val_groups:
+            elif gid in val_g:
                 val_flows.append(flow)
             else:
                 test_flows.append(flow)
         return train_flows, val_flows, test_flows
 
+    labels = [f.get("_label", 0) for f in flows]
     test_ratio = 1.0 - train_ratio - val_ratio
     train_val, test_flows = train_test_split(
-        flows,
-        test_size=test_ratio,
-        random_state=random_state,
-        stratify=labels,
+        flows, test_size=test_ratio, random_state=random_state, stratify=labels,
     )
-    labels_train_val = [f.get("_label", 0) for f in train_val]
-    val_relative = val_ratio / (train_ratio + val_ratio)
+    labels_tv = [f.get("_label", 0) for f in train_val]
+    val_rel = val_ratio / (train_ratio + val_ratio)
     train_flows, val_flows = train_test_split(
-        train_val,
-        test_size=val_relative,
-        random_state=random_state,
-        stratify=labels_train_val,
+        train_val, test_size=val_rel, random_state=random_state, stratify=labels_tv,
     )
     return train_flows, val_flows, test_flows
 
@@ -160,63 +134,41 @@ def split_validation_for_calibration(
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict]:
     from sklearn.model_selection import train_test_split
 
+    shared_info = {
+        "strategy": "shared_validation",
+        "calibration_samples": int(len(X_val)),
+        "threshold_samples": int(len(X_val)),
+    }
+
     if len(X_val) < 10 or len(np.unique(y_val)) < 2:
-        info = {
-            "strategy": "shared_validation",
-            "calibration_samples": int(len(X_val)),
-            "threshold_samples": int(len(X_val)),
-        }
-        return X_val, X_val, y_val, y_val, info
+        return X_val, X_val, y_val, y_val, shared_info
 
     class_counts = np.bincount(y_val.astype(int), minlength=2)
     if int(class_counts.min()) < 2:
-        info = {
-            "strategy": "shared_validation",
-            "calibration_samples": int(len(X_val)),
-            "threshold_samples": int(len(X_val)),
-        }
-        return X_val, X_val, y_val, y_val, info
+        return X_val, X_val, y_val, y_val, shared_info
 
-    X_calib, X_threshold, y_calib, y_threshold = train_test_split(
-        X_val,
-        y_val,
-        test_size=0.5,
-        random_state=random_state,
-        stratify=y_val,
+    X_calib, X_thr, y_calib, y_thr = train_test_split(
+        X_val, y_val, test_size=0.5, random_state=random_state, stratify=y_val,
     )
-
-    if len(np.unique(y_calib)) < 2 or len(np.unique(y_threshold)) < 2:
-        info = {
-            "strategy": "shared_validation",
-            "calibration_samples": int(len(X_val)),
-            "threshold_samples": int(len(X_val)),
-        }
-        return X_val, X_val, y_val, y_val, info
+    if len(np.unique(y_calib)) < 2 or len(np.unique(y_thr)) < 2:
+        return X_val, X_val, y_val, y_val, shared_info
 
     info = {
         "strategy": "split_validation",
         "calibration_samples": int(len(X_calib)),
-        "threshold_samples": int(len(X_threshold)),
+        "threshold_samples": int(len(X_thr)),
     }
-    return X_calib, X_threshold, y_calib, y_threshold, info
+    return X_calib, X_thr, y_calib, y_thr, info
 
 
-def resolve_calibration_method(
-    y_calib: np.ndarray,
-    calibration_method: str,
-) -> str:
-    if calibration_method != "auto":
-        return calibration_method
-
-    class_counts = np.bincount(y_calib.astype(int), minlength=2)
-    if int(class_counts.min()) >= 50 and int(len(y_calib)) >= 200:
+def resolve_calibration_method(y_calib: np.ndarray, method: str) -> str:
+    if method != "auto":
+        return method
+    counts = np.bincount(y_calib.astype(int), minlength=2)
+    if int(counts.min()) >= 50 and int(len(y_calib)) >= 200:
         return "isotonic"
     return "sigmoid"
 
-
-# ---------------------------------------------------------------------------
-# 模型训练
-# ---------------------------------------------------------------------------
 
 def train_supervised(
     X_train: np.ndarray,
@@ -231,17 +183,11 @@ def train_supervised(
     if model_type == "lightgbm":
         try:
             from lightgbm import LGBMClassifier
-
             model = LGBMClassifier(
-                n_estimators=200,
-                max_depth=6,
-                learning_rate=0.05,
-                num_leaves=31,
-                min_child_samples=10,
-                subsample=0.8,
-                colsample_bytree=0.8,
-                random_state=42,
-                verbose=-1,
+                n_estimators=200, max_depth=6, learning_rate=0.05,
+                num_leaves=31, min_child_samples=10,
+                subsample=0.8, colsample_bytree=0.8,
+                random_state=42, verbose=-1,
             )
             model.fit(X_train, y_train, eval_set=[(X_val, y_val)])
             return model
@@ -252,81 +198,51 @@ def train_supervised(
     if model_type == "xgboost":
         try:
             import xgboost as xgb
-
             device = "cuda" if use_gpu else "cpu"
             print(f"  XGBoost device: {device}")
             cbs = [_make_tb_callback(writer)] if writer is not None else None
-
             model = xgb.XGBClassifier(
-                n_estimators=200,
-                max_depth=6,
-                learning_rate=0.05,
-                subsample=0.8,
-                colsample_bytree=0.8,
-                random_state=42,
-                eval_metric="logloss",
-                device=device,
-                verbosity=1,
-                callbacks=cbs,
+                n_estimators=200, max_depth=6, learning_rate=0.05,
+                subsample=0.8, colsample_bytree=0.8,
+                random_state=42, eval_metric="logloss",
+                device=device, verbosity=1, callbacks=cbs,
             )
-            model.fit(
-                X_train, y_train,
-                eval_set=[(X_train, y_train), (X_val, y_val)],
-                verbose=10,
-            )
+            model.fit(X_train, y_train, eval_set=[(X_train, y_train), (X_val, y_val)], verbose=10)
             return model
         except ImportError:
             print("  xgboost is not installed, falling back to sklearn GradientBoosting")
             model_type = "sklearn_gb"
 
-    # sklearn GradientBoosting fallback — try XGBoost GPU first if requested
+    # sklearn fallback: promote to XGBoost GPU first if GPU requested
     if use_gpu:
         print("  GPU requested — promoting sklearn_gb to xgboost with CUDA")
         try:
             import xgboost as xgb
-
             cbs = [_make_tb_callback(writer)] if writer is not None else None
-
             model = xgb.XGBClassifier(
-                n_estimators=200,
-                max_depth=6,
-                learning_rate=0.05,
-                subsample=0.8,
-                colsample_bytree=0.8,
-                random_state=42,
-                eval_metric="logloss",
-                device="cuda",
-                verbosity=1,
-                callbacks=cbs,
+                n_estimators=200, max_depth=6, learning_rate=0.05,
+                subsample=0.8, colsample_bytree=0.8,
+                random_state=42, eval_metric="logloss",
+                device="cuda", verbosity=1, callbacks=cbs,
             )
-            model.fit(
-                X_train, y_train,
-                eval_set=[(X_train, y_train), (X_val, y_val)],
-                verbose=10,
-            )
+            model.fit(X_train, y_train, eval_set=[(X_train, y_train), (X_val, y_val)], verbose=10)
             return model
         except Exception as e:
             print(f"  XGBoost GPU failed ({e}), falling back to sklearn CPU")
 
     from sklearn.ensemble import GradientBoostingClassifier
-
     print("  sklearn GradientBoostingClassifier (CPU)")
     model = GradientBoostingClassifier(
-        n_estimators=200,
-        max_depth=6,
-        learning_rate=0.05,
-        subsample=0.8,
-        random_state=42,
+        n_estimators=200, max_depth=6, learning_rate=0.05,
+        subsample=0.8, random_state=42,
     )
     model.fit(X_train, y_train)
 
-    # 将分阶段训练损失记录到 TensorBoard
     if writer is not None:
         try:
+            from sklearn.metrics import log_loss
             for i, y_pred in enumerate(model.staged_predict_proba(X_val)):
-                from sklearn.metrics import log_loss
-                loss = log_loss(y_val, y_pred, labels=[0, 1])
-                writer.add_scalar("sklearn_staged/val_logloss", loss, i)
+                writer.add_scalar("sklearn_staged/val_logloss", log_loss(y_val, y_pred, labels=[0, 1]), i)
         except Exception:
             pass
 
@@ -344,45 +260,35 @@ def train_semi_supervised(
     print(f"  semi-supervised mode: {model_type}")
     print(f"  labeled samples: {len(y_labeled)}, unlabeled samples: {len(X_unlabeled)}")
 
-    initial_model = GradientBoostingClassifier(
-        n_estimators=100,
-        max_depth=4,
-        random_state=42,
-    )
-    initial_model.fit(X_labeled, y_labeled)
+    initial = GradientBoostingClassifier(n_estimators=100, max_depth=4, random_state=42)
+    initial.fit(X_labeled, y_labeled)
 
     if len(X_unlabeled) == 0:
-        return initial_model
+        return initial
 
-    if hasattr(initial_model, "predict_proba"):
-        proba = initial_model.predict_proba(X_unlabeled)[:, 1]
+    if hasattr(initial, "predict_proba"):
+        proba = initial.predict_proba(X_unlabeled)[:, 1]
     else:
-        proba = initial_model.predict(X_unlabeled)
+        proba = initial.predict(X_unlabeled)
 
-    high_conf_pos = proba >= 0.9
-    high_conf_neg = proba <= 0.1
-    mask = high_conf_pos | high_conf_neg
-    pseudo_labels = (proba[mask] >= 0.5).astype(int)
+    pos = proba >= 0.9
+    neg = proba <= 0.1
+    mask = pos | neg
+    pseudo = (proba[mask] >= 0.5).astype(int)
 
-    print(
-        "  pseudo labels: "
-        f"{int(mask.sum())} (positive={int(high_conf_pos.sum())}, negative={int(high_conf_neg.sum())})"
-    )
+    print(f"  pseudo labels: {int(mask.sum())} (positive={int(pos.sum())}, negative={int(neg.sum())})")
 
     if mask.sum() == 0:
-        return initial_model
+        return initial
 
-    X_combined = np.vstack([X_labeled, X_unlabeled[mask]])
-    y_combined = np.concatenate([y_labeled, pseudo_labels])
+    X_comb = np.vstack([X_labeled, X_unlabeled[mask]])
+    y_comb = np.concatenate([y_labeled, pseudo])
 
-    final_model = GradientBoostingClassifier(
-        n_estimators=200,
-        max_depth=6,
-        learning_rate=0.05,
-        random_state=42,
+    final = GradientBoostingClassifier(
+        n_estimators=200, max_depth=6, learning_rate=0.05, random_state=42,
     )
-    final_model.fit(X_combined, y_combined)
-    return final_model
+    final.fit(X_comb, y_comb)
+    return final
 
 
 def calibrate_threshold(
@@ -393,19 +299,18 @@ def calibrate_threshold(
 ) -> float:
     from sklearn.metrics import f1_score
 
-    best_threshold = 0.5
+    best_thr = 0.5
     best_f1 = -1.0
-
-    for threshold in np.arange(0.3, 0.95, 0.01):
-        y_pred = (y_scores >= threshold).astype(int)
+    for thr in np.arange(0.3, 0.95, 0.01):
+        y_pred = (y_scores >= thr).astype(int)
         f1 = f1_score(y_true, y_pred, zero_division=0)
         if writer is not None:
-            writer.add_scalar("threshold_tuning/f1", f1, int(threshold * 100))
+            writer.add_scalar("threshold_tuning/f1", f1, int(thr * 100))
         if f1 > best_f1:
             best_f1 = float(f1)
-            best_threshold = float(threshold)
+            best_thr = float(thr)
 
-    return round(best_threshold, 2)
+    return round(best_thr, 2)
 
 
 def fit_probability_calibrator(
@@ -428,19 +333,16 @@ def fit_probability_calibrator(
     from sklearn.calibration import CalibratedClassifierCV
     from sklearn.frozen import FrozenEstimator
 
-    resolved_method = resolve_calibration_method(y_calib, calibration_method)
-    calibrated_model = CalibratedClassifierCV(
-        estimator=FrozenEstimator(base_model),
-        method=resolved_method,
-    )
-    calibrated_model.fit(X_calib, y_calib)
+    method = resolve_calibration_method(y_calib, calibration_method)
+    calibrated = CalibratedClassifierCV(estimator=FrozenEstimator(base_model), method=method)
+    calibrated.fit(X_calib, y_calib)
     info = {
         "enabled": True,
-        "method": resolved_method,
+        "method": method,
         "samples": int(len(X_calib)),
         "positive_samples": int(y_calib.sum()),
     }
-    return calibrated_model, info
+    return calibrated, info
 
 
 def _get_scores(model: object, X: np.ndarray) -> np.ndarray:
@@ -449,10 +351,6 @@ def _get_scores(model: object, X: np.ndarray) -> np.ndarray:
         return proba[:, 1] if proba.shape[1] > 1 else proba[:, 0]
     return model.predict(X).astype(float)
 
-
-# ---------------------------------------------------------------------------
-# 数据加载
-# ---------------------------------------------------------------------------
 
 def load_training_flows(
     sources: list[DatasetSource],
@@ -468,63 +366,55 @@ def load_training_flows(
     all_flows: list[dict] = []
     source_stats: list[dict] = []
 
-    for idx, source in enumerate(sources):
-        if not source.pcap.exists():
-            raise FileNotFoundError(f"PCAP does not exist: {source.pcap}")
-        if source.labels_csv is not None and not source.labels_csv.exists():
-            raise FileNotFoundError(f"Labels CSV does not exist: {source.labels_csv}")
+    for src in sources:
+        if not src.pcap.exists():
+            raise FileNotFoundError(f"PCAP does not exist: {src.pcap}")
+        if src.labels_csv is not None and not src.labels_csv.exists():
+            raise FileNotFoundError(f"Labels CSV does not exist: {src.labels_csv}")
 
-        print(f"  loading source: {source.name}")
-        print(f"    pcap: {source.pcap}")
+        print(f"  loading source: {src.name}")
+        print(f"    pcap: {src.pcap}")
         t0 = time.time()
-        raw_flows = parser.parse_to_flows(
-            source.pcap, idle_timeout=idle_timeout, active_timeout=active_timeout,
+        raw = parser.parse_to_flows(
+            src.pcap, idle_timeout=idle_timeout, active_timeout=active_timeout,
         )
         parse_time = time.time() - t0
-        print(f"    parsed flows: {len(raw_flows)} (耗时 {parse_time:.1f}s)")
+        print(f"    parsed flows: {len(raw)} (耗时 {parse_time:.1f}s)")
 
         if writer is not None:
-            writer.add_scalar(f"source/{source.name}/parse_sec", parse_time, 0)
-            writer.add_scalar(f"source/{source.name}/raw_flows", len(raw_flows), 0)
+            writer.add_scalar(f"source/{src.name}/parse_sec", parse_time, 0)
+            writer.add_scalar(f"source/{src.name}/raw_flows", len(raw), 0)
 
-        if source.labels_csv is not None:
-            labeled_flows, stats = label_flows_with_official_csv(
-                raw_flows,
-                source.labels_csv,
-                include_families=source.include_families,
+        if src.labels_csv is not None:
+            labeled, stats = label_flows_with_official_csv(
+                raw, src.labels_csv,
+                include_families=src.include_families,
                 tolerance_sec=label_match_tolerance_sec,
-                source_name=source.name,
-                timestamp_day_first=source.timestamp_day_first,
+                source_name=src.name,
+                timestamp_day_first=src.timestamp_day_first,
             )
-        elif source.default_family is not None:
-            labeled_flows, stats = assign_default_family(
-                raw_flows,
-                source.default_family,
-                source.name,
-            )
+        elif src.default_family is not None:
+            labeled, stats = assign_default_family(raw, src.default_family, src.name)
         else:
-            raise ValueError(
-                f"Source {source.name} must provide either labels_csv or default_family"
-            )
+            raise ValueError(f"Source {src.name} must provide either labels_csv or default_family")
 
-        if not labeled_flows:
-            raise ValueError(f"No labeled flows were produced for source: {source.name}")
+        if not labeled:
+            raise ValueError(f"No labeled flows were produced for source: {src.name}")
 
-        labeled_flows = features.extract_features_batch(labeled_flows)
-        all_flows.extend(labeled_flows)
+        labeled = features.extract_features_batch(labeled)
+        all_flows.extend(labeled)
         source_stats.append(stats)
 
         print(
-            "    labeled flows: "
-            f"{stats['labeled_flows']} "
+            f"    labeled flows: {stats['labeled_flows']} "
             f"(families={stats.get('family_counts', {})}, unmatched={stats.get('unmatched_flows', 0)})"
         )
 
         if writer is not None:
-            writer.add_scalar(f"source/{source.name}/labeled_flows", stats["labeled_flows"], 0)
-            writer.add_scalar(f"source/{source.name}/unmatched_flows", stats.get("unmatched_flows", 0), 0)
+            writer.add_scalar(f"source/{src.name}/labeled_flows", stats["labeled_flows"], 0)
+            writer.add_scalar(f"source/{src.name}/unmatched_flows", stats.get("unmatched_flows", 0), 0)
             for fam, cnt in stats.get("family_counts", {}).items():
-                writer.add_scalar(f"source/{source.name}/family_{fam}", cnt, 0)
+                writer.add_scalar(f"source/{src.name}/family_{fam}", cnt, 0)
 
     summary = {
         "source_count": len(sources),
@@ -550,128 +440,90 @@ def build_sources_from_args(args: argparse.Namespace) -> tuple[list[DatasetSourc
         return sources, config
 
     if args.dataset_preset == "cicids2017_core":
-        dataset_root = args.dataset_root or DEFAULT_CICIDS2017_ROOT
-        sources = build_cicids2017_core_sources(dataset_root)
+        root = args.dataset_root or DEFAULT_CICIDS2017_ROOT
+        sources = build_cicids2017_core_sources(root)
         config = {
             "mode": "dataset_preset",
             "preset": "cicids2017_core",
             "idle_timeout": args.idle_timeout,
             "active_timeout": args.active_timeout,
             "label_match_tolerance_sec": args.label_match_tolerance_sec,
-            "dataset_root": str(dataset_root),
+            "dataset_root": str(root),
         }
         return sources, config
 
     if not args.pcap_normal.exists():
         print(f"[1/8] normal PCAP does not exist, generating demo training data: {args.pcap_normal}")
         from scripts.generate_demo_pcaps import generate_training_pcap
-
         args.pcap_normal.parent.mkdir(parents=True, exist_ok=True)
         generate_training_pcap(args.pcap_normal)
 
     sources = [DatasetSource(name="legacy_normal", pcap=args.pcap_normal, default_family="normal")]
     if args.pcap_attack.exists():
-        sources.append(
-            DatasetSource(
-                name="legacy_attack",
-                pcap=args.pcap_attack,
-                default_family="anomaly",
-            )
-        )
+        sources.append(DatasetSource(
+            name="legacy_attack", pcap=args.pcap_attack, default_family="anomaly",
+        ))
 
     config = {
         "mode": "legacy",
         "idle_timeout": args.idle_timeout,
-            "active_timeout": args.active_timeout,
+        "active_timeout": args.active_timeout,
         "label_match_tolerance_sec": args.label_match_tolerance_sec,
     }
     return sources, config
 
 
 def build_feature_groups(feature_names: list[str]) -> dict[str, list[str]]:
+    def is_graph(name: str) -> bool:
+        return any(name.startswith(p) for p in _GRAPH_PREFIXES) or name in _GRAPH_NAMES
+
+    flow_stats = [
+        n for n in feature_names
+        if not n.startswith("rule_")
+        and not is_graph(n)
+        and n != "baseline_score"
+    ]
     return {
-        "flow_stats": [
-            name
-            for name in feature_names
-            if not name.startswith("rule_")
-            and not name.startswith("node_")
-            and not name.startswith("neighbor_")
-            and not name.startswith("edge_")
-            and not name.startswith("subnet_")
-            and not name.startswith("is_hub")
-            and not name.startswith("betweenness")
-            and not name.startswith("clustering")
-            and name != "baseline_score"
-        ],
+        "flow_stats": flow_stats,
         "baseline": ["baseline_score"],
-        "rule_features": [name for name in feature_names if name.startswith("rule_")],
-        "graph_features": [
-            name
-            for name in feature_names
-            if name.startswith("node_")
-            or name.startswith("neighbor_")
-            or name.startswith("edge_")
-            or name.startswith("subnet_")
-            or name.startswith("is_hub")
-            or name.startswith("betweenness")
-            or name.startswith("clustering")
-        ],
+        "rule_features": [n for n in feature_names if n.startswith("rule_")],
+        "graph_features": [n for n in feature_names if is_graph(n)],
     }
 
 
-# ---------------------------------------------------------------------------
-# 主入口
-# ---------------------------------------------------------------------------
+def _strip_callbacks(m):
+    """Remove un-picklable TensorBoard callback refs before joblib.dump."""
+    if hasattr(m, "callbacks"):
+        m.callbacks = None
+    for attr in ("estimator", "estimator_"):
+        inner = getattr(m, attr, None)
+        if inner is not None:
+            _strip_callbacks(inner)
+    for cc in getattr(m, "calibrated_classifiers_", []):
+        _strip_callbacks(getattr(cc, "estimator", None) or cc)
+
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Train the composite detection model")
+    parser = argparse.ArgumentParser(description="训练复合检测模型")
     parser.add_argument("--pcap-normal", type=Path, default=DEFAULT_NORMAL_PCAP)
     parser.add_argument("--pcap-attack", type=Path, default=DEFAULT_ATTACK_PCAP)
     parser.add_argument("--dataset-manifest", type=Path, default=None)
-    parser.add_argument(
-        "--dataset-preset",
-        choices=["cicids2017_core"],
-        default=None,
-    )
+    parser.add_argument("--dataset-preset", choices=["cicids2017_core"], default=None)
     parser.add_argument("--dataset-root", type=Path, default=None)
-    parser.add_argument("--idle-timeout", type=int, default=120,
-                        help="Flow idle timeout in seconds (NFStream mode)")
-    parser.add_argument("--active-timeout", type=int, default=1800,
-                        help="Flow active timeout in seconds (NFStream mode)")
+    parser.add_argument("--idle-timeout", type=int, default=120)
+    parser.add_argument("--active-timeout", type=int, default=1800)
     parser.add_argument("--window-sec", type=int, default=60,
                         help="[Deprecated] Flow window for dpkt fallback mode")
     parser.add_argument("--label-match-tolerance-sec", type=int, default=120)
-    parser.add_argument(
-        "--model-type",
-        choices=["lightgbm", "xgboost", "sklearn_gb"],
-        default="lightgbm",
-    )
-    parser.add_argument(
-        "--mode",
-        choices=["supervised", "semi-supervised"],
-        default="supervised",
-    )
+    parser.add_argument("--model-type", choices=["lightgbm", "xgboost", "sklearn_gb"], default="lightgbm")
+    parser.add_argument("--mode", choices=["supervised", "semi-supervised"], default="supervised")
     parser.add_argument("--contamination", type=float, default=0.1)
-    parser.add_argument(
-        "--split-strategy",
-        choices=["stratified", "temporal"],
-        default="stratified",
-    )
-    parser.add_argument(
-        "--calibration-method",
-        choices=["auto", "sigmoid", "isotonic", "none"],
-        default="auto",
-    )
+    parser.add_argument("--split-strategy", choices=["stratified", "temporal"], default="stratified")
+    parser.add_argument("--calibration-method", choices=["auto", "sigmoid", "isotonic", "none"], default="auto")
     parser.add_argument("--tensorboard-dir", type=Path, default=DEFAULT_TB_DIR)
-    parser.add_argument(
-        "--device",
-        choices=["auto", "gpu", "cpu"],
-        default="auto",
-        help="Training device: auto detects GPU, gpu forces CUDA, cpu forces CPU",
-    )
+    parser.add_argument("--device", choices=["auto", "gpu", "cpu"], default="auto")
     args = parser.parse_args()
 
-    # ── TensorBoard 初始化 ──
     from tensorboardX import SummaryWriter
 
     run_name = f"composite_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -682,7 +534,6 @@ def main() -> None:
 
     t_total_start = time.time()
 
-    # ── GPU 检测 ──
     if args.device == "auto":
         use_gpu = _detect_gpu()
     elif args.device == "gpu":
@@ -733,27 +584,36 @@ def main() -> None:
     writer.add_scalar("dataset/positives", positives, 0)
     writer.add_scalar("dataset/negatives", negatives, 0)
 
-    if has_supervised_labels:
+    if not has_supervised_labels:
+        print("[3/8] Not enough positive/negative labels for supervised training; skipping ranker fit.")
+        experiment_config = {
+            "dataset_mode": dataset_config.get("mode", "legacy"),
+            "dataset_preset": dataset_config.get("preset"),
+            "split_strategy": "none",
+            "training_mode": "baseline_only",
+            "threshold_source": "default",
+            "threshold": threshold,
+            "training_samples": int(len(all_flows)),
+            "validation_samples": 0,
+            "test_samples": 0,
+            "idle_timeout": int(args.idle_timeout),
+            "active_timeout": int(args.active_timeout),
+            "label_match_tolerance_sec": int(args.label_match_tolerance_sec),
+            "probability_calibration": calibration_info,
+            "device": device_label,
+        }
+    else:
         print(f"[3/8] Splitting data ({args.split_strategy})...")
-        train_flows, val_flows, test_flows = three_way_split(
-            all_flows,
-            strategy=args.split_strategy,
-        )
+        train_flows, val_flows, test_flows = three_way_split(all_flows, strategy=args.split_strategy)
 
         y_train = np.array([flow.get("_label", 0) for flow in train_flows])
         y_val = np.array([flow.get("_label", 0) for flow in val_flows])
         y_test = np.array([flow.get("_label", 0) for flow in test_flows])
         attack_type_test = [flow.get("_attack_type", "normal") for flow in test_flows]
 
-        print(
-            f"  train={len(train_flows)} (normal={int((y_train == 0).sum())}, attack={int((y_train == 1).sum())})"
-        )
-        print(
-            f"  val={len(val_flows)} (normal={int((y_val == 0).sum())}, attack={int((y_val == 1).sum())})"
-        )
-        print(
-            f"  test={len(test_flows)} (normal={int((y_test == 0).sum())}, attack={int((y_test == 1).sum())})"
-        )
+        print(f"  train={len(train_flows)} (normal={int((y_train == 0).sum())}, attack={int((y_train == 1).sum())})")
+        print(f"  val={len(val_flows)} (normal={int((y_val == 0).sum())}, attack={int((y_val == 1).sum())})")
+        print(f"  test={len(test_flows)} (normal={int((y_test == 0).sum())}, attack={int((y_test == 1).sum())})")
 
         writer.add_scalar("split/train_total", len(train_flows), 0)
         writer.add_scalar("split/train_attack", int(y_train.sum()), 0)
@@ -765,8 +625,7 @@ def main() -> None:
         print("[4/8] Fitting the baseline detector on train only...")
         t0 = time.time()
         baseline = BaselineDetector(
-            mode="runtime",
-            model_params={"contamination": args.contamination},
+            mode="runtime", model_params={"contamination": args.contamination},
         )
         train_flows = baseline.score(train_flows)
         val_flows = baseline.score_with_fitted(val_flows)
@@ -783,12 +642,12 @@ def main() -> None:
 
         print("[6/8] Building graph features without leaking validation/test structure...")
         t0 = time.time()
-        graph_builder = GraphFeatureBuilder()
-        train_flows = graph_builder.build_and_extract(train_flows)
-        train_graph = graph_builder.last_graph
+        gb = GraphFeatureBuilder()
+        train_flows = gb.build_and_extract(train_flows)
+        train_graph = gb.last_graph
         assert train_graph is not None, "Training graph was not built."
-        val_flows = graph_builder.extract_with_graph(val_flows, train_graph)
-        test_flows = graph_builder.extract_with_graph(test_flows, train_graph)
+        val_flows = gb.extract_with_graph(val_flows, train_graph)
+        test_flows = gb.extract_with_graph(test_flows, train_graph)
         writer.add_scalar("timing/graph_sec", time.time() - t0, 0)
 
         print("[7/8] Training the supervised ranker and calibrating probabilities...")
@@ -800,48 +659,33 @@ def main() -> None:
         X_train = np.array(train_matrix)
         X_val = np.array(val_matrix)
         X_test = np.array(test_matrix)
-
         writer.add_scalar("features/count", len(feature_names), 0)
 
         t0 = time.time()
         if args.mode == "semi-supervised":
             n_labeled = max(int(len(y_train) * 0.3), 5)
-            X_labeled = X_train[:n_labeled]
-            y_labeled = y_train[:n_labeled]
-            X_unlabeled = X_train[n_labeled:]
-            base_model = train_semi_supervised(X_labeled, y_labeled, X_unlabeled)
+            base_model = train_semi_supervised(
+                X_train[:n_labeled], y_train[:n_labeled], X_train[n_labeled:],
+            )
         else:
             base_model = train_supervised(
                 X_train, y_train, X_val, y_val, args.model_type,
-                use_gpu=use_gpu,
-                writer=writer,
+                use_gpu=use_gpu, writer=writer,
             )
         train_time = time.time() - t0
         writer.add_scalar("timing/supervised_train_sec", train_time, 0)
         print(f"  模型训练耗时: {train_time:.1f}s")
 
-        # 记录实际使用的模型类型
         actual_model_type = type(base_model).__name__
         writer.add_text("config/actual_model_type", actual_model_type, 0)
 
-        X_calib, X_threshold, y_calib, y_threshold, calibration_split_info = split_validation_for_calibration(
-            X_val,
-            y_val,
-        )
+        X_calib, X_thr, y_calib, y_thr, calibration_split_info = split_validation_for_calibration(X_val, y_val)
         model, calibration_info = fit_probability_calibrator(
-            base_model,
-            X_calib,
-            y_calib,
-            calibration_method=args.calibration_method,
+            base_model, X_calib, y_calib, calibration_method=args.calibration_method,
         )
 
-        threshold_scores = _get_scores(model, X_threshold)
-        threshold = calibrate_threshold(y_threshold, threshold_scores, writer=writer)
-        print(
-            "  calibration="
-            f"{calibration_info.get('method', 'none')} "
-            f"threshold={threshold}"
-        )
+        threshold = calibrate_threshold(y_thr, _get_scores(model, X_thr), writer=writer)
+        print(f"  calibration={calibration_info.get('method', 'none')} threshold={threshold}")
         writer.add_scalar("calibration/threshold", threshold, 0)
         writer.add_text("calibration/method", calibration_info.get("method", "none"), 0)
 
@@ -852,25 +696,13 @@ def main() -> None:
         baseline_test_scores = np.array(
             [flow.get("_detection", {}).get("baseline_score", 0.0) for flow in test_flows]
         )
-        comparison = evaluator.compare_models(
-            y_test,
-            baseline_test_scores,
-            test_scores,
-            threshold,
-        )
-        per_type_metrics = evaluator.per_type_metrics(
-            y_test,
-            test_scores,
-            attack_type_test,
-            threshold,
-        )
+        comparison = evaluator.compare_models(y_test, baseline_test_scores, test_scores, threshold)
+        per_type_metrics = evaluator.per_type_metrics(y_test, test_scores, attack_type_test, threshold)
 
-        # ── TensorBoard: evaluation metrics ──
         for k, v in eval_metrics.items():
             if isinstance(v, (int, float)) and v is not None:
                 writer.add_scalar(f"eval/{k}", v, 0)
 
-        # 仅基线模型指标（用于对比）
         if comparison is not None:
             for k, v in comparison.get("baseline", {}).items():
                 if isinstance(v, (int, float)) and v is not None:
@@ -879,13 +711,11 @@ def main() -> None:
                 if isinstance(v, (int, float)) and v is not None:
                     writer.add_scalar(f"delta/{k}", v, 0)
 
-        # 按攻击类型的指标
-        for atk_type, metrics in per_type_metrics.items():
+        for atk, metrics in per_type_metrics.items():
             for k, v in metrics.items():
                 if isinstance(v, (int, float)) and v is not None:
-                    writer.add_scalar(f"per_type/{atk_type}/{k}", v, 0)
+                    writer.add_scalar(f"per_type/{atk}/{k}", v, 0)
 
-        # 分数分布
         writer.add_histogram("scores/test_all", test_scores, 0)
         if y_test.sum() > 0:
             writer.add_histogram("scores/test_positive", test_scores[y_test == 1], 0)
@@ -893,7 +723,6 @@ def main() -> None:
             writer.add_histogram("scores/test_negative", test_scores[y_test == 0], 0)
         writer.add_histogram("scores/baseline_test", baseline_test_scores, 0)
 
-        # 超参数
         hparam_dict = {
             "model_type": actual_model_type,
             "split_strategy": args.split_strategy,
@@ -936,25 +765,6 @@ def main() -> None:
             "probability_calibration": calibration_info,
             "device": device_label,
         }
-    else:
-        print("[3/8] Not enough positive/negative labels for supervised training; skipping ranker fit.")
-        feature_names = []
-        experiment_config = {
-            "dataset_mode": dataset_config.get("mode", "legacy"),
-            "dataset_preset": dataset_config.get("preset"),
-            "split_strategy": "none",
-            "training_mode": "baseline_only",
-            "threshold_source": "default",
-            "threshold": threshold,
-            "training_samples": int(len(all_flows)),
-            "validation_samples": 0,
-            "test_samples": 0,
-            "idle_timeout": int(args.idle_timeout),
-            "active_timeout": int(args.active_timeout),
-            "label_match_tolerance_sec": int(args.label_match_tolerance_sec),
-            "probability_calibration": calibration_info,
-            "device": device_label,
-        }
 
     total_time = time.time() - t_total_start
     writer.add_scalar("timing/total_sec", total_time, 0)
@@ -966,26 +776,11 @@ def main() -> None:
         import joblib
         import sklearn
 
-        # 保存前移除不可序列化的 TensorBoard 回调
-        def _strip_callbacks(m):
-            """移除无法被 pickle 的回调引用。"""
-            if hasattr(m, "callbacks"):
-                m.callbacks = None
-            # CalibratedClassifierCV 在 calibrated_classifiers_ 中包装估计器
-            for attr in ("estimator", "estimator_"):
-                inner = getattr(m, attr, None)
-                if inner is not None:
-                    _strip_callbacks(inner)
-            for cc in getattr(m, "calibrated_classifiers_", []):
-                _strip_callbacks(getattr(cc, "estimator", None) or cc)
-
         _strip_callbacks(model)
         if base_model is not None:
             _strip_callbacks(base_model)
 
         joblib.dump(model, RANKER_MODEL_PATH)
-        feature_groups = build_feature_groups(feature_names)
-
         meta = {
             "created_at": datetime.now(timezone.utc).isoformat(),
             "sklearn_version": sklearn.__version__,
@@ -993,7 +788,7 @@ def main() -> None:
             "base_model_type": type(base_model).__name__ if base_model is not None else None,
             "training_mode": args.mode,
             "feature_names": feature_names,
-            "feature_groups": feature_groups,
+            "feature_groups": build_feature_groups(feature_names),
             "threshold": threshold,
             "experiment_config": experiment_config,
             "dataset_summary": dataset_summary,
@@ -1001,8 +796,7 @@ def main() -> None:
             "per_type_metrics": per_type_metrics,
         }
         RANKER_META_PATH.write_text(
-            json.dumps(meta, indent=2, ensure_ascii=False),
-            encoding="utf-8",
+            json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8",
         )
         print(f"  model: {RANKER_MODEL_PATH}")
         print(f"  meta:  {RANKER_META_PATH}")
@@ -1024,8 +818,7 @@ def main() -> None:
         report["per_type_metrics"] = per_type_metrics
 
     REPORT_PATH.write_text(
-        json.dumps(report, indent=2, ensure_ascii=False),
-        encoding="utf-8",
+        json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8",
     )
     print(f"  report: {REPORT_PATH}")
 

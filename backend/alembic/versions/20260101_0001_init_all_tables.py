@@ -1,29 +1,10 @@
-"""init all tables per appendix_f
-
-Revision ID: 0001
-Revises: 
-Create Date: 2024-01-01 00:00:00.000000
-
-Tables created per 附录F specification:
-- pcap_files (F1)
-- flows (F2)
-- alerts (F3)
-- alert_flows (F3 association)
-- investigations (F4)
-- recommendations (F5)
-- twin_plans (F6)
-- dry_runs (F7)
-- scenarios (F8)
-- scenario_runs (F9)
-- evidence_chains (F10)
-"""
 from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
 
 
-# 修订标识（Alembic 使用）
+# 修订标识
 revision: str = "0001"
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
@@ -31,7 +12,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # F1: pcap_files
+    # pcap_files
     op.create_table(
         "pcap_files",
         sa.Column("id", sa.String(36), primary_key=True),
@@ -49,7 +30,7 @@ def upgrade() -> None:
     op.create_index("idx_pcap_status", "pcap_files", ["status"])
     op.create_index("idx_pcap_created_at", "pcap_files", ["created_at"])
 
-    # F2: flows
+    # flows
     op.create_table(
         "flows",
         sa.Column("id", sa.String(36), primary_key=True),
@@ -75,7 +56,7 @@ def upgrade() -> None:
     op.create_index("idx_flow_pcap_proto_port", "flows", ["pcap_id", "proto", "dst_port"])
     op.create_index("idx_flow_score", "flows", ["anomaly_score"])
 
-    # F3: alerts
+    # alerts
     op.create_table(
         "alerts",
         sa.Column("id", sa.String(36), primary_key=True),
@@ -100,7 +81,7 @@ def upgrade() -> None:
     op.create_index("idx_alert_src_ip", "alerts", ["primary_src_ip"])
     op.create_index("idx_alert_type", "alerts", ["type"])
 
-    # F3: alert_flows（关联表）
+    # alert_flows（关联表）
     op.create_table(
         "alert_flows",
         sa.Column("alert_id", sa.String(36), sa.ForeignKey("alerts.id", ondelete="CASCADE"), primary_key=True),
@@ -109,7 +90,7 @@ def upgrade() -> None:
     op.create_index("idx_af_alert", "alert_flows", ["alert_id"])
     op.create_index("idx_af_flow", "alert_flows", ["flow_id"])
 
-    # F4: investigations
+    # investigations
     op.create_table(
         "investigations",
         sa.Column("id", sa.String(36), primary_key=True),
@@ -120,7 +101,7 @@ def upgrade() -> None:
     )
     op.create_index("idx_inv_alert_created", "investigations", ["alert_id", "created_at"])
 
-    # F5: recommendations
+    # recommendations
     op.create_table(
         "recommendations",
         sa.Column("id", sa.String(36), primary_key=True),
@@ -131,7 +112,7 @@ def upgrade() -> None:
     )
     op.create_index("idx_rec_alert_created", "recommendations", ["alert_id", "created_at"])
 
-    # F6: twin_plans
+    # twin_plans
     op.create_table(
         "twin_plans",
         sa.Column("id", sa.String(36), primary_key=True),
@@ -144,7 +125,7 @@ def upgrade() -> None:
     )
     op.create_index("idx_plan_alert_created", "twin_plans", ["alert_id", "created_at"])
 
-    # F7: dry_runs
+    # dry_runs
     op.create_table(
         "dry_runs",
         sa.Column("id", sa.String(36), primary_key=True),
@@ -156,7 +137,7 @@ def upgrade() -> None:
     )
     op.create_index("idx_dryrun_plan_created", "dry_runs", ["plan_id", "created_at"])
 
-    # F8: scenarios
+    # scenarios
     op.create_table(
         "scenarios",
         sa.Column("id", sa.String(36), primary_key=True),
@@ -169,7 +150,7 @@ def upgrade() -> None:
     )
     op.create_index("idx_scenario_name", "scenarios", ["name"], unique=True)
 
-    # F9: scenario_runs
+    # scenario_runs
     op.create_table(
         "scenario_runs",
         sa.Column("id", sa.String(36), primary_key=True),
@@ -181,7 +162,7 @@ def upgrade() -> None:
     )
     op.create_index("idx_scenrun_scenario_created", "scenario_runs", ["scenario_id", "created_at"])
 
-    # F10: evidence_chains
+    # evidence_chains
     op.create_table(
         "evidence_chains",
         sa.Column("id", sa.String(36), primary_key=True),

@@ -1,32 +1,23 @@
-"""
-场景模型：Scenario 与 ScenarioRun。
-遵循附录F第 10、11 节（scenarios 与 scenario_runs 表）。
-"""
+"""场景模型：Scenario 与 ScenarioRun（附录F 第 10、11 节）。"""
 
-from sqlalchemy import String, Text, ForeignKey, Index, UniqueConstraint, Float
-from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import Optional
+
+from sqlalchemy import Float, ForeignKey, Index, String, Text, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import BaseModel
 
 
 class Scenario(BaseModel):
-    """
-    回归测试场景定义。
-
-    对应 DOC C C4.1 Scenario schema。
-    """
+    """回归测试场景定义（DOC C C4.1 Scenario schema）。"""
 
     __tablename__ = "scenarios"
 
-    # 场景元数据
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
-    # 生命周期状态：active | archived
-    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")  # active | archived
 
-    # 引用 pcap（拆分后便于 join）
     pcap_id: Mapped[str] = mapped_column(
         String(36),
         ForeignKey("pcap_files.id", ondelete="CASCADE"),
@@ -36,10 +27,8 @@ class Scenario(BaseModel):
     # 完整 Scenario JSON 载荷（expectations、tags 等）
     payload: Mapped[str] = mapped_column(Text, nullable=False)
 
-    # 关联关系
     pcap = relationship("PcapFile", backref="scenarios")
 
-    # 索引（附录F 10.2）
     __table_args__ = (
         UniqueConstraint("name", name="uq_scenario_name"),
         Index("idx_scenario_created", "created_at"),
@@ -52,38 +41,26 @@ class Scenario(BaseModel):
 
 
 class ScenarioRun(BaseModel):
-    """
-    场景执行结果。
-
-    对应 DOC C C4.2 ScenarioRunResult schema。
-    """
+    """场景执行结果（DOC C C4.2 ScenarioRunResult schema）。"""
 
     __tablename__ = "scenario_runs"
 
-    # 指向 scenarios 的外键
     scenario_id: Mapped[str] = mapped_column(
         String(36),
         ForeignKey("scenarios.id", ondelete="CASCADE"),
         nullable=False,
     )
 
-    # 执行结果状态
     status: Mapped[str] = mapped_column(String(20), nullable=False)  # pass, fail
-
-    # 完整 ScenarioRunResult JSON 载荷
     payload: Mapped[str] = mapped_column(Text, nullable=False)
 
-    # 阶段时间线 JSON（list[ScenarioStageRecord]），与 pipeline_runs.stages_log 结构对齐
     stages_log: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
-    # 延迟指标（拆分，不合并）
     validation_latency_ms: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     pipeline_latency_ms: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
-    # 关联关系
     scenario = relationship("Scenario", backref="runs")
 
-    # 索引（附录F 11.2）
     __table_args__ = (
         Index("idx_run_scenario_created", "scenario_id", "created_at"),
         Index("idx_run_status_created", "status", "created_at"),

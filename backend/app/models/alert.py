@@ -1,17 +1,13 @@
-"""
-告警 ORM 模型与 AlertFlow 关联表。
-遵循附录F第 3、4 节（alerts 与 alert_flows 表）。
-"""
+"""告警 ORM 模型与 AlertFlow 关联表（附录F 第 3、4 节）。"""
 
 from datetime import datetime
 
-from sqlalchemy import String, Integer, Text, ForeignKey, Index, Table, Column
+from sqlalchemy import Column, ForeignKey, Index, Integer, String, Table, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, BaseModel
 
 
-# 多对多关联表（附录F 第 4 节）
 alert_flows = Table(
     "alert_flows",
     Base.metadata,
@@ -23,43 +19,26 @@ alert_flows = Table(
 
 
 class Alert(BaseModel):
-    """
-    由异常检测生成的安全告警。
-
-    对应 DOC C C1.3 Alert schema。
-    """
+    """由异常检测生成的安全告警（DOC C C1.3 Alert schema）。"""
 
     __tablename__ = "alerts"
 
-    # 核心字段
-    severity: Mapped[str] = mapped_column(
-        String(20),
-        nullable=False,
-    )  # low, medium, high, critical
-
+    severity: Mapped[str] = mapped_column(String(20), nullable=False)  
     status: Mapped[str] = mapped_column(
-        String(30),
-        nullable=False,
-        default="new",
-    )  # new, triaged, investigating, resolved, false_positive
-
+        String(30), nullable=False, default="new",
+    )  
     type: Mapped[str] = mapped_column(
-        String(20),
-        nullable=False,
-        default="anomaly",
-    )  # anomaly, scan, dos, bruteforce, exfil, unknown
+        String(20), nullable=False, default="anomaly",
+    ) 
 
-    # 时间窗口（拆分存储）
     time_window_start: Mapped[datetime] = mapped_column(nullable=False)
     time_window_end: Mapped[datetime] = mapped_column(nullable=False)
 
-    # 主要实体（拆分存储便于索引）
     primary_src_ip: Mapped[str] = mapped_column(String(45), nullable=False)
     primary_dst_ip: Mapped[str] = mapped_column(String(45), nullable=False)
     primary_proto: Mapped[str] = mapped_column(String(10), nullable=False)
     primary_dst_port: Mapped[int] = mapped_column(Integer, nullable=False)
 
-    # JSON 块：为兼容 SQLite，使用 TEXT 存储
     evidence: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     aggregation: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     agent: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
@@ -67,14 +46,8 @@ class Alert(BaseModel):
     tags: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     notes: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
-    # 关联关系
-    flows = relationship(
-        "Flow",
-        secondary=alert_flows,
-        backref="alerts",
-    )
+    flows = relationship("Flow", secondary=alert_flows, backref="alerts")
 
-    # 索引（附录F 3.2）
     __table_args__ = (
         Index("idx_alert_status_created", "status", "created_at"),
         Index("idx_alert_sev_created", "severity", "created_at"),

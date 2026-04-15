@@ -1,13 +1,7 @@
-"""
-错误处理与自定义异常。
-遵循 DOC C C0.3 错误码规范。
-"""
-
 from typing import Any
 from fastapi import status
 
 
-# DOC C C0.3 错误码
 class ErrorCode:
     BAD_REQUEST = "BAD_REQUEST"
     NOT_FOUND = "NOT_FOUND"
@@ -19,8 +13,6 @@ class ErrorCode:
 
 
 class AppException(Exception):
-    """应用异常基类。"""
-
     def __init__(
         self,
         code: str,
@@ -36,8 +28,6 @@ class AppException(Exception):
 
 
 class BadRequestError(AppException):
-    """400 Bad Request - 参数错误。"""
-
     def __init__(self, message: str, details: dict[str, Any] | None = None):
         super().__init__(
             code=ErrorCode.BAD_REQUEST,
@@ -48,8 +38,6 @@ class BadRequestError(AppException):
 
 
 class NotFoundError(AppException):
-    """404 Not Found - 资源不存在。"""
-
     def __init__(self, message: str, details: dict[str, Any] | None = None):
         super().__init__(
             code=ErrorCode.NOT_FOUND,
@@ -60,8 +48,6 @@ class NotFoundError(AppException):
 
 
 class ConflictError(AppException):
-    """409 Conflict - 状态冲突。"""
-
     def __init__(self, message: str, details: dict[str, Any] | None = None):
         super().__init__(
             code=ErrorCode.CONFLICT,
@@ -72,8 +58,6 @@ class ConflictError(AppException):
 
 
 class UnsupportedMediaError(AppException):
-    """415 Unsupported Media Type - 非 pcap 文件。"""
-
     def __init__(self, message: str, details: dict[str, Any] | None = None):
         super().__init__(
             code=ErrorCode.UNSUPPORTED_MEDIA,
@@ -84,8 +68,6 @@ class UnsupportedMediaError(AppException):
 
 
 class ProcessingFailedError(AppException):
-    """500 Processing Failed - 解析/检测失败。"""
-
     def __init__(self, message: str, details: dict[str, Any] | None = None):
         super().__init__(
             code=ErrorCode.PROCESSING_FAILED,
@@ -96,8 +78,6 @@ class ProcessingFailedError(AppException):
 
 
 class ValidationError(AppException):
-    """422 Validation Error - 模式校验失败。"""
-
     def __init__(self, message: str, details: dict[str, Any] | None = None):
         super().__init__(
             code=ErrorCode.VALIDATION_ERROR,
@@ -108,8 +88,6 @@ class ValidationError(AppException):
 
 
 class InternalError(AppException):
-    """500 Internal Error - 未知错误。"""
-
     def __init__(self, message: str = "Internal server error", details: dict[str, Any] | None = None):
         super().__init__(
             code=ErrorCode.INTERNAL_ERROR,

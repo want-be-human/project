@@ -26,7 +26,6 @@ router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 
 
 def _model_to_schema(model: PipelineRunModel) -> PipelineRunSchema:
-    """将 PipelineRunModel ORM 转换为 API Schema。"""
     stages_raw: list[dict[str, Any]] = json.loads(model.stages_log or "[]")
     stages = [StageRecordSchema(**s) for s in stages_raw]
     return PipelineRunSchema(
@@ -42,7 +41,7 @@ def _model_to_schema(model: PipelineRunModel) -> PipelineRunSchema:
 
 
 def _synthesize_from_pcap(pcap: PcapFile) -> PipelineRunSchema:
-    """兜底：当无 pipeline_run 记录但 PCAP 已完成时，从 pcap_files 构造摘要。"""
+    # 无 pipeline_run 记录但 PCAP 已完成时，从 pcap_files 构造摘要
     ts = datetime_to_iso(pcap.created_at)
     stages = [
         StageRecordSchema(
@@ -79,7 +78,6 @@ def _synthesize_from_pcap(pcap: PcapFile) -> PipelineRunSchema:
 
 
 def _find_pipeline_data(pcap_id: str, db: Session) -> PipelineRunSchema | None:
-    """查找 pipeline 数据：pipeline_runs → pcap_files 兜底。"""
     # 主查询：pipeline_runs（直接上传 + 批次处理都会写入）
     run = (
         db.query(PipelineRunModel)
@@ -102,7 +100,7 @@ def _find_pipeline_data(pcap_id: str, db: Session) -> PipelineRunSchema | None:
     "/{pcap_id}",
     response_model=ApiResponse[PipelineRunSchema],
     summary="Get Pipeline Run",
-    description="Get the most recent pipeline run for a PCAP.",
+    description="查询指定 PCAP 最近一次的流水线运行记录。",
 )
 async def get_pipeline_run(
     pcap_id: str,
@@ -128,7 +126,7 @@ async def get_pipeline_run(
     "/{pcap_id}/stages",
     response_model=ApiResponse[list[StageRecordSchema]],
     summary="Get Pipeline Stages",
-    description="Get detailed stage records for the most recent pipeline run of a PCAP.",
+    description="查询指定 PCAP 最近一次流水线各阶段的详细记录。",
 )
 async def get_pipeline_stages(
     pcap_id: str,

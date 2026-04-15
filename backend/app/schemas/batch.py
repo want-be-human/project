@@ -1,14 +1,10 @@
 """
 批量接入 Pydantic Schema。
-
 定义 Batch / BatchFile / Job 的请求与响应模型。
 """
 
 from typing import Any, Literal, Optional
 from pydantic import BaseModel, Field
-
-
-# ── 请求模型 ──────────────────────────────────────────────────
 
 class CreateBatchRequest(BaseModel):
     """创建批次请求。"""
@@ -20,9 +16,6 @@ class CreateBatchRequest(BaseModel):
 class CancelBatchRequest(BaseModel):
     """取消批次请求。"""
     reason: str | None = Field(default=None, description="取消原因")
-
-
-# ── 响应模型 ──────────────────────────────────────────────────
 
 class BatchSchema(BaseModel):
     """批次摘要。"""

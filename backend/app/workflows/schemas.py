@@ -1,15 +1,8 @@
-"""
-工作流执行轨迹的 Pydantic 模式。
-用于 WorkflowExecution.stages_log JSON 中的阶段级日志记录。
-"""
-
 from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 
 class StageExecutionLog(BaseModel):
-    """单个阶段执行记录，可序列化到 stages_log JSON。"""
-
     stage_name: str = Field(..., description="阶段标识符")
     status: Literal["pending", "running", "completed", "failed", "skipped"] = Field(
         ..., description="阶段执行状态"
@@ -23,8 +16,6 @@ class StageExecutionLog(BaseModel):
 
 
 class WorkflowExecutionSchema(BaseModel):
-    """面向 API 的工作流执行记录模式。"""
-
     version: str = Field(default="1.1")
     id: str
     alert_id: str

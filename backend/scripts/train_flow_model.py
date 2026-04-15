@@ -1,16 +1,5 @@
 #!/usr/bin/env python3
-"""
-离线训练 IsolationForest 模型并持久化。
-
-使用项目模拟数据（training_normal.pcap）作为训练样本，
-生成 flow_iforest.joblib 和 flow_iforest.meta.json。
-
-用法：
-    cd backend
-    python -m scripts.train_flow_model
-    python -m scripts.train_flow_model --pcap data/pcaps/my_training.pcap
-    python -m scripts.train_flow_model --contamination 0.05 --n-estimators 200
-"""
+"""Offline IsolationForest training, persists flow_iforest.joblib + meta."""
 
 import argparse
 import json
@@ -21,7 +10,6 @@ from pathlib import Path
 
 import numpy as np
 
-# 将 backend/ 加入 sys.path，以便直接 import app 模块
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BACKEND_DIR))
 
@@ -29,20 +17,15 @@ from app.services.parsing.service import ParsingService
 from app.services.features.service import FeaturesService
 from app.services.detection.service import DetectionService
 
-# 模型输出目录
 MODEL_DIR = BACKEND_DIR / "models"
 MODEL_PATH = MODEL_DIR / "flow_iforest.joblib"
 META_PATH = MODEL_DIR / "flow_iforest.meta.json"
 
-# 默认训练 PCAP 路径
 DEFAULT_PCAP = BACKEND_DIR / "data" / "pcaps" / "training_normal.pcap"
-
-# TensorBoard 日志默认目录
 DEFAULT_TB_DIR = BACKEND_DIR / "runs"
 
 
-def ensure_training_pcap(pcap_path: Path) -> None:
-    """若训练 PCAP 不存在，自动调用生成脚本创建。"""
+def ensure_pcap(pcap_path: Path) -> None:
     if pcap_path.exists():
         return
     print(f"训练 PCAP 不存在: {pcap_path}")
@@ -53,13 +36,11 @@ def ensure_training_pcap(pcap_path: Path) -> None:
 
 
 def train(pcap_path: Path, contamination: float, n_estimators: int, tb_dir: Path) -> None:
-    """执行完整的训练流程。"""
     from sklearn.ensemble import IsolationForest
     import sklearn
     import joblib
     from tensorboardX import SummaryWriter
 
-    # ── TensorBoard 初始化 ──
     run_name = f"baseline_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     log_dir = tb_dir / run_name
     writer = SummaryWriter(str(log_dir))
@@ -71,11 +52,9 @@ def train(pcap_path: Path, contamination: float, n_estimators: int, tb_dir: Path
 
     t_start = time.time()
 
-    # ── 1. 解析 PCAP 为 flow ──
     print(f"[1/5] 解析 PCAP: {pcap_path}")
     t0 = time.time()
-    parser = ParsingService()
-    flows = parser.parse_to_flows(pcap_path)
+    flows = ParsingService().parse_to_flows(pcap_path)
     parse_time = time.time() - t0
     print(f"      解析得到 {len(flows)} 条流 (耗时 {parse_time:.1f}s)")
     writer.add_scalar("timing/parse_sec", parse_time, 0)
@@ -86,33 +65,27 @@ def train(pcap_path: Path, contamination: float, n_estimators: int, tb_dir: Path
         writer.close()
         sys.exit(1)
 
-    # ── 2. 提取特征 ──
     print("[2/5] 提取特征 ...")
     t0 = time.time()
-    feat_svc = FeaturesService()
-    flows = feat_svc.extract_features_batch(flows)
+    flows = FeaturesService().extract_features_batch(flows)
     feat_time = time.time() - t0
     print(f"      特征提取耗时 {feat_time:.1f}s")
     writer.add_scalar("timing/feature_extraction_sec", feat_time, 0)
 
-    # ── 3. 构建特征矩阵 ──
-    # 复用 DetectionService._flows_to_matrix，保证训练与推理的特征编码一致
-    det_svc = DetectionService(mode="runtime")
-    feature_names = list(det_svc.feature_names)
-    X = det_svc._flows_to_matrix(flows)
+    # 复用 DetectionService 的特征矩阵编码以保证训练/推理一致
+    det = DetectionService(mode="runtime")
+    feature_names = list(det.feature_names)
+    X = det._flows_to_matrix(flows)
     print(f"[3/5] 特征矩阵: {X.shape[0]} 样本 × {X.shape[1]} 特征")
     writer.add_scalar("dataset/n_features", X.shape[1], 0)
 
-    # 记录特征统计
     for i, fname in enumerate(feature_names):
         col = X[:, i]
         writer.add_scalar(f"feature_stats/{fname}_mean", float(np.mean(col)), 0)
         writer.add_scalar(f"feature_stats/{fname}_std", float(np.std(col)), 0)
 
-    # ── 4. 训练 IsolationForest ──
-    # 注意：sklearn IsolationForest 不支持 GPU，仅 CPU 训练
+    # IsolationForest 仅 CPU
     print(f"[4/5] 训练 IsolationForest (contamination={contamination}, n_estimators={n_estimators}) ...")
-    print("      注意: IsolationForest 为 CPU 训练（sklearn 不支持 GPU）")
     t0 = time.time()
     model = IsolationForest(
         contamination=contamination,
@@ -124,18 +97,15 @@ def train(pcap_path: Path, contamination: float, n_estimators: int, tb_dir: Path
     print(f"      训练耗时 {train_time:.1f}s")
     writer.add_scalar("timing/train_sec", train_time, 0)
 
-    # 计算归一化参数：与 service.py 中的归一化逻辑一致
-    raw_scores = model.score_samples(X)
-    neg_scores = -raw_scores
-    p5, p95 = float(np.percentile(neg_scores, 5)), float(np.percentile(neg_scores, 95))
-
+    # 与 service.py 归一化逻辑保持一致
+    neg_scores = -model.score_samples(X)
+    p5 = float(np.percentile(neg_scores, 5))
+    p95 = float(np.percentile(neg_scores, 95))
     print(f"      归一化参数: p5={p5:.6f}, p95={p95:.6f}")
 
-    # 归一化分数
     spread = max(p95 - p5, 1e-9)
     normalized = np.clip((neg_scores - p5) / spread, 0.0, 1.0)
 
-    # TensorBoard 记录分数分布
     writer.add_histogram("scores/raw_neg_scores", neg_scores, 0)
     writer.add_histogram("scores/normalized", normalized, 0)
     writer.add_scalar("normalization/p5", p5, 0)
@@ -147,7 +117,6 @@ def train(pcap_path: Path, contamination: float, n_estimators: int, tb_dir: Path
     writer.add_scalar("scores/above_0.7", float((normalized >= 0.7).sum()) / len(normalized), 0)
     writer.add_scalar("scores/above_0.5", float((normalized >= 0.5).sum()) / len(normalized), 0)
 
-    # 超参数记录
     writer.add_hparams(
         {
             "contamination": contamination,
@@ -165,10 +134,8 @@ def train(pcap_path: Path, contamination: float, n_estimators: int, tb_dir: Path
     total_time = time.time() - t_start
     writer.add_scalar("timing/total_sec", total_time, 0)
 
-    # ── 5. 持久化 ──
     print("[5/5] 保存模型 ...")
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
-
     joblib.dump(model, MODEL_PATH)
 
     meta = {
@@ -202,13 +169,13 @@ def train(pcap_path: Path, contamination: float, n_estimators: int, tb_dir: Path
 
 def main():
     parser = argparse.ArgumentParser(description="离线训练 IsolationForest 流量异常检测模型")
-    parser.add_argument("--pcap", type=Path, default=DEFAULT_PCAP, help="训练用 PCAP 文件路径")
-    parser.add_argument("--contamination", type=float, default=0.1, help="异常比例参数 (默认 0.1)")
-    parser.add_argument("--n-estimators", type=int, default=100, help="IsolationForest 树数量 (默认 100)")
-    parser.add_argument("--tensorboard-dir", type=Path, default=DEFAULT_TB_DIR, help="TensorBoard 日志目录")
+    parser.add_argument("--pcap", type=Path, default=DEFAULT_PCAP)
+    parser.add_argument("--contamination", type=float, default=0.1)
+    parser.add_argument("--n-estimators", type=int, default=100)
+    parser.add_argument("--tensorboard-dir", type=Path, default=DEFAULT_TB_DIR)
     args = parser.parse_args()
 
-    ensure_training_pcap(args.pcap)
+    ensure_pcap(args.pcap)
     train(args.pcap, args.contamination, args.n_estimators, args.tensorboard_dir)
 
 

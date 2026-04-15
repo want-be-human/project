@@ -1,9 +1,3 @@
-"""
-标准化分析服务。
-组合 DashboardService 的聚合逻辑，叠加评分层，
-为 /api/v1/analytics/* 端点提供数据。
-"""
-
 import json
 from typing import Callable, TypeVar
 
@@ -23,7 +17,6 @@ from app.schemas.dashboard import (
     TopologySnapshotSchema,
     TrendsSchema,
 )
-from app.schemas.dashboard import TrendsSchema
 from app.services.analytics.scorers.action_safety import ActionSafetyScorer
 from app.services.analytics.scorers.posture_v2 import PostureScorerV2
 from app.services.dashboard.service import DashboardService
@@ -33,43 +26,24 @@ T = TypeVar("T")
 
 
 class AnalyticsService:
-    """
-    标准化分析服务。
-    内部持有 DashboardService 实例，复用其聚合方法，叠加评分逻辑。
-    """
-
     def __init__(self, db: Session):
         self.db = db
         self._dashboard = DashboardService(db)
 
-    # ------------------------------------------------------------------
-    # 容错包装（复用同一模式）
-    # ------------------------------------------------------------------
-
     def _safe_build(self, fn: Callable[[], T], default: T) -> T:
-        """容错包装：捕获异常并返回默认值。"""
         try:
             return fn()
         except Exception as e:
             logger.warning(f"分析服务构建失败 [{fn.__name__}]: {e}")
             return default
 
-    # ------------------------------------------------------------------
-    # 总览（含评分）
-    # ------------------------------------------------------------------
-
     def get_overview(self) -> AnalyticsOverviewSchema:
-        """获取统一总览数据，内嵌态势评分和行动安全评分。"""
         overview = self._safe_build(
             self._dashboard._build_overview,
             self._dashboard._default_overview(),
         )
-        posture = self._safe_build(
-            lambda: self._compute_posture(overview), None
-        )
-        action_safety = self._safe_build(
-            self._compute_action_safety, None
-        )
+        posture = self._safe_build(lambda: self._compute_posture(overview), None)
+        action_safety = self._safe_build(self._compute_action_safety, None)
         return AnalyticsOverviewSchema(
             pcap_total=overview.pcap_total,
             pcap_processing=overview.pcap_processing,
@@ -87,12 +61,7 @@ class AnalyticsService:
             action_safety_score=action_safety,
         )
 
-    # ------------------------------------------------------------------
-    # 独立评分 API
-    # ------------------------------------------------------------------
-
     def get_posture_score(self) -> ScoreResultSchema:
-        """获取安全态势评分（含因子分解与解释）。"""
         overview = self._safe_build(
             self._dashboard._build_overview,
             self._dashboard._default_overview(),
@@ -100,41 +69,29 @@ class AnalyticsService:
         return self._compute_posture(overview)
 
     def get_action_safety_score(self) -> ScoreResultSchema:
-        """获取行动安全评分（含因子分解与解释）。"""
         return self._safe_build(
             self._compute_action_safety,
             ActionSafetyScorer(self.db).compute(),
         )
 
-    # ------------------------------------------------------------------
-    # 委托方法（薄包装 + _safe_build 容错）
-    # ------------------------------------------------------------------
-
     def get_trends(self) -> TrendsSchema:
-        """获取告警趋势时序数据。"""
-        return self._safe_build(
-            self._dashboard._build_trends, TrendsSchema(days=[])
-        )
+        return self._safe_build(self._dashboard._build_trends, TrendsSchema(days=[]))
 
     def get_distributions(self) -> DistributionsSchema:
-        """获取告警类型/严重程度分布。"""
         return self._safe_build(
             self._dashboard._build_distributions, DistributionsSchema(items=[])
         )
 
     def get_topology_snapshot(self) -> TopologySnapshotSchema:
-        """获取拓扑摘要快照。"""
         return self._safe_build(
             self._dashboard._build_topology_snapshot,
             self._dashboard._default_topology(),
         )
 
     def get_recent_activity(self) -> list[ActivityEventSchema]:
-        """获取最近活动事件。"""
         return self._safe_build(self._dashboard._build_recent_activity, [])
 
     def get_top_assets(self) -> TopAssetsSchema:
-        """获取高风险资产排行：复用拓扑快照 + 告警分布数据。"""
         topo = self.get_topology_snapshot()
         dist = self.get_distributions()
 
@@ -155,9 +112,7 @@ class AnalyticsService:
         ]
         top_alert_types = [
             {"type": item.type, "count": item.count}
-            for item in sorted(dist.items, key=lambda x: x.count, reverse=True)[
-                :10
-            ]
+            for item in sorted(dist.items, key=lambda x: x.count, reverse=True)[:10]
         ]
 
         return TopAssetsSchema(
@@ -166,29 +121,18 @@ class AnalyticsService:
             top_alert_types=top_alert_types,
         )
 
-    # ------------------------------------------------------------------
-    # 内部方法
-    # ------------------------------------------------------------------
-
     def _compute_action_safety(self) -> ScoreResultSchema:
-        """从最新 dry-run 结果和决策数据计算行动安全评分。"""
-        # 查询最新 dry-run 记录
         latest_dryrun = (
-            self.db.query(DryRun)
-            .order_by(DryRun.created_at.desc())
-            .first()
+            self.db.query(DryRun).order_by(DryRun.created_at.desc()).first()
         )
 
         if not latest_dryrun:
-            # 无 dry-run 数据：所有组件不可用，返回满分（无动作 = 安全）
             return ActionSafetyScorer(self.db).compute()
 
-        # 解析 payload JSON
         payload = json.loads(latest_dryrun.payload)
         impact = payload.get("impact", {})
         decision = payload.get("decision")
 
-        # 提取 dry-run 影响数据
         kwargs: dict = {
             "service_disruption_risk": impact.get("service_disruption_risk"),
             "reachability_drop": impact.get("reachability_drop"),
@@ -196,14 +140,14 @@ class AnalyticsService:
             "confidence": impact.get("confidence"),
         }
 
-        # 提取拓扑节点总数（用于计算影响范围比例）
         topo = self._safe_build(
             self._dashboard._build_topology_snapshot,
             self._dashboard._default_topology(),
         )
-        kwargs["total_node_count"] = topo.node_count if hasattr(topo, "node_count") else len(topo.top_risk_nodes)
+        kwargs["total_node_count"] = (
+            topo.node_count if hasattr(topo, "node_count") else len(topo.top_risk_nodes)
+        )
 
-        # 提取决策数据（可逆性 + 回退复杂度）
         if decision:
             rec = decision.get("recommended_action", {})
             action = rec.get("action", {})
@@ -218,12 +162,7 @@ class AnalyticsService:
         return ActionSafetyScorer(self.db).compute(**kwargs)
 
     def _compute_posture(self, overview) -> ScoreResultSchema:
-        """从 overview + 趋势 + 拓扑数据计算态势评分（v2 归一化风险指数）。"""
-        # 获取趋势数据（容错）
-        trends = self._safe_build(
-            self._dashboard._build_trends, TrendsSchema(days=[])
-        )
-        # 获取拓扑快照（容错）
+        trends = self._safe_build(self._dashboard._build_trends, TrendsSchema(days=[]))
         topo = self._safe_build(
             self._dashboard._build_topology_snapshot,
             self._dashboard._default_topology(),

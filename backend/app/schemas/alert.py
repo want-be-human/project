@@ -43,7 +43,7 @@ class TopFeature(BaseModel):
 
 class PcapRef(BaseModel):
     """证据中的 PCAP 引用 - DOC C C1.3。"""
-    pcap_id: str = Field(..., description="PCAP ID")
+    pcap_id: str = Field(..., description="所属 PCAP ID")
     offset_hint: int | None = Field(default=None, description="字节偏移提示")
 
 
@@ -60,12 +60,10 @@ class AlertAggregation(BaseModel):
     rule: str = Field(..., description="聚合规则")
     group_key: str = Field(..., description="分组键")
     count_flows: int = Field(..., description="组内流数量")
-    # 新增可选字段（向后兼容旧数据）
     dimensions: list[str] | None = Field(default=None, description="聚合维度列表")
     composite_score: float | None = Field(default=None, description="复合严重度分数")
     score_breakdown: dict | None = Field(default=None, description="分数分项明细")
     type_reason: dict | None = Field(default=None, description="类型判定原因（含 reason_codes 和 details）")
-    # 人类可读的可追溯摘要
     aggregation_summary: str | None = Field(default=None, description="聚合依据摘要（自然语言）")
     type_summary: str | None = Field(default=None, description="类型判定依据摘要（自然语言）")
     severity_summary: str | None = Field(default=None, description="严重度来源摘要（自然语言）")

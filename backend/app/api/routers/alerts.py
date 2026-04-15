@@ -1,8 +1,4 @@
-"""
-告警路由。
-GET /alerts、GET /alerts/{alert_id}、PATCH /alerts/{alert_id}
-实现 DOC C C6.4。
-"""
+"""告警路由。实现 DOC C C6.4。"""
 
 import asyncio
 import json
@@ -34,27 +30,24 @@ from app.schemas.alert import (
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
 
-# ---------- 辅助方法：ORM → Pydantic ----------
-
 def _parse_json(text: str, fallback=None):
-    """安全解析 JSON 文本列。"""
+    if fallback is None:
+        fallback = {}
     if not text:
-        return fallback if fallback is not None else {}
+        return fallback
     try:
         return json.loads(text)
     except (json.JSONDecodeError, TypeError):
-        return fallback if fallback is not None else {}
+        return fallback
 
 
 def _alert_to_schema(alert: Alert) -> AlertSchema:
-    """将 Alert ORM 转换为 AlertSchema（DOC C C1.3）。"""
     evidence_raw = _parse_json(alert.evidence, {})
     aggregation_raw = _parse_json(alert.aggregation, {})
     agent_raw = _parse_json(alert.agent, {})
     twin_raw = _parse_json(alert.twin, {})
     tags_raw = _parse_json(alert.tags, [])
 
-    # 构建嵌套 evidence
     top_flows = [
         TopFlowSummary(
             flow_id=tf.get("flow_id", ""),
@@ -125,25 +118,22 @@ def _alert_to_schema(alert: Alert) -> AlertSchema:
     )
 
 
-# ---------- 接口 ----------
-
 @router.get(
     "",
     response_model=ApiResponse[PaginatedData[AlertSchema]],
     summary="List Alerts",
-    description="List alerts with filtering and pagination. (DOC C C6.4)",
+    description="分页列出告警，支持多维度过滤。(DOC C C6.4)",
 )
 async def list_alerts(
-    status: str | None = Query(default=None, description="Filter by status"),
-    severity: str | None = Query(default=None, description="Filter by severity"),
-    type: str | None = Query(default=None, description="Filter by type"),
-    start: str | None = Query(default=None, description="Start time filter ISO8601"),
-    end: str | None = Query(default=None, description="End time filter ISO8601"),
-    limit: int = Query(default=50, ge=1, le=1000, description="Max results"),
-    offset: int = Query(default=0, ge=0, description="Skip count"),
+    status: str | None = Query(default=None, description="按状态过滤"),
+    severity: str | None = Query(default=None, description="按严重度过滤"),
+    type: str | None = Query(default=None, description="按类型过滤"),
+    start: str | None = Query(default=None, description="起始时间（ISO8601）"),
+    end: str | None = Query(default=None, description="结束时间（ISO8601）"),
+    limit: int = Query(default=50, ge=1, le=1000, description="最大返回条数"),
+    offset: int = Query(default=0, ge=0, description="跳过条数"),
     db: Session = Depends(get_db),
 ) -> ApiResponse[PaginatedData[AlertSchema]]:
-    """按可选筛选条件列出告警记录。"""
     conditions = []
     if status:
         conditions.append(Alert.status == status)
@@ -177,13 +167,12 @@ async def list_alerts(
     "/{alert_id}",
     response_model=ApiResponse[AlertSchema],
     summary="Get Alert Details",
-    description="Get a specific alert by ID. (DOC C C6.4)",
+    description="按 ID 查询单条告警详情。(DOC C C6.4)",
 )
 async def get_alert(
-    alert_id: str = Path(..., description="Alert ID"),
+    alert_id: str = Path(..., description="告警 ID"),
     db: Session = Depends(get_db),
 ) -> ApiResponse[AlertSchema]:
-    """按 ID 获取告警及完整 evidence/top_flows/top_features。"""
     alert = db.get(Alert, alert_id)
     if not alert:
         raise NotFoundError(
@@ -197,17 +186,13 @@ async def get_alert(
     "/{alert_id}",
     response_model=ApiResponse[AlertSchema],
     summary="Update Alert",
-    description="Update alert status, severity, tags, or notes. (DOC C C6.4)",
+    description="更新告警的状态、严重度、标签或备注。(DOC C C6.4)",
 )
 async def update_alert(
-    alert_id: str = Path(..., description="Alert ID"),
+    alert_id: str = Path(..., description="告警 ID"),
     request: AlertUpdateRequest = Depends(),
     db: Session = Depends(get_db),
 ) -> ApiResponse[AlertSchema]:
-    """
-    对告警字段进行部分更新。
-    成功后广播 WS 事件 alert.updated。
-    """
     alert = db.get(Alert, alert_id)
     if not alert:
         raise NotFoundError(
@@ -215,7 +200,6 @@ async def update_alert(
             details={"alert_id": alert_id},
         )
 
-    # 应用局部更新
     if request.status is not None:
         alert.status = request.status
     if request.severity is not None:
@@ -228,7 +212,7 @@ async def update_alert(
     db.commit()
     db.refresh(alert)
 
-    # WS 广播 alert.updated（通过 EventBus 以 fire-and-forget 方式触发）
+    # WS 广播以 fire-and-forget 方式触发，失败不应影响主请求
     try:
         from app.api.routers.stream import broadcast_alert_updated
         asyncio.create_task(broadcast_alert_updated(alert.id, alert.status))

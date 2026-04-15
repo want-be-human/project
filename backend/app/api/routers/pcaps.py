@@ -1,11 +1,7 @@
-"""
-PCAP 路由。
-POST /pcaps/upload、GET /pcaps、GET /pcaps/{id}/status、POST /pcaps/{id}/process
-"""
+"""PCAP 路由：上传、列表、状态、处理。"""
 
 import asyncio
 import hashlib
-import json
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Request, UploadFile, File, Query
@@ -35,13 +31,8 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/pcaps", tags=["pcaps"])
 
 
-# --------------- 后台处理任务 ---------------
-
 def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
-    """
-    同步 PCAP 处理任务。
-    在 FastAPI BackgroundTasks（线程池）中运行。
-    """
+    """同步 PCAP 处理任务，在 FastAPI BackgroundTasks 线程池中运行。"""
     db = SessionLocal()
     tracker = None
     try:
@@ -50,7 +41,7 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
             logger.error(f"PCAP {pcap_id} not found for processing")
             return
 
-        # --- 通过 EventBus 发布事件（已消除旧旁路） ---
+        # 通过 EventBus 发布事件
         from app.core.events import get_event_bus
         from app.core.events.models import (
             make_event,
@@ -61,7 +52,7 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
         )
 
         def _publish(event_type: str, data: dict):
-            """在后台线程中通过 EventBus 发布事件（fire-and-forget）。"""
+            # 后台线程中通过 EventBus 发布事件
             try:
                 loop = get_main_loop()
                 if loop is None or not loop.is_running():
@@ -70,20 +61,20 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
                     get_event_bus().publish(make_event(event_type, data)), loop
                 )
             except Exception:
-                pass  # 非关键路径，不因事件发布失败中断处理
+                pass  
 
-        # --- pipeline 追踪器（可观测性） ---
+        # pipeline追踪
         tracker = None
         if settings.PIPELINE_OBSERVABILITY_ENABLED:
             tracker = PipelineTracker(pcap_id, db)
 
-        # 步骤 1：更新状态 → processing 10%
+        # 更新状态
         pcap.status = "processing"
         pcap.progress = 10
         db.commit()
         _publish(PCAP_PROCESS_PROGRESS, {"pcap_id": pcap_id, "percent": 10})
 
-        # 步骤 2：解析 PCAP → flows
+        # 解析PCAP
         if tracker:
             with tracker.stage(PipelineStage.PARSE) as stg:
                 parser = ParsingService()
@@ -98,7 +89,7 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
         db.commit()
         _publish(PCAP_PROCESS_PROGRESS, {"pcap_id": pcap_id, "percent": 40})
 
-        # 步骤 3：为每条 flow 提取特征
+        # 为每条flow提取特征
         if tracker:
             with tracker.stage(PipelineStage.FEATURE_EXTRACT) as stg:
                 feat_svc = FeaturesService()
@@ -113,7 +104,7 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
         db.commit()
         _publish(PCAP_PROCESS_PROGRESS, {"pcap_id": pcap_id, "percent": 55})
 
-        # 步骤 4：异常评分（仅当 mode == flows_and_detect）
+        # 异常评分（仅当 mode == flows_and_detect）
         if mode == "flows_and_detect":
             if tracker:
                 with tracker.stage(PipelineStage.DETECT) as stg:
@@ -136,7 +127,7 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
             with tracker.stage(PipelineStage.DETECT) as stg:
                 stg.skip("mode != flows_and_detect")
 
-        # 步骤 5：将 flows 入库（PostgreSQL COPY 协议，比 executemany 快 10-20x）
+        # 将 flows入库（PostgreSQL COPY 协议，比 executemany 快 10-20x）
         from app.services.batch.stages import _persist_flows_copy
         _persist_flows_copy(db, pcap_id, flow_dicts)
         db.flush()
@@ -144,7 +135,7 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
         db.commit()
         _publish(PCAP_PROCESS_PROGRESS, {"pcap_id": pcap_id, "percent": 85})
 
-        # 步骤 6：生成 alerts（仅当 mode == flows_and_detect）
+        # 生成 alerts（仅当 mode == flows_and_detect）
         alert_count = 0
         if mode == "flows_and_detect":
             if tracker:
@@ -210,7 +201,6 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
             with tracker.stage(PipelineStage.AGGREGATE) as stg:
                 stg.skip("mode != flows_and_detect")
 
-        # 步骤 7：收尾
         flow_count = len(flow_dicts)
         pcap.status = "done"
         pcap.progress = 100
@@ -255,10 +245,7 @@ def _process_pcap_sync(pcap_id: str, mode: str, window_sec: int) -> None:
         db.close()
 
 
-# --------------- 接口 ---------------
-
 class _HashingFileTarget(FileTarget):
-    """FileTarget that computes SHA256 on the fly and captures the first 4 bytes."""
 
     def __init__(self, filepath: str, **kwargs):
         super().__init__(filepath, **kwargs)
@@ -297,19 +284,13 @@ _VALID_PCAP_MAGICS = {
     "/upload",
     response_model=ApiResponse[PcapFileSchema],
     summary="Upload PCAP File",
-    description="Upload a PCAP file for analysis. Returns file metadata. (DOC C C6.2.1)",
+    description="上传 PCAP 文件用于分析，返回文件元数据。(DOC C C6.2.1)",
 )
 async def upload_pcap(
     request: Request,
     db: Session = Depends(get_db),
 ) -> ApiResponse[PcapFileSchema]:
-    """
-    流式上传 PCAP 文件。
-
-    使用 streaming-form-data 直接将上传数据写入磁盘，
-    无需将整个文件加载到内存。内存占用固定 ~64KB。
-    同步计算 SHA256 和文件大小。
-    """
+    # 使用 streaming-form-data 直接写入磁盘，内存占用固定 ~64KB；同步计算 SHA256
     from app.core.utils import generate_uuid, sanitize_filename, datetime_to_iso
 
     content_type = request.headers.get("content-type", "")
@@ -386,14 +367,13 @@ async def upload_pcap(
     "",
     response_model=ApiResponse[list[PcapFileSchema]],
     summary="List PCAP Files",
-    description="List all uploaded PCAP files with pagination. (DOC C C6.2.3)",
+    description="分页列出所有已上传的 PCAP 文件。(DOC C C6.2.3)",
 )
 async def list_pcaps(
-    limit: int = Query(default=50, ge=1, le=1000, description="Max results"),
-    offset: int = Query(default=0, ge=0, description="Skip count"),
+    limit: int = Query(default=50, ge=1, le=1000, description="最大返回条数"),
+    offset: int = Query(default=0, ge=0, description="跳过条数"),
     db: Session = Depends(get_db),
 ) -> ApiResponse[list[PcapFileSchema]]:
-    """按 created_at 倒序列出 PCAP 文件。"""
     service = IngestionService(db)
     pcaps = service.list_pcaps(limit=limit, offset=offset)
     return ApiResponse.success(pcaps)
@@ -403,13 +383,12 @@ async def list_pcaps(
     "/{pcap_id}/status",
     response_model=ApiResponse[PcapFileSchema],
     summary="Get PCAP Status",
-    description="Get status and metadata of a specific PCAP file. (DOC C C6.2.4)",
+    description="查询指定 PCAP 文件的状态与元数据。(DOC C C6.2.4)",
 )
 async def get_pcap_status(
     pcap_id: str,
     db: Session = Depends(get_db),
 ) -> ApiResponse[PcapFileSchema]:
-    """按 ID 获取 PCAP 文件状态。"""
     service = IngestionService(db)
     pcap = service.get_pcap(pcap_id)
     return ApiResponse.success(pcap)
@@ -419,7 +398,7 @@ async def get_pcap_status(
     "/{pcap_id}/process",
     response_model=ApiResponse[PcapProcessResponse],
     summary="Start PCAP Processing",
-    description="Start async processing of a PCAP file. (DOC C C6.2.2)",
+    description="异步启动指定 PCAP 文件的分析流水线。(DOC C C6.2.2)",
 )
 async def process_pcap(
     pcap_id: str,
@@ -427,7 +406,6 @@ async def process_pcap(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ) -> ApiResponse[PcapProcessResponse]:
-    """启动 PCAP 处理任务。"""
     pcap = db.query(PcapFile).filter(PcapFile.id == pcap_id).first()
     if not pcap:
         raise NotFoundError(
@@ -454,7 +432,6 @@ async def delete_pcap(
     pcap_id: str,
     db: Session = Depends(get_db),
 ) -> ApiResponse[dict]:
-    """删除 PCAP 文件、关联数据和磁盘文件。"""
     service = IngestionService(db)
     service.delete_pcap(pcap_id)
     return ApiResponse.success({"deleted": True})

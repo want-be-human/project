@@ -1,7 +1,4 @@
-"""
-证据链路由。
-GET /alerts/{alert_id}/evidence-chain — DOC C C6.6
-"""
+"""证据链路由。GET /alerts/{alert_id}/evidence-chain — DOC C C6.6。"""
 
 from fastapi import APIRouter, Depends, Path
 from sqlalchemy.orm import Session
@@ -19,18 +16,12 @@ router = APIRouter(prefix="/alerts", tags=["evidence"])
     "/{alert_id}/evidence-chain",
     response_model=ApiResponse[EvidenceChainSchema],
     summary="Get Evidence Chain",
-    description="Get evidence chain visualization for alert. (DOC C C6.6)",
+    description="获取告警的证据链可视化数据。(DOC C C6.6)",
 )
 async def get_evidence_chain(
-    alert_id: str = Path(..., description="Alert ID"),
+    alert_id: str = Path(..., description="告警 ID"),
     db: Session = Depends(get_db),
 ) -> ApiResponse[EvidenceChainSchema]:
-    """
-    为指定告警构建并返回证据链。
-
-    按 DOC F Week-5 DoD 要求，至少返回
-    alert + flow + feature 三类节点。
-    """
     alert = db.get(Alert, alert_id)
     if not alert:
         raise NotFoundError(
@@ -40,6 +31,5 @@ async def get_evidence_chain(
 
     from app.services.evidence import EvidenceService
 
-    svc = EvidenceService(db)
-    chain = svc.build_evidence_chain(alert)
+    chain = EvidenceService(db).build_evidence_chain(alert)
     return ApiResponse.success(chain)

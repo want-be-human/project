@@ -1,14 +1,3 @@
-"""
-PlanCompiler 核心编译逻辑。
-将 RecommendedAction[] 转换为可追溯的 PlanAction[]。
-
-设计借鉴 agentic-soc-platform 的模块化思路：
-    每个分析能力产出结构化、可执行的结果，
-    供下游模块（剧本/仿真）直接消费。
-
-该编译器为纯函数，不产生数据库副作用。
-"""
-
 from app.core.logging import get_logger
 from app.models.alert import Alert
 from app.schemas.agent import RecommendedAction, RecommendationSchema, InvestigationSchema
@@ -27,12 +16,7 @@ logger = get_logger(__name__)
 
 
 class PlanCompiler:
-    """
-    将 Agent recommendation 动作编译为 Twin 可消费的 PlanAction。
-
-    所有编译规则均为确定性、基于关键词且可追溯到证据节点。
-    不可编译动作（如纯监控建议）会被记录为 SkippedAction 并返回详情。
-    """
+    """将 Agent recommendation 动作编译为 Twin 可消费的 PlanAction。纯函数，无 DB 副作用。"""
 
     def compile(
         self,
@@ -42,41 +26,25 @@ class PlanCompiler:
         evidence_chain: EvidenceChainSchema | None = None,
         language: str = "en",
     ) -> tuple[list[PlanAction], list[SkippedAction]]:
-        """
-        将 recommendation 动作编译为 PlanAction 列表。
-
-        参数：
-            alert: 源告警
-            recommendation: 待编译动作所在的 recommendation
-            investigation: 可选的 investigation（用于融合置信度）
-            evidence_chain: 可选的 evidence chain（用于追溯）
-
-        返回：
-            元组（编译后的 PlanAction 列表, 被跳过动作的 SkippedAction 列表）
-        """
         compiled: list[PlanAction] = []
         skipped: list[SkippedAction] = []
 
-        inv_confidence = (
-            investigation.impact.confidence if investigation else None
-        )
-        evidence_node_count = (
-            len(evidence_chain.nodes) if evidence_chain else 0
-        )
+        inv_confidence = investigation.impact.confidence if investigation else None
+        ev_count = len(evidence_chain.nodes) if evidence_chain else 0
 
         for action in recommendation.actions:
             result = self._compile_action(
                 action=action,
                 alert=alert,
                 inv_confidence=inv_confidence,
-                evidence_node_count=evidence_node_count,
+                evidence_node_count=ev_count,
                 evidence_chain=evidence_chain,
                 language=language,
             )
-            if result is not None:
-                compiled.append(result)
-            else:
+            if result is None:
                 skipped.append(self._build_skip_info(action, language))
+            else:
+                compiled.append(result)
 
         logger.info(
             "从推荐 %s 编译了 %d 个动作（跳过 %d 个）",
@@ -95,11 +63,10 @@ class PlanCompiler:
         evidence_chain: EvidenceChainSchema | None,
         language: str,
     ) -> PlanAction | None:
-        """编译单个 RecommendedAction；若不可编译则返回 None。"""
-        hint_dict = action.compile_hint.model_dump() if action.compile_hint else None
-        action_type, _method = match_action_type_with_hint(action.title, hint_dict)
+        hint = action.compile_hint.model_dump() if action.compile_hint else None
+        action_type, method = match_action_type_with_hint(action.title, hint)
         if action_type is None:
-            logger.debug("跳过不可编译动作: %s (方法=%s)", action.title, _method)
+            logger.debug("跳过不可编译动作: %s (方法=%s)", action.title, method)
             return None
 
         target = self._resolve_target(action_type, alert)
@@ -113,10 +80,8 @@ class PlanCompiler:
             investigation_confidence=inv_confidence,
         )
 
-        derived_from = self._trace_evidence(action_type, evidence_chain)
-        reasoning = self._build_reasoning(
-            action_type, action, alert, confidence, language
-        )
+        derived_from = self._trace_evidence(evidence_chain)
+        reasoning = self._build_reasoning(action_type, action, alert, confidence, language)
 
         return PlanAction(
             action_type=action_type,  # type: ignore[arg-type]
@@ -129,14 +94,13 @@ class PlanCompiler:
         )
 
     def _resolve_target(self, action_type: str, alert: Alert) -> ActionTarget:
-        """根据动作类型从告警实体中确定目标。"""
         if action_type in ("block_ip", "isolate_host"):
             return ActionTarget(type="ip", value=alert.primary_src_ip or "0.0.0.0")
 
         if action_type == "segment_subnet":
             ip = alert.primary_src_ip or "0.0.0.0"
-            # 从源 IP 推导 /24 子网
             parts = ip.split(".")
+            # 从源 IP 推导 /24 子网
             if len(parts) == 4:
                 subnet = f"{parts[0]}.{parts[1]}.{parts[2]}.0/24"
             else:
@@ -151,12 +115,9 @@ class PlanCompiler:
         return ActionTarget(type="ip", value=alert.primary_src_ip or "0.0.0.0")
 
     def _build_params(self, action_type: str, alert: Alert) -> dict:
-        """结合默认值与告警上下文构建动作参数。"""
         params = dict(PARAMS_DEFAULTS.get(action_type, {}))
 
-        if action_type == "block_ip":
-            params["ip"] = alert.primary_src_ip or "0.0.0.0"
-        elif action_type == "isolate_host":
+        if action_type in ("block_ip", "isolate_host"):
             params["ip"] = alert.primary_src_ip or "0.0.0.0"
         elif action_type == "rate_limit_service":
             params["proto"] = alert.primary_proto or "TCP"
@@ -167,7 +128,6 @@ class PlanCompiler:
     def _build_rollback(
         self, action_type: str, alert: Alert, target: ActionTarget
     ) -> RollbackAction | None:
-        """为给定动作类型构建回滚动作。"""
         mapping = ROLLBACK_MAPPING.get(action_type)
         if not mapping:
             return None
@@ -175,9 +135,7 @@ class PlanCompiler:
         rollback_type, base_params = mapping
         params = dict(base_params)
 
-        if action_type == "block_ip":
-            params["ip"] = target.value
-        elif action_type == "isolate_host":
+        if action_type in ("block_ip", "isolate_host"):
             params["ip"] = target.value
         elif action_type == "rate_limit_service":
             params["proto"] = alert.primary_proto or "TCP"
@@ -185,21 +143,12 @@ class PlanCompiler:
 
         return RollbackAction(action_type=rollback_type, params=params)
 
-    def _trace_evidence(
-        self, action_type: str, evidence_chain: EvidenceChainSchema | None
-    ) -> list[str]:
-        """返回该动作可追溯到的证据节点 ID 列表。"""
+    def _trace_evidence(self, evidence_chain: EvidenceChainSchema | None) -> list[str]:
         if not evidence_chain:
             return []
-
-        # action 的溯源节点包括：alert 节点、相关 flow/feature 节点，
-        # 以及触发 recommendation 的 hypothesis 节点
-        relevant_types = {"alert", "flow", "feature", "hypothesis"}
-        return [
-            node.id
-            for node in evidence_chain.nodes
-            if node.type in relevant_types
-        ]
+        # 溯源节点：alert 节点、相关 flow/feature 节点，以及触发 recommendation 的 hypothesis
+        relevant = {"alert", "flow", "feature", "hypothesis"}
+        return [node.id for node in evidence_chain.nodes if node.type in relevant]
 
     def _build_reasoning(
         self,
@@ -209,7 +158,6 @@ class PlanCompiler:
         confidence: float,
         language: str,
     ) -> str:
-        """构建该动作被编译的可读解释。"""
         if language == "zh":
             return (
                 f"基于推荐动作 \"{action.title}\"（优先级: {action.priority}），"
@@ -224,23 +172,13 @@ class PlanCompiler:
         )
 
     def _build_skip_info(self, action: RecommendedAction, language: str) -> SkippedAction:
-        """为被跳过的动作构建结构化跳过信息。"""
         intent = action.action_intent
         lang = "zh" if language == "zh" else "en"
-
-        if intent == "monitoring":
-            reason = SKIP_REASON_TEMPLATES["monitoring"][lang]
-            suggestion = SKIP_SUGGESTION_TEMPLATES["monitoring"][lang]
-        elif intent == "advisory":
-            reason = SKIP_REASON_TEMPLATES["advisory"][lang]
-            suggestion = SKIP_SUGGESTION_TEMPLATES["advisory"][lang]
-        else:
-            reason = SKIP_REASON_TEMPLATES["no_match"][lang]
-            suggestion = SKIP_SUGGESTION_TEMPLATES["no_match"][lang]
+        key = intent if intent in ("monitoring", "advisory") else "no_match"
 
         return SkippedAction(
             title=action.title,
-            reason=reason,
+            reason=SKIP_REASON_TEMPLATES[key][lang],
             action_intent=intent,
-            suggestion=suggestion,
+            suggestion=SKIP_SUGGESTION_TEMPLATES[key][lang],
         )

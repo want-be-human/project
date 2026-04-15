@@ -1,10 +1,5 @@
-"""add pipeline_runs table
-
-Revision ID: 0003
-Revises: 0002
-Create Date: 2024-01-01 00:02:00.000000
-
-New table for pipeline observability — stage-level tracking.
+"""
+新增 pipeline_runs 表
 """
 from typing import Sequence, Union
 

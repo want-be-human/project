@@ -1,7 +1,4 @@
-"""
-拓扑路由。
-GET /topology/graph — DOC C C6.7
-"""
+"""拓扑路由。GET /topology/graph — DOC C C6.7。"""
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
@@ -20,35 +17,18 @@ router = APIRouter(prefix="/topology", tags=["topology"])
     "/graph",
     response_model=ApiResponse[GraphResponseSchema],
     summary="Get Topology Graph",
-    description="Get topology graph for time range. (DOC C C6.7)",
+    description="按时间范围获取拓扑图。(DOC C C6.7)",
 )
 async def get_topology_graph(
-    start: str | None = Query(default=None, description="Start time ISO8601"),
-    end: str | None = Query(default=None, description="End time ISO8601"),
-    mode: str = Query(default="ip", description="Graph mode: ip or subnet"),
+    start: str | None = Query(default=None, description="起始时间（ISO8601）"),
+    end: str | None = Query(default=None, description="结束时间（ISO8601）"),
+    mode: str = Query(default="ip", description="拓扑聚合模式：ip / subnet"),
     db: Session = Depends(get_db),
 ) -> ApiResponse[GraphResponseSchema]:
-    """
-    按指定时间窗口构建并返回拓扑图。
-
-    参数：
-    - start: 查询开始时间（ISO8601，不传则使用最早 flow）
-    - end: 查询结束时间（ISO8601，不传则使用最晚 flow）
-    - mode: 'ip' 表示主机级，'subnet' 表示子网级聚合
-
-    返回包含 nodes、edges 和 meta 的 GraphResponse。
-    """
     from app.services.topology import TopologyService
 
-    if start:
-        dt_start = iso_to_datetime(start)
-    else:
-        dt_start = db.query(func.min(Flow.ts_start)).scalar()
-
-    if end:
-        dt_end = iso_to_datetime(end)
-    else:
-        dt_end = db.query(func.max(Flow.ts_end)).scalar()
+    dt_start = iso_to_datetime(start) if start else db.query(func.min(Flow.ts_start)).scalar()
+    dt_end = iso_to_datetime(end) if end else db.query(func.max(Flow.ts_end)).scalar()
 
     if dt_start is None or dt_end is None:
         # 数据库无 flow 时返回空图
@@ -59,6 +39,5 @@ async def get_topology_graph(
         )
         return ApiResponse.success(empty)
 
-    svc = TopologyService(db)
-    graph = svc.build_graph(start=dt_start, end=dt_end, mode=mode)  # type: ignore[arg-type]
+    graph = TopologyService(db).build_graph(start=dt_start, end=dt_end, mode=mode)  # type: ignore[arg-type]
     return ApiResponse.success(graph)

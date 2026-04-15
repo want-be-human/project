@@ -1,8 +1,4 @@
-"""
-Layer 2: 规则增强评分器。
-基于可解释规则对每条 flow 进行评分，同时将规则匹配结果编码为数值特征供 Layer 3 使用。
-规则逻辑独立实现（不依赖 AlertingService），避免循环依赖。
-"""
+"""Layer 2 rule-based scorer. Independent of AlertingService to avoid a circular import."""
 
 import numpy as np
 
@@ -10,23 +6,15 @@ from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
-# ── 服务端口语义分类 ──
 _AUTH_PORTS = frozenset({
-    22, 23, 21, 3389,           # SSH, Telnet, FTP, RDP
-    3306, 5432, 1433,           # MySQL, PostgreSQL, MSSQL
-    6379, 27017,                # Redis, MongoDB
-    445, 5900,                  # SMB, VNC
+    22, 23, 21, 3389,
+    3306, 5432, 1433,
+    6379, 27017,
+    445, 5900,
 })
 
 
 class RuleEnricher:
-    """
-    基于可解释规则的评分器。
-    输出 rule_score（0-1）+ 13 个规则语义特征。
-    使用 numpy 向量化批量计算，消除逐条 Python 循环。
-    """
-
-    # 规则语义特征名列表
     RULE_FEATURE_NAMES: list[str] = [
         "rule_scan_score",
         "rule_is_scan",
@@ -49,21 +37,11 @@ class RuleEnricher:
         pass
 
     def enrich(self, flows: list[dict]) -> list[dict]:
-        """
-        为每条 flow 计算 rule_score 和规则语义特征（numpy 向量化）。
-
-        写入：
-            flow["_detection"]["rule_score"]
-            flow["_detection"]["rule_features"]
-            flow["_detection"]["rule_type"]
-            flow["_detection"]["rule_reasons"]
-        """
         if not flows:
             return flows
 
         n = len(flows)
 
-        # ── 批量提取特征到 numpy 数组 ──
         dst_port = np.zeros(n, dtype=np.int32)
         syn_count = np.zeros(n)
         total_packets = np.zeros(n)
@@ -90,7 +68,6 @@ class RuleEnricher:
 
         syn_ratio = syn_count / np.maximum(total_packets, 1)
 
-        # ── 布尔条件向量 ──
         cond_syn_high = syn_ratio > 0.5
         cond_handshake_low = handshake < 0.5
         cond_rst_high = rst_ratio > 0.3
@@ -101,7 +78,7 @@ class RuleEnricher:
         cond_high_bps = bps > 500000
         cond_asym = bytes_asym > 0.8
 
-        # ── Scan 评分 (0-5) ──
+
         scan_score = (
             np.where(cond_syn_high, 2, 0)
             + np.where(cond_handshake_low, 1, 0)
@@ -109,20 +86,14 @@ class RuleEnricher:
             + np.where(cond_short, 1, 0)
         )
         is_scan = scan_score >= 2
-
-        # ── Bruteforce: 认证端口 且 未被 scan 命中 ──
         is_brute = cond_auth_port & ~is_scan
-
-        # ── DoS: 任一高速率/高流量条件 且 未被 scan/brute 命中 ──
         is_dos = (cond_high_volume | cond_high_pps | cond_high_bps | cond_asym) & ~is_scan & ~is_brute
 
-        # ── 类型数组 ──
         type_arr = np.full(n, "anomaly", dtype=object)
         type_arr[is_scan] = "scan"
         type_arr[is_brute] = "bruteforce"
         type_arr[is_dos] = "dos"
 
-        # ── 规则语义特征矩阵（13 列）──
         rf_scan_score = np.minimum(scan_score / 5.0, 1.0)
         rf_is_scan = is_scan.astype(float)
         rf_is_brute = is_brute.astype(float)
@@ -136,7 +107,6 @@ class RuleEnricher:
         rf_high_vol = cond_high_volume.astype(float)
         rf_asym = cond_asym.astype(float)
 
-        # ── 构建 reason_codes 和 rule_score ──
         for i, flow in enumerate(flows):
             reasons: list[str] = []
             t = type_arr[i]
@@ -159,7 +129,6 @@ class RuleEnricher:
             else:
                 reasons.append("ANOMALY_DEFAULT")
 
-            reason_count = float(len(reasons))
             base = self._TYPE_WEIGHTS.get(t, 0.3)
             extra = max(len(reasons) - 1, 0)
             rule_score = min(round(base * (1.0 + 0.1 * extra), 4), 1.0)
@@ -181,7 +150,7 @@ class RuleEnricher:
                 "rule_high_pps": float(rf_high_pps[i]),
                 "rule_high_volume": float(rf_high_vol[i]),
                 "rule_asymmetric": float(rf_asym[i]),
-                "rule_reason_count": reason_count,
+                "rule_reason_count": float(len(reasons)),
             }
 
         logger.info(
