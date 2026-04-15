@@ -1,10 +1,16 @@
-# ── 虚拟环境 ─────────────────────────────────────────────────────────────────
+# 虚拟环境、公共类库
 .venv/
 venv/
 env/
+**/node_modules/
+**/.pnp
+**/.pnp.*
+**/.yarn/
+**/.pnpm-store/
+**/.npm/
 
-# ── Python 构建产物 ──────────────────────────────────────────────────────────
-__pycache__/
+# Python编译中间文件
+**/__pycache__/
 *.py[cod]
 *$py.class
 *.so
@@ -16,35 +22,53 @@ build/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.hypothesis/
 htmlcov/
 .coverage
 .coverage.*
 
-# ── 数据库与运行时数据 ──────────────────────────────────────────────────────
-backend/data/nettwin.db
+# 前端编译中间文件
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/.turbo/
+frontend/coverage/
+frontend/.vercel/
+*.tsbuildinfo
+next-env.d.ts
+
+# 训练产物
+backend/runs/
+backend/models/ablation_results/*.csv
+backend/models/ablation_results/confusion_matrices/
+
+# 数据集与运行时数据
 backend/data/
 *.db
 *.db-shm
 *.db-wal
+*.log
+*.tmp
 
-# ── Docker 内部缓存 ─────────────────────────────────────────────────────────
+# 环境变量
+.env
+.env.*
+!*.env.example
+frontend/.env.local
+infra/.env
+
+# Docker缓存
 .docker-config/
 .docker/
 
-# ── 环境变量与密钥 ──────────────────────────────────────────────────────────
-.env
-.env.local
-.env.*.local
-infra/.env
-
-# ── 编辑器与操作系统 ────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
 .vscode/settings.json
+.idea/
 *.swp
 *.swo
 
-# ── 二进制文件 ─────────────────────────────────────────────────────────────
+# 抓包样本
 *.pcap
 *.gz
 *.zip
@@ -57,19 +81,21 @@ Thumbs.db
 *.dll
 *.dylib
 
-
-# ── 测试文件与测试缓存 ───────────────────────────────────────────────────
+# 测试代码
 backend/tests/
 backend/app/tests/
-backend/.hypothesis/
 frontend/src/__tests__/
-frontend/coverage/
-frontend/src/components/dashboard/__tests__
-dashboard_add
+frontend/src/components/dashboard/__tests__/
+dashboard_add/
 
 
-# ── 其他 ───────────────────────────────────────────────────
 *.png
-大数据赛道准备模板.md
-项目介绍.md
-研究报告.md
+/大数据赛道准备模板.md
+/项目介绍.md
+/研究报告.md
+
+# 模型文件
+!backend/models/*.joblib
+!backend/models/*.meta.json
+!backend/models/evaluation_report.json
+!backend/models/ablation_results/ablation_report.json
